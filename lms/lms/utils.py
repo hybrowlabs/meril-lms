@@ -976,31 +976,8 @@ def change_currency(amount, currency, country=None):
 	amount, currency = check_multicurrency(amount, currency, country)
 	return fmt_money(amount, 0, currency)
 
-# @frappe.whitelist(allow_guest=False)
-# def get_filtered_courses():
-#     user = frappe.get_doc("User", frappe.session.user)
-#     print("user", user)
-#     print("End user")
-#     roles = set(frappe.get_roles(user.name))
-#     country = user.country 
-#     # Admin can see everything
-#     if "Administrator" in roles:
-#         return get_courses()
-	
-#     if country == None:
-#         return []
-			
 
-#     # Other roles: only courses in their country
-#     if roles & {"Employee", "Distributor"}:
-#         filters = {"custom_country": country}
-#         return get_courses(filters=filters)
-
-#     # Fallback: no courses
-#     return []
-
-
-@frappe.whitelist(allow_guest=False)
+@frappe.whitelist(allow_guest=True)
 def get_courses(filters=None, start=0, page_length=20):
 	"""Returns the list of courses."""
 
@@ -1024,7 +1001,6 @@ def get_courses(filters=None, start=0, page_length=20):
 
 	courses = get_enrollment_details(courses)
 	courses = get_course_card_details(courses)
-	
 	return courses
 
 
@@ -1138,7 +1114,6 @@ def get_course_fields():
 		"lessons",
 		"enrollments",
 		"rating",
-		"custom_country"
 	]
 
 
