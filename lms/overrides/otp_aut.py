@@ -194,6 +194,11 @@ def get_user_status():
     if user == "Guest":
         return {"status": "error", "message": "Please log in to check status"}
 
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+    if "System Manager" in roles or "Administrator" in roles:
+        return {"status": "unlocked", "message": "User is unlocked."}
+
     email = frappe.db.get_value("User", user, "email")
     if not email:
         return {"status": "error", "message": "Email not found"}

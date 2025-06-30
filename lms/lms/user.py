@@ -64,7 +64,7 @@ def create_user_from_employee(self, method=None):
 				# Update self in the database
 				frappe.sendmail(
 					recipients=[self.company_email],	
-					sender='noreply@merlinlms.com',
+					sender='noreply@merilms.com',
 					subject='Test Email',	
 					message=f'<p>Hello {self.first_name} from meril lms for your email {self.company_email} your password is : {new_password} </p>'
 				)

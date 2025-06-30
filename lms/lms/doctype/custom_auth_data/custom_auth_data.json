@@ -21,9 +21,8 @@
   "otp_attempts_remaining",
   "column_break_dycl",
   "email",
-  "is_verified"
-  "session_section",
-  
+  "is_verified",
+  "session_section"
  ],
  "fields": [
   {
@@ -109,7 +108,7 @@
    "fieldname": "session_section",
    "fieldtype": "Section Break",
    "label": "Session"
-  },
+  }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,

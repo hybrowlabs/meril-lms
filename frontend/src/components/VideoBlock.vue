@@ -71,8 +71,8 @@
 						min="0"
 						:max="duration"
 						step="0.1"
-						v-model="currentTime"
-						@input="changeCurrentTime"
+						:value="currentTime"		
+						:disabled="true"
 						class="duration-slider h-1"
 					/>
 					<!-- QUIZ MARKERS -->

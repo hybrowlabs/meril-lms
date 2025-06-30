@@ -1137,8 +1137,7 @@ def get_course_fields():
 		"enable_certification",
 		"lessons",
 		"enrollments",
-		"rating",
-		"custom_country"
+		"rating"
 	]
 
 
