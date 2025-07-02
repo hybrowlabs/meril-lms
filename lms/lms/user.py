@@ -34,7 +34,7 @@ def generate_and_save_otp():
 def create_user_from_employee(self, method=None):
 	full_name = self.first_name + " " + self.last_name if self.last_name else self.first_name
 	email = self.company_email 
-	country = self.country 
+	country = self.custom_country 
 
 	print( "email", email, "country", country)
 	# Check if user already exists

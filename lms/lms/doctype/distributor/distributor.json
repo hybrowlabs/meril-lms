@@ -13,19 +13,17 @@
   "distributor_company_name",
   "section_break_vifn",
   "rsm__state_head",
-  "meril_company_name",
   "column_break_yezz",
-  "division",
   "bu__fd_head",
+  "section_break_lbjn",
+  "table_rqqp",
   "section_break_edqt",
   "city",
   "state",
   "country",
   "column_break_boqd",
   "region",
-  "distributor_company_address",
-  "signup_settings_tab",
-  "distributor_edited_fields_once"
+  "distributor_company_address"
  ],
  "fields": [
   {
@@ -74,18 +72,8 @@
    "label": "RSM / State Head"
   },
   {
-   "fieldname": "meril_company_name",
-   "fieldtype": "Data",
-   "label": "Meril Company Name"
-  },
-  {
    "fieldname": "column_break_yezz",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "division",
-   "fieldtype": "Data",
-   "label": "Division"
   },
   {
    "fieldname": "bu__fd_head",
@@ -127,22 +115,19 @@
    "options": "Country"
   },
   {
-   "fieldname": "signup_settings_tab",
-   "fieldtype": "Tab Break",
-   "label": "signup settings"
+   "fieldname": "section_break_lbjn",
+   "fieldtype": "Section Break"
   },
   {
-   "default": "False",
-   "fieldname": "distributor_edited_fields_once",
-   "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Distributor edited fields once"
+   "fieldname": "table_rqqp",
+   "fieldtype": "Table",
+   "options": "Meril Distributor Division Child"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-26 11:46:08.376057",
+ "modified": "2025-07-02 11:53:10.056500",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",

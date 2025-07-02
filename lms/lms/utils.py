@@ -1010,7 +1010,7 @@ def get_courses(filters=None, start=0, page_length=20):
 	filters, or_filters, show_featured = update_course_filters(filters)
 	fields = get_course_fields()
 
-	courses = frappe.get_all(
+	courses = frappe.get_list(
 		"LMS Course",
 		filters=filters,
 		fields=fields,
