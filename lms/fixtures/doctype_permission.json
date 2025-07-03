@@ -1,0 +1,98 @@
+[
+ {
+  "amended_from": null,
+  "conditions": [],
+  "description": null,
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-07-02 12:07:46.544986",
+  "name": "Courses",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "Courses"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Country Permission",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "LMS Student",
+    "script": "user_country = frappe.db.get_value('User', user, 'country')\nconditions = f\"custom_country = '{user_country}'\" if user_country else 'false'"
+   }
+  ],
+  "description": "Restrict access to LMS Courses to users whose country matches the course's country.",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-07-02 12:34:51.956108",
+  "name": "LMS Course Country Permission",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "LMS Course Country Permission"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Admin Full Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Administrator",
+    "script": "conditions = 'true'"
+   }
+  ],
+  "description": "Allow Administrator to see all LMS Courses.",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-07-02 12:51:01.310354",
+  "name": "LMS Course Admin Full Access",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "LMS Course Admin Full Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Employee Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Employee",
+    "script": "user_roles = [d.role for d in frappe.db.get_all('Has Role', filters={'parent': user}, fields=['role'])]\nconditions = \"custom_assigned_to_role = 'Employee'\" if 'Employee' in user_roles else 'false'"
+   }
+  ],
+  "description": "Allow Employees to access only courses assigned to Employee role.",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-07-02 13:12:07.546204",
+  "name": "LMS Course Employee Access",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "LMS Course Employee Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Distributor Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Distributor",
+    "script": "user_roles = [d.role for d in frappe.db.get_all('Has Role', filters={'parent': user}, fields=['role'])]\nconditions = \"custom_assigned_to_role = 'Distributor'\" if 'Distributor' in user_roles else 'false'"
+   }
+  ],
+  "description": "Allow Distributors to access only courses assigned to Distributor role.",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-07-02 13:12:07.875857",
+  "name": "LMS Course Distributor Access",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "LMS Course Distributor Access"
+ }
+]
