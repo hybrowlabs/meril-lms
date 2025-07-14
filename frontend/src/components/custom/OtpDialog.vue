@@ -60,7 +60,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { call, TextInput, Button , Spinner } from "frappe-ui";
+import { call, TextInput, Button , Spinner, toast } from "frappe-ui";
 
 const showOtpDialog = ref(false)
 const emailOtp = ref('')
@@ -89,12 +89,13 @@ async function getUnlockedStatus() {
       return;
     }
     if (res.status === "error") {
+      sendOtp();
       console.error("Error fetching user status:", res.message);
-      alert(`Error: ${res.message || "Failed to fetch user status. Please refresh the page again."}`);
+      toast.error(res.message || "Failed to fetch user status. Please refresh the page again.");
     }
   } catch (error) {
     console.error("Error fetching user status:", error);
-    alert("Failed to fetch user status. Please try again after few seconds.");
+    toast.error("Failed to fetch user status. Please try again after few seconds.");
   }
 }
 
@@ -103,13 +104,14 @@ async function sendOtp() {
     loading.value = true;
     const res = await call("lms.overrides.otp_aut.send_email_otp");
     if (res.status === "success" || res.status === "resent" || res.status === "new") {
-      alert("OTP sent successfully!");
+      toast.success("OTP sent successfully!");
+
     } else if (res.status === "error") {
-      alert(res.message || "Failed to send OTP. Please try again.");
+      toast.error(res.message || "Failed to send OTP. Please try again.");
     }
   } catch (error) {
     console.error("Error sending OTP:", error);
-    alert("Failed to send OTP. Please try again later.");
+    toast.error("Failed to send OTP. Please try again later.");
   }finally{
     loading.value = false;
   }
@@ -133,14 +135,14 @@ async function submitOtp() {
       otp1: mobileOtp.value
     });
     if (res.status === "success") {
-      alert("OTP verified successfully!");
+      toast.success("OTP verified successfully!");
       showOtpDialog.value = false;
     } else if (res.status === "error") {
-      alert(res.message || "Failed to verify OTP. Please try again.");
+      toast.error(res.message || "Failed to verify OTP. Please try again.");
     }
   } catch (error) {
     console.error("Error verifying OTP:", error);
-    alert("Failed to verify OTP. Please try again later.");
+    toast.error("Failed to verify OTP. Please try again later.");
   }finally{
     loading.value = false;
   }

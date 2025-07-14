@@ -1314,6 +1314,7 @@ def get_lesson(course, chapter, lesson):
 		lesson_name,
 		[
 			"name",
+			"duration",
 			"title",
 			"include_in_preview",
 			"body",

@@ -23,6 +23,14 @@
 							:required="true"
 						/>
 						<FormControl
+							v-model="lesson.duration"
+							label="Duration (minutes)"
+							class="mb-4"
+							type="number"
+							min="0"
+							:required="true"
+						/>
+						<FormControl
 							v-model="lesson.include_in_preview"
 							type="checkbox"
 							label="Include in Preview"
@@ -152,6 +160,7 @@ const renderEditor = (holder) => {
 
 const lesson = reactive({
 	title: '',
+	duration: 0,
 	include_in_preview: false,
 	body: '',
 	instructor_notes: '',

@@ -16,6 +16,23 @@
                 <label for="input-meril_company_name">Meril Company Name</label>
                 <input type="text" class="form-control" id="input-meril_company_name" name="meril_company_name" value="{{ frappe.session.user_doc.meril_company_name or '' }}">
             </div>
+            <div class="form-group col-12">
+                <label>Meril Company Table</label>
+                <div id="meril-company-table-container">
+                    <table class="table table-bordered" id="meril-company-table">
+                        <thead>
+                            <tr>
+                                <th>Division</th>
+                                <th>Meril Company Name</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="meril-company-table-body">
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="addMerilCompanyRow()">Add Row</button>
+                </div>
+            </div>
             <div class="form-group col-md-6">
                 <label for="input-bu_fd_head">BU/FD Head</label>
                 <input type="text" class="form-control" id="input-bu_fd_head" name="bu_fd_head" value="{{ frappe.session.user_doc.bu_fd_head or '' }}">
@@ -40,6 +57,7 @@
                 <label for="input-distributor_code">Distributor Code</label>
                 <input type="text" class="form-control" id="input-distributor_code" name="distributor_code" value="{{ frappe.session.user_doc.distributor_code or '' }}">
             </div>
+
             <div class="form-group col-md-6">
                 <label for="input-distributor_company_name">Distributor Company Name</label>
                 <input type="text" class="form-control" id="input-distributor_company_name" name="distributor_company_name" value="{{ frappe.session.user_doc.distributor_company_name or '' }}">
@@ -56,9 +74,6 @@
                 <label for="input-distributor_contact">Distributor Contact</label>
                 <input type="text" class="form-control" id="input-distributor_contact" name="distributor_contact" value="{{ frappe.session.user_doc.distributor_contact or '' }}">
             </div>
-            <div class="form-group col-12">
-                <button type="submit" class="btn btn-primary btn-block w-100 mt-3 mx-auto">Save</button>
-            </div>
             <div class="form-group col-md-6">
                 <label for="input-attendee_name">Attendee Name</label>
                 <input type="text" class="form-control" id="input-attendee_name" name="attendee_name" value="{{ frappe.session.user_doc.attendee_name or '' }}">
@@ -66,6 +81,9 @@
             <div class="form-group col-md-6">
                 <label for="input-designation">Designation</label>
                 <input type="text" class="form-control" id="input-designation" name="designation" value="{{ frappe.session.user_doc.designation or '' }}">
+            </div>
+            <div class="form-group col-12">
+                <button type="submit" class="btn btn-primary btn-block w-100 mt-3 mx-auto">Save</button>
             </div>
         </div>
     </form>
@@ -137,13 +155,48 @@
         data.atendee_name = $('#input-atendee_name').val();
         data.designation = $('#input-designation').val();
 
+        // Get child table data
+        data.meril_company_table = getMerilCompanyTableData();
+
         return data;
     }
+
+    function getMerilCompanyTableData() {
+        const tableData = [];
+        $('#meril-company-table-body tr').each(function() {
+            const division = $(this).find('.division-input').val();
+            const merilCompanyName = $(this).find('.meril-company-input').val();
+            if (division || merilCompanyName) {
+                tableData.push({
+                    division: division,
+                    meril_company_name: merilCompanyName
+                });
+            }
+        });
+        return tableData;
+    }
+
+    function addMerilCompanyRow(division = '', meril_company_name = '') {
+        const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
+        const newRow = `
+            <tr id="${rowId}">
+                <td><input type="text" class="form-control division-input" value="${division}" placeholder="Division"></td>
+                <td><input type="text" class="form-control meril-company-input" value="${meril_company_name}" placeholder="Meril Company Name"></td>
+                <td><button type="button" class="btn btn-sm btn-danger" onclick="removeMerilCompanyRow('${rowId}')">Remove</button></td>
+            </tr>
+        `;
+        $('#meril-company-table-body').append(newRow);
+    }
+
+    function removeMerilCompanyRow(rowId) {
+        $('#' + rowId).remove();
+    }
+
     function fill_distributor_profile(data) {
         $('#input-division').val(data.division || '');
         $('#input-meril_company_name').val(data.meril_company_name || '');
         $('#input-bu_fd_head').val(data.bu__fd_head || '');
-        $('#input-rsm_state_head').val(data.rsm__state_head || '');
+        $('#input-rsm_state_head').val(data.rsm_state_head || '');
         $('#input-region').val(data.region || '');
         $('#input-state').val(data.state || '');
         $('#input-city').val(data.city || '');
@@ -154,6 +207,14 @@
         $('#input-distributor_contact').val(data.distributor_contact_number || '');
         $('#input-atendee_name').val(data.atendee_name || '');
         $('#input-designation').val(data.designation || '');
+
+        // Fill child table data
+        $('#meril-company-table-body').empty();
+        if (data.meril_company_table && Array.isArray(data.meril_company_table)) {
+            data.meril_company_table.forEach(function(item) {
+                addMerilCompanyRow(item.division || '', item.meril_company_name || '');
+            });
+        }
     }
         
     </script>

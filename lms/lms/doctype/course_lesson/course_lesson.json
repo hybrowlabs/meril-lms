@@ -10,6 +10,7 @@
  "field_order": [
   "title",
   "include_in_preview",
+  "duration",
   "column_break_4",
   "chapter",
   "is_scorm_package",
@@ -157,11 +158,16 @@
    "fieldtype": "Check",
    "label": "Is SCORM Package",
    "read_only": 1
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "duration (minutes)"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-04-10 15:19:22.400932",
+ "modified": "2025-07-07 14:23:24.583683",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Course Lesson",

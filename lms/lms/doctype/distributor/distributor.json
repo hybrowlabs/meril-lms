@@ -5,18 +5,20 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "account__distributor_code",
-  "distributor_email_address",
+  "atendee_name",
+  "designation",
   "user_id",
+  "distributor_email_address",
   "column_break_ytyi",
   "distributor_contact_number",
   "distributor_company_name",
+  "account__distributor_code",
   "section_break_vifn",
   "rsm__state_head",
   "column_break_yezz",
   "bu__fd_head",
   "section_break_lbjn",
-  "table_rqqp",
+  "meril_company_table",
   "section_break_edqt",
   "city",
   "state",
@@ -119,15 +121,26 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "table_rqqp",
+   "fieldname": "meril_company_table",
    "fieldtype": "Table",
+   "label": "Meril Company Table",
    "options": "Meril Distributor Division Child"
+  },
+  {
+   "fieldname": "atendee_name",
+   "fieldtype": "Data",
+   "label": "Atendee Name"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "label": "Designation"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-02 11:53:10.056500",
+ "modified": "2025-07-04 10:55:08.553004",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",

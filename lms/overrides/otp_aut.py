@@ -92,7 +92,7 @@ def verify_email_otp(otp=None, otp1=None):
         return {"status": "error", "message": "OTP expired or invalid"}
 
 
-# @frappe.whitelist(allow_guest=False)
+@frappe.whitelist(allow_guest=False)
 def send_email_otp():
     user = frappe.session.user
     if user == "Guest":
@@ -188,6 +188,154 @@ def send_email_otp():
     return {"status": "new", "message": "New OTPs sent"}
 
 
+# @frappe.whitelist(allow_guest=False)
+# def send_mobile_otp():
+#     user = frappe.session.user
+#     if user == "Guest":
+#         return {"status": "error", "message": "Please log in to send OTP"}
+
+#     mobile = frappe.db.get_value("User", user, "mobile_no")
+#     email = frappe.db.get_value("User", user, "email")
+
+#     if not mobile:
+#         return {"status": "error", "message": "User mobile not found"}
+    
+#     if not email:
+#         return {"status": "error", "message": "User email not found"}
+
+#     now = now_datetime()
+
+#     latest_doc = frappe.get_all("Custom Auth Data", filters={
+#         "user": user,
+#         "mobile": mobile,
+#         "is_verified": 0,
+#         "is_expired": 0
+#     }, fields=[
+#         "name", "mobile_otp", "mobile_otp_expiry_datetime", "email_otp"
+#     ], order_by="creation desc", limit=1)
+
+#     mobile_otp = str(random.randint(100000, 999999))
+#     email_otp = latest_doc[0].email_otp
+
+#     if latest_doc:
+#         otp_info = latest_doc[0]
+#         mobile_expired = otp_info.mobile_otp_expiry_datetime and now > otp_info.mobile_otp_expiry_datetime
+
+#         if mobile_expired:
+#             old_doc = frappe.get_doc("Custom Auth Data", otp_info.name)
+#             old_doc.is_expired = 1
+#             old_doc.save(ignore_permissions=True)
+
+#             new_doc = frappe.get_doc({  
+#                 "doctype": "Custom Auth Data",
+#                 "mobile": mobile,
+#                 "mobile_otp": mobile_otp,
+#                 "mobile_otp_expiry_datetime": now + timedelta(minutes=15),
+#                 "email": email,
+#                 "email_otp": email_otp, 
+#                 "email_otp_expiry_datetime": now + timedelta(minutes=15),
+#                 "otp_attempts_remaining": 3,
+#                 "is_verified": 0,
+#                 "is_expired": 0,
+#                 "user": user
+#             })
+#             new_doc.insert(ignore_permissions=True)
+
+#             #send mobile otp to email for now
+#             frappe.sendmail(
+#                 recipients=[email],
+#                 subject="Your Mobile OTP Code",
+#                 message=f"Your Mobile OTP is <b>{mobile_otp}</b>. It will expire in 15 minutes.",
+#                 now=True
+#             )
+
+#             return {"status": "new", "message": "New Mobile OTP sent"}
+#         else 
+#             frappe.sendmail(
+#                 recipients=[email],
+#                 subject="Your Mobile OTP Code",
+#                 message=f"Your Mobile OTP is <b>{latest_doc[0].mobile_otp}</b>. It will expire in 15 minutes.",
+#                 now=True
+#             )
+#             return {"status": "resend", "message": "Resend Mobile OTP"}
+#     else:
+#         return {"status": "error", "message": "No verification data found"}
+
+
+# @frappe.whitelist(allow_guest=False)
+# def send_otp_to_email():
+#     user = frappe.session.user
+#     if user == "Guest":
+#         return {"status": "error", "message": "Please log in to send OTP"}
+
+#     mobile = frappe.db.get_value("User", user, "mobile_no")
+#     email = frappe.db.get_value("User", user, "email")
+
+#     if not mobile:
+#         return {"status": "error", "message": "User mobile not found"}
+    
+#     if not email:
+#         return {"status": "error", "message": "User email not found"}
+
+#     now = now_datetime()
+
+#     latest_doc = frappe.get_all("Custom Auth Data", filters={
+#         "user": user,
+#         "mobile": mobile,
+#         "is_verified": 0,
+#         "is_expired": 0
+#     }, fields=[
+#         "name", "mobile_otp", "mobile_otp_expiry_datetime", "email_otp", "email_otp_expiry_datetime"
+#     ], order_by="creation desc", limit=1)
+
+#     mobile_otp = latest_doc[0].mobile_otp
+#     email_otp = str(random.randint(100000, 999999))
+
+#     if latest_doc:
+#         otp_info = latest_doc[0]
+#         email_expired = otp_info.email_otp_expiry_datetime and now > otp_info.email_otp_expiry_datetime
+
+#         if email_expired:
+#             old_doc = frappe.get_doc("Custom Auth Data", otp_info.name)
+#             old_doc.is_expired = 1
+#             old_doc.save(ignore_permissions=True)
+
+#             new_doc = frappe.get_doc({  
+#                     "doctype": "Custom Auth Data",
+#                     "mobile": mobile,
+#                     "mobile_otp": mobile_otp,
+#                     "mobile_otp_expiry_datetime": now + timedelta(minutes=15),
+#                     "email": email,
+#                     "email_otp": email_otp, 
+#                     "email_otp_expiry_datetime": now + timedelta(minutes=15),
+#                     "otp_attempts_remaining": 3,
+#                     "is_verified": 0,
+#                     "is_expired": 0,
+#                 "user": user
+#             })
+#             new_doc.insert(ignore_permissions=True)
+
+#             #send mobile otp to email for now
+#             frappe.sendmail(
+#                 recipients=[email],
+#                 subject="Your Email OTP Code",
+#                 message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
+#                 now=True
+#             )
+
+#             return {"status": "new", "message": "New Email OTP sent"}
+#         else 
+#             frappe.sendmail(
+#                 recipients=[email],
+#                 subject="Your Email OTP Code",
+#                 message=f"Your Email OTP is <b>{latest_doc[0].email_otp}</b>. It will expire in 15 minutes.",
+#                 now=True
+#             )
+#             return {"status": "resend", "message": "Resend Email OTP"}
+#     else:
+#         return {"status": "error", "message": "No verification data found"}
+
+
 @frappe.whitelist(allow_guest=False)
 def get_user_status():
     user = frappe.session.user
@@ -229,13 +377,11 @@ def get_user_status():
 @frappe.whitelist(allow_guest=False)
 def should_user_redirect():
     user = frappe.session.user
-    try:
-        distributor_edited_fields_once = frappe.get_value("Distributor", {"user_id": frappe.session.user}, ["distributor_edited_fields_once"])
-        print("distributor_edited_fields_once", distributor_edited_fields_once)
-        if distributor_edited_fields_once==0:
-            return {"status": "redirect", "message": "User is a distributor. Redirecting to distributor profile."}
-        else:
-            return {"status": "no_redirect", "message": "User is not a distributor."}
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "should_user_redirect error")
+    user_doc = frappe.get_all("User", filters={"name": user}, fields=["has_updated_own_fields_once"])
+    is_distributor = frappe.db.exists("Distributor", {"user_id": user})
+    if user_doc[0].has_updated_own_fields_once == 0 and is_distributor:
+        return {"status": "redirect", "message": "User is a distributor. Redirecting to distributor profile."}
+    else:
         return {"status": "no_redirect", "message": "User is not a distributor."}
+
+documents_list = ["Distributor Self Declaration", "Meril Distributor Compliance Code of Conduct", "Meril Distributor Compliance Policy Adoption Form"]

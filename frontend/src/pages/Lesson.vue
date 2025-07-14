@@ -93,7 +93,6 @@
 								</div>
 							</div>
 						</div>
-
 						<div class="flex items-center space-x-2 mt-2 md:mt-0">
 							<Button v-if="zenModeEnabled" @click="showDiscussionsInZenMode()">
 								<template #icon>
@@ -341,6 +340,7 @@ onMounted(() => {
 			lessonProgress.value = data.progress
 		}
 	})
+	console.log(lesson.data)
 })
 
 const attachFullscreenEvent = () => {
@@ -477,15 +477,29 @@ watch(
 watch(
 	() => lesson.data,
 	(data) => {
-		setupLesson(data)
-		enablePlyr()
+		if (data) {
+			console.log('Lesson loaded:', data)
+			setupLesson(data)
+			enablePlyr()
+			startTimer()
+		}
 	}
 )
 
 const startTimer = () => {
+	// Clear any previous timer
+	clearInterval(timerInterval)
+	timer.value = 0
+
+	// Validate duration
+	const durationMinutes = Number(lesson.data?.duration)
+	const durationSeconds = (isNaN(durationMinutes) || durationMinutes <= 0)
+		? 30 // fallback to 30 seconds if invalid
+		: durationMinutes * 60
+
 	timerInterval = setInterval(() => {
 		timer.value++
-		if (timer.value == 30) {
+		if (timer.value >= durationSeconds) {
 			clearInterval(timerInterval)
 			markProgress()
 		}

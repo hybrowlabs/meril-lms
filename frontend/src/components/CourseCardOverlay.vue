@@ -1,6 +1,6 @@
 <template>
 	<div class="border-2 rounded-md min-w-80">
-		<DocumentDownloadModal :show="showDocumentDownloadModal" @close="showDocumentDownloadModal = false" />
+		<DocumentDownloadModal :show="showDocumentDownloadModal" :course="course.data.name" :showDownloadForm="showDownloadForm" :showFormModal="showFormModal" @close="showDocumentDownloadModal = false" />
 		<iframe
 			v-if="course.data.video_link"
 			:src="video_link"
@@ -70,7 +70,7 @@
 				</Button>
 				<Button
 					v-if="canGetCertificate"
-					@click="showDocumentDownloadModal = true"
+					@click="handleGetDocuments"
 					variant="subtle"
 					class="w-full mt-2"
 					size="md"
@@ -159,6 +159,8 @@ const router = useRouter()
 const user = inject('$user')
 const readOnlyMode = window.read_only_mode
 const showDocumentDownloadModal = ref(false)
+const showDownloadForm = ref(false)
+const showFormModal = ref(false)
 
 const props = defineProps({
 	course: {
@@ -249,5 +251,23 @@ const fetchCertificate = () => {
 		course: props.course.data?.name,
 		member: user.data?.name,
 	})
+}
+
+async function handleGetDocuments() {
+	try {
+		const res = await call('lms.overrides.documents.has_user_submited_document', { course: props.course.data.name })
+		if (res.message === true) {
+			showDownloadForm.value = true
+			showFormModal.value = false
+		} else {
+			showDownloadForm.value = false
+			showFormModal.value = true
+		}
+		showDocumentDownloadModal.value = true
+	} catch (e) {
+		showDownloadForm.value = false
+		showFormModal.value = true
+		showDocumentDownloadModal.value = true
+	}
 }
 </script>

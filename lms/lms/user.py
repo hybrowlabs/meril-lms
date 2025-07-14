@@ -59,7 +59,8 @@ def create_user_from_employee(self, method=None):
 						"send_welcome_email": 0,
 					}
 					).insert(ignore_permissions=True).email
-			
+
+				self.db_set("user_id", self.user_id)
 				update_password(email, new_password)
 				
 				# Update self in the database
@@ -132,87 +133,6 @@ def create_user_from_distributor(self, method=None):
         frappe.throw(_("An error occurred during distributor creation: {0}").format(str(e)))
 
 
-@frappe.whitelist(allow_guest=False)
-def get_unlocked_status():
-	frappe.session.user
-
-@frappe.whitelist(allow_guest=False)
-def send_otp(category=None):
-    """
-    Sends OTPs to the currently logged-in user's email and/or mobile number.
-    """
-    user = frappe.session.user
-
-    # Fetch the User documen
-    user_doc = frappe.get_doc("User", user)
-
-    # Pull email and mobile off the User doc
-    email = user_doc.email or None
-    mobile = user_doc.get("mobile_no") or user_doc.get("mobile") or None
-
-    if not email and not mobile:
-        return {"success": False, "error": "No email or mobile number found on your user profile."}
-
-    response = {"success": True, "messages": []}
-
-    # Generate OTPs
-    email_otp = generate_and_save_otp(email) if email else None
-    mobile_otp = generate_and_save_otp(email) if mobile else None
-
-    # Send Email OTP
-    if email:
-        try:
-            frappe.utils.validate_email_address(email, throw=True)
-            frappe.sendmail(
-                recipients=[email],
-                sender='noreply@merlinlms.com',
-                subject='Your Merlin LMS OTP',
-                message=f'<p>Hello {user_doc.full_name or user}, your email OTP is: <b>{email_otp} your mobbile otp is {mobile_otp} </b></p>'
-            )
-            response["messages"].append(f"Email OTP sent to {email}")
-        except Exception as e:
-            return {"success": False, "error": f"Failed to send email OTP: {e}"}
-
-    # Send Mobile OTP (simulate SMS sending)
-    # if mobile:
-    #     try:
-    #         # TODO: replace print with your SMS gateway integration
-    #         print(f"SMS OTP to {mobile}: {mobile_otp}")
-    #         response["messages"].append(f"SMS OTP sent to {mobile}")
-    #     except Exception as e:
-    #         return {"success": False, "error": f"Failed to send SMS OTP: {e}"}
-
-    return response
-
-
-@frappe.whitelist(allow_guest=True)
-def validate_otp(email, otp):
-	if not email or not otp:
-		frappe.throw(_("Email and OTP are required"), _("Validation Error"))
-
-	# Here you would typically validate the OTP against a stored value
-	# For demonstration, we assume the OTP is always valid
-	if otp == "123456":
-		return {"message": _("OTP is valid"), "data": distributor_details, "success": True }
-	else:
-		return {"message": _("Invalid OTP"), "success": False}
-
-# Dummy distributor details object
-distributor_details = {
-    "division": "Diagnostics",
-    "meril_company_name": "Meril Life Sciences",
-    "bu_fd_head": "John Doe",
-    "rsm_state_head": "Jane Smith",
-    "region": "West",
-    "state": "Maharashtra",
-    "city": "Mumbai",
-    "distributor_code": "D12345",
-    "distributor_company_name": "ABC Distributors",
-    "distributor_email": "abc@distributor.com",
-    "distributor_address": "123, Main Street, Mumbai",
-    "distributor_contact": "9876543210"
-}
-
 
 @frappe.whitelist(allow_guest=True)
 def sign_up(email, full_name, verify_terms, user_category):
@@ -278,35 +198,16 @@ def set_country_from_ip(login_manager=None, user=None):
 
 def on_login(login_manager):
 	user_id = login_manager.user
-	user_doc = frappe.get_doc("User", user_id)
-	roles = [user.role for user in user_doc.roles]
 
-	if "Distributor" in roles:
-		distributor = frappe.db.get_value(
-			"Distributor",
-			{"user_id": user_doc.email},
-			["name", "distributor_edited_fields_once"],
-			as_dict=True
-		)
-
-		print("Distributor:", distributor,"edited once", distributor.distributor_edited_fields_once)
-		if distributor:
-			if distributor.distributor_edited_fields_once == 1:
-				frappe.local.response["home_page"] = "/lms"
-			else:
-				frappe.local.response["home_page"] = "/edit-distributor-profile"
-		else:
-			frappe.log_error(f"No Distributor found for user: {user_doc.name}", "on_login")
-
-	else:
-		default_app = frappe.db.get_single_value("System Settings", "default_app")
-		if default_app == "lms":
-			frappe.local.response["home_page"] = "/lms"
+	default_app = frappe.db.get_single_value("System Settings", "default_app")
+	if default_app == "lms":
+		frappe.local.response["home_page"] = "/lms"
 
 @frappe.whitelist(allow_guest=False)
 def get_distributor_profile(user_id):
 	print("user_id", user_id)
 	fields = [ 
+		"name",
 		"division",
 		"meril_company_name",
 		"bu__fd_head",
@@ -315,13 +216,26 @@ def get_distributor_profile(user_id):
 		"state",
 		"city",
 		"account__distributor_code",
-		"distributor_company_name",
 		"distributor_email_address",
 		"distributor_company_address",
 		"distributor_contact_number",
 		"distributor_edited_fields_once",
+		"atendee_name",
+		"designation"
 	]
 	distributor = frappe.db.get_value("Distributor", {"user_id": user_id}, fields, as_dict=True)
+	
+	# Get the child table data separately
+	if distributor:
+		meril_company_table = frappe.get_all(
+			"Meril Distributor Division Child",
+			filters={"parent": distributor.name},
+			fields=["division", "meril_company_name"]
+		)
+		
+		distributor["meril_company_table"] = meril_company_table
+		
+	
 	if distributor and distributor.distributor_edited_fields_once == 1:
 		frappe.local.response["home_page"] = "/lms"
 	else:
@@ -330,28 +244,50 @@ def get_distributor_profile(user_id):
 
 @frappe.whitelist(allow_guest=False)
 def update_distributor_profile(data):
-	data = json.loads(data)
-	user_id = frappe.session.user
-	distributor = frappe.get_doc("Distributor", {"user_id": user_id})
-	if distributor and distributor.distributor_edited_fields_once == 1:
-		frappe.local.response["redirect"] = "/lms"
-		return
-	else:
-		filter_data = [
-			"division", "meril_company_name", "bu__fd_head", "rsm__state_head", "region",
-			"state", "city", "account__distributor_code", "distributor_company_name",
-			"distributor_email_address", "distributor_company_address", "distributor_contact_number"
-		]
-		filtered_data = {}
-		print("data", data)
-		for key, value in data.items():
-			if key in filter_data:
-				filtered_data[key] = value
-		filtered_data["distributor_edited_fields_once"] = 1
-		distributor.update(filtered_data)
-		distributor.save(ignore_permissions=True)
-		frappe.local.response["redirect"] = "/lms"
-	return distributor
+    data = json.loads(data)
+    user_id = frappe.session.user
+    user_doc = frappe.get_doc("User", user_id)
+    roles = [role.role for role in user_doc.roles]
+    has_updated_own_fields_once = getattr(user_doc, "has_updated_own_fields_once", 0)
+
+    distributor = frappe.get_doc("Distributor", {"user_id": user_id})
+    if "Distributor" in roles and has_updated_own_fields_once == 1:
+        frappe.local.response["redirect"] = "/lms"
+        return
+    elif distributor and has_updated_own_fields_once == 1:
+        frappe.local.response["redirect"] = "/lms"
+        return
+    else:
+        filter_data = [
+            "division", "meril_company_name", "bu__fd_head", "rsm__state_head", "region",
+            "state", "city", "account__distributor_code", "distributor_company_name",
+            "distributor_email_address", "distributor_company_address", "distributor_contact_number", "atendee_name", "designation"
+        ]
+        filtered_data = {}
+        print("data", data)
+        for key, value in data.items():
+            if key in filter_data:
+                filtered_data[key] = value
+        distributor.update(filtered_data)
+        
+        # Handle child table data if provided
+        if "meril_company_table" in data and data["meril_company_table"]:
+            # Clear existing child table entries
+            distributor.meril_company_table = []
+            
+            # Add new child table entries
+            for item in data["meril_company_table"]:
+                distributor.append("meril_company_table", {
+                    "division": item.get("division"),
+                    "meril_company_name": item.get("meril_company_name")
+                })
+        
+        distributor.save(ignore_permissions=True)
+        # Also update the user field
+        user_doc.has_updated_own_fields_once = 1
+        user_doc.save(ignore_permissions=True)
+        frappe.local.response["redirect"] = "/lms"
+    return distributor
 
 
 
