@@ -1,5 +1,6 @@
 <template>
 	<div class="border-2 rounded-md min-w-80">
+		<DocumentDownloadModal :show="showDocumentDownloadModal" @close="showDocumentDownloadModal = false" />
 		<iframe
 			v-if="course.data.video_link"
 			:src="video_link"
@@ -69,12 +70,12 @@
 				</Button>
 				<Button
 					v-if="canGetCertificate"
-					@click="fetchCertificate()"
+					@click="showDocumentDownloadModal = true"
 					variant="subtle"
 					class="w-full mt-2"
 					size="md"
 				>
-					{{ __('Get Certificate') }}
+					{{ __('Get Documents') }}
 				</Button>
 				<router-link
 					v-if="user?.data?.is_moderator || is_instructor()"
@@ -151,10 +152,13 @@ import { formatAmount } from '@/utils/'
 import { capture } from '@/telemetry'
 import { useRouter } from 'vue-router'
 import CertificationLinks from '@/components/CertificationLinks.vue'
+import DocumentDownloadModal from '@/components/custom/DocumentDownloadModal.vue'
+import { ref } from 'vue'
 
 const router = useRouter()
 const user = inject('$user')
 const readOnlyMode = window.read_only_mode
+const showDocumentDownloadModal = ref(false)
 
 const props = defineProps({
 	course: {

@@ -92,7 +92,7 @@ def verify_email_otp(otp=None, otp1=None):
         return {"status": "error", "message": "OTP expired or invalid"}
 
 
-@frappe.whitelist(allow_guest=False)
+# @frappe.whitelist(allow_guest=False)
 def send_email_otp():
     user = frappe.session.user
     if user == "Guest":
@@ -224,3 +224,18 @@ def get_user_status():
     except Exception as e:
         frappe.log_error(frappe.get_traceback(), "get_user_status error")
         return {"status": "error", "message": str(e)}
+
+
+@frappe.whitelist(allow_guest=False)
+def should_user_redirect():
+    user = frappe.session.user
+    try:
+        distributor_edited_fields_once = frappe.get_value("Distributor", {"user_id": frappe.session.user}, ["distributor_edited_fields_once"])
+        print("distributor_edited_fields_once", distributor_edited_fields_once)
+        if distributor_edited_fields_once==0:
+            return {"status": "redirect", "message": "User is a distributor. Redirecting to distributor profile."}
+        else:
+            return {"status": "no_redirect", "message": "User is not a distributor."}
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "should_user_redirect error")
+        return {"status": "no_redirect", "message": "User is not a distributor."}

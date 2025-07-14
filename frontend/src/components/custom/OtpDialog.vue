@@ -1,13 +1,9 @@
 <template>
+    <Teleport to="body">
   <div v-if="showOtpDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
     <div
-      v-if="showOtpDialog"
       title="Verify Your Identity"
       class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg rounded-lg bg-white"
-      :close-on-esc="false"
-      :close-on-overlay-click="false"
-      :show-close-button="false"
-      :show-footer="false"
     >
       <form class="p-6" @submit.prevent="submitOtp">
         <p class="text-center mb-4 text-gray-700 font-medium">
@@ -59,10 +55,11 @@
       </form>
     </div>
   </div>
+</Teleport>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { call, TextInput, Button , Spinner } from "frappe-ui";
 
 const showOtpDialog = ref(false)
@@ -74,9 +71,9 @@ const errors = ref({
 })
 const loading = ref(false);
 
-window.addEventListener("load", () => {
-  getUnlockedStatus();
-})
+onMounted(() => {
+  should_user_redirect();
+});
 
 async function getUnlockedStatus() {
   try {
@@ -87,17 +84,17 @@ async function getUnlockedStatus() {
     }
     showOtpDialog.value = true;
     if (res.status === "locked") {
-      submitOtp();
+      sendOtp();
       console.log("User is locked, showing OTP dialog.");
       return;
     }
     if (res.status === "error") {
       console.error("Error fetching user status:", res.message);
-      alert(`Error: ${res.message || "Failed to fetch user status. Please refresh again."}`);
+      alert(`Error: ${res.message || "Failed to fetch user status. Please refresh the page again."}`);
     }
   } catch (error) {
     console.error("Error fetching user status:", error);
-    alert("Failed to fetch user status. Please try again later.");
+    alert("Failed to fetch user status. Please try again after few seconds.");
   }
 }
 
@@ -105,7 +102,7 @@ async function sendOtp() {
   try {
     loading.value = true;
     const res = await call("lms.overrides.otp_aut.send_email_otp");
-    if (res.status === "success") {
+    if (res.status === "success" || res.status === "resent" || res.status === "new") {
       alert("OTP sent successfully!");
     } else if (res.status === "error") {
       alert(res.message || "Failed to send OTP. Please try again.");
@@ -146,6 +143,20 @@ async function submitOtp() {
     alert("Failed to verify OTP. Please try again later.");
   }finally{
     loading.value = false;
+  }
+}
+
+const should_user_redirect = async() =>{
+  try{
+    const res = await call("lms.overrides.otp_aut.should_user_redirect", {});
+    if(res.status === "redirect"){
+      window.location.href = "/edit-distributor-profile";
+      return;
+    }
+  }catch(error){
+    console.error("Error checking if user is a distributor:", error);
+  }finally{
+    getUnlockedStatus();
   }
 }
 </script>

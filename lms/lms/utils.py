@@ -1017,7 +1017,7 @@ def get_courses(filters=None, start=0, page_length=20):
 		or_filters=or_filters,
 		order_by="enrollments desc",
 		start=start,
-		page_length=page_length,
+		page_length=page_length
 	)
 	if show_featured:
 		courses = get_featured_courses(filters, or_filters, fields) + courses

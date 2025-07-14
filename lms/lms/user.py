@@ -9,6 +9,7 @@ import random
 import string
 import frappe
 from frappe.utils.password import update_password
+import json
 
 def validate_username_duplicates(doc, method):
 	while not doc.username or doc.username_exists():
@@ -301,6 +302,56 @@ def on_login(login_manager):
 		default_app = frappe.db.get_single_value("System Settings", "default_app")
 		if default_app == "lms":
 			frappe.local.response["home_page"] = "/lms"
+
+@frappe.whitelist(allow_guest=False)
+def get_distributor_profile(user_id):
+	print("user_id", user_id)
+	fields = [ 
+		"division",
+		"meril_company_name",
+		"bu__fd_head",
+		"rsm__state_head",
+		"region",
+		"state",
+		"city",
+		"account__distributor_code",
+		"distributor_company_name",
+		"distributor_email_address",
+		"distributor_company_address",
+		"distributor_contact_number",
+		"distributor_edited_fields_once",
+	]
+	distributor = frappe.db.get_value("Distributor", {"user_id": user_id}, fields, as_dict=True)
+	if distributor and distributor.distributor_edited_fields_once == 1:
+		frappe.local.response["home_page"] = "/lms"
+	else:
+		frappe.local.response["home_page"] = "/edit-distributor-profile"
+	return distributor
+
+@frappe.whitelist(allow_guest=False)
+def update_distributor_profile(data):
+	data = json.loads(data)
+	user_id = frappe.session.user
+	distributor = frappe.get_doc("Distributor", {"user_id": user_id})
+	if distributor and distributor.distributor_edited_fields_once == 1:
+		frappe.local.response["redirect"] = "/lms"
+		return
+	else:
+		filter_data = [
+			"division", "meril_company_name", "bu__fd_head", "rsm__state_head", "region",
+			"state", "city", "account__distributor_code", "distributor_company_name",
+			"distributor_email_address", "distributor_company_address", "distributor_contact_number"
+		]
+		filtered_data = {}
+		print("data", data)
+		for key, value in data.items():
+			if key in filter_data:
+				filtered_data[key] = value
+		filtered_data["distributor_edited_fields_once"] = 1
+		distributor.update(filtered_data)
+		distributor.save(ignore_permissions=True)
+		frappe.local.response["redirect"] = "/lms"
+	return distributor
 
 
 

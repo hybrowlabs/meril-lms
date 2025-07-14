@@ -331,7 +331,7 @@ iframe {
 	appearance: none;
 	border-radius: 10px;
 	background-color: theme('colors.gray.600');
-	cursor: pointer;
+	cursor: not-allowed;
 }
 
 .duration-slider::-webkit-slider-thumb {
