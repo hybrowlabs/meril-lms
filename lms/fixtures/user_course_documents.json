@@ -1,0 +1,38 @@
+[
+ {
+  "course": "frappe-lms",
+  "docstatus": 0,
+  "doctype": "User Course Documents",
+  "modified": "2025-07-03 16:06:54.413685",
+  "name": "Administrator-frappe-lms",
+  "submited_document": 1,
+  "user": "Administrator"
+ },
+ {
+  "course": "frappe-lms-3",
+  "docstatus": 0,
+  "doctype": "User Course Documents",
+  "modified": "2025-07-14 15:03:04.336892",
+  "name": "two@yopmail.com-frappe-lms-3",
+  "submited_document": 1,
+  "user": "two@yopmail.com"
+ },
+ {
+  "course": "frappe-lms",
+  "docstatus": 0,
+  "doctype": "User Course Documents",
+  "modified": "2025-07-14 15:55:12.507942",
+  "name": "distributor@yopmail.com-frappe-lms",
+  "submited_document": 1,
+  "user": "distributor@yopmail.com"
+ },
+ {
+  "course": "frappe-lms",
+  "docstatus": 0,
+  "doctype": "User Course Documents",
+  "modified": "2025-07-15 11:02:14.650379",
+  "name": "two@yopmail.com-frappe-lms",
+  "submited_document": 1,
+  "user": "two@yopmail.com"
+ }
+]

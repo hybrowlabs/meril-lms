@@ -129,7 +129,7 @@ scheduler_events = {
 	],
 }
 
-fixtures = ["Custom Field", "Function", "Industry", "LMS Category",
+fixtures = ["Custom Field", "Function", "Industry", "LMS Category", "Role", "User Course Documents", "Print Format",
             {"doctype": "DocType Permission", "filters": [["ref_doctype", "=", "LMS Course"]]},
             ]
 

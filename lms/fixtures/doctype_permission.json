@@ -8,13 +8,13 @@
     "parenttype": "DocType Permission",
     "perm_level": "Custom Query",
     "role": "LMS Student",
-    "script": "user_roles = [d.role for d in frappe.db.get_all('Has Role', filters={'parent': user}, fields=['role'])]\nuser_country = frappe.db.get_value('User', user, 'country')\nconditions = []\n# if 'Employee' in user_roles:\n#     conditions.append(\"custom_assigned_to_role = 'Employee'\")\nif 'Distributor' in user_roles:\n    conditions.append(\"custom_assigned_to_role = 'Distributor'\")\nif user_country:\n    conditions.append(f\"custom_country = '{user_country}'\")\n\nconditions = ' and '.join(conditions) if conditions else 'false'"
+    "script": "user_country = frappe.db.get_value('User', user, 'country')\nconditions = f\"custom_country = '{user_country}'\" if user_country else 'false'"
    }
   ],
-  "description": "Restrict access to LMS Courses to users whose country matches the course's country and Distributor and Employee.",
+  "description": "Restrict access to LMS Courses to users whose country matches the course's country.",
   "docstatus": 0,
   "doctype": "DocType Permission",
-  "modified": "2025-07-03 16:37:14.408528",
+  "modified": "2025-07-03 14:12:06.312215",
   "name": "LMS Course Country Permission",
   "ref_doctype": "LMS Course",
   "testing": 1,
@@ -40,5 +40,26 @@
   "ref_doctype": "LMS Course",
   "testing": 1,
   "title": "LMS Course Admin Full Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Distributor Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Distributor",
+    "script": "conditions = \"custom_assigned_to_role = 'Distributor'\""
+   }
+  ],
+  "description": "Distributor can only access courses with assign_to_rol = Distributor",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-07-03 14:06:53.711181",
+  "name": "LMS Course Distributor Access",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "LMS Course Distributor Access"
  }
 ]

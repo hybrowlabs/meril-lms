@@ -6,7 +6,7 @@
       class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg rounded-lg bg-white"
     >
       <form class="p-6" @submit.prevent="submitOtp">
-        <p class="text-center mb-4 text-gray-700 font-medium">
+        <p class="text-center mb-4 text-gray-700 font-medium"> 
           Please Enter OTPs to continue your Training.
         </p>
         <div class="mb-4">
