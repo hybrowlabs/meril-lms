@@ -92,7 +92,7 @@ def verify_email_otp(otp=None, otp1=None):
         return {"status": "error", "message": "OTP expired or invalid"}
 
 
-@frappe.whitelist(allow_guest=False)
+# @frappe.whitelist(allow_guest=False)
 def send_email_otp():
     user = frappe.session.user
     if user == "Guest":

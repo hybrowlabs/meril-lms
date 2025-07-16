@@ -89,6 +89,8 @@
             type="date"
             id="date"
             v-model="date"
+            :value="date || new Date().toISOString().split('T')[0]"
+            disabled
             class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
             required
           />
@@ -164,14 +166,35 @@ const signatureType = ref('')
 const showError = ref(false)
 
 const name = ref('')
-const date = ref('')
+const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
 const documentsList = ref([])
 const loadingUploadForm = ref(false);
 
-const handleDownload = () => {
-  //TODO:  validate form and save download  file from server
-  alert("Downloading...")
+const handleDownload = async() => {
+  if(name.value === '' || date.value === '') {
+    toast.error("Please enter name and date")
+    return
+  }
+  try{
+    const res = await call("lms.overrides.documents.generate_dynamic_docx", {
+        name: name.value
+      });
+    console.log("res", res)
+    if(res?.success && res.file_url){
+      const a = document.createElement('a');
+      a.href = res.file_url;
+      a.download = res.file_name || `${name.value}_Compliance_Policy_Adoption_Form.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      toast.error(res?.message || "Error generating document")
+    }
+  }catch(e) {
+    console.error("Error in handleDownload", e)
+    toast.error("Error in downloading document")
+  }
 }
 
 

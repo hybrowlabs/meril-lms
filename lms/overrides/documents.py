@@ -5,6 +5,9 @@ from frappe.utils import now_datetime, validate_email_address, get_datetime
 import base64
 import unicodedata
 from frappe.utils.file_manager import save_file
+from docx import Document
+from frappe.utils import get_fullname
+import io
             
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
@@ -227,3 +230,96 @@ def delete_user_course_document(docname=None):
         }
 
 
+@frappe.whitelist(allow_guest=False)
+def generate_dynamic_docx(name=None):
+    user = frappe.session.user
+    user_doc = frappe.get_doc("User", user)
+
+    if not name:
+        return {
+            "success": False,
+            "message": "No distributor name provided"
+        }
+    
+    roles = [role.role for role in user_doc.roles]
+    if "Distributor" not in roles:
+        return {
+            "success": False,
+            "message": "This document can only be generated for Distributor users."
+        }
+
+    distributor_doc = frappe.get_doc("Distributor", {"user_id": user}) 
+    
+    try:
+        # Check for required fields and throw error if missing
+        if not distributor_doc.meril_company_table or not distributor_doc.meril_company_table[0].meril_company_name:
+            frappe.throw("Meril company name is missing in distributor document.")
+        if not distributor_doc.distributor_company_name:
+            frappe.throw("Distributor company name is missing in distributor document.")
+        if not distributor_doc.atendee_name:
+            frappe.throw("Attendee name is missing in distributor document.")
+        if not distributor_doc.designation:
+            frappe.throw("Designation is missing in distributor document.")
+        if not distributor_doc.distributor_email_address and not user_doc.email:
+            frappe.throw("Email address is missing in distributor and user document.")
+        if not distributor_doc.distributor_contact_number and not user_doc.mobile_no:
+            frappe.throw("Contact number is missing in distributor and user document.")
+
+        meril_company_name = distributor_doc.meril_company_table[0].meril_company_name
+        distributor_company_name = distributor_doc.distributor_company_name
+        distributor_name = distributor_doc.atendee_name
+        designation = distributor_doc.designation
+        email = distributor_doc.distributor_email_address or user_doc.email
+        contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
+        today = get_datetime().strftime("%d-%m-%Y")
+
+        doc = Document()
+        doc.add_paragraph("On letter head of distributor", style='Normal')
+        doc.add_paragraph()
+        doc.add_heading("Meril Distributor- Compliance Policy Adoption Form", level=1)
+        doc.add_paragraph()
+        doc.add_paragraph(today)
+        doc.add_paragraph()
+        doc.add_paragraph(
+            f"We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.\n\n"
+            "All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy."
+        )
+        doc.add_paragraph()
+        doc.add_paragraph("Nomination of Compliance Officer:")
+        doc.add_paragraph()
+        doc.add_paragraph(
+            f"{name} is nominated as Compliance Officer of our organization with effect from {today}"
+        )
+        doc.add_paragraph()
+        doc.add_paragraph(f"Authorized representative of {distributor_name}")
+        doc.add_paragraph(f"Name: {distributor_name}")
+        doc.add_paragraph(f"Title: {designation}")
+        doc.add_paragraph(f"Email Id : {email}")
+        doc.add_paragraph(f"Contact number : {contact_number}")
+        doc.add_paragraph("Sign and Seal : ")
+
+        # Save to in-memory buffer
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        # Save file to Frappe File
+        file_doc = save_file(
+            fname=f"{user}_compliance_policy_adoption_form.docx",
+            content=buffer.getvalue(),
+            dt=None,
+            dn=None,
+            is_private=1
+        )
+
+        return {
+            "success": True,
+            "file_url": file_doc.file_url,
+            "file_name": file_doc.file_name
+        }
+    except Exception as e:
+        frappe.log_error(f"Error generating dynamic docx: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
