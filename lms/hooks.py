@@ -248,7 +248,7 @@ profile_url_prefix = "/users/"
 
 signup_form_template = "lms.plugins.show_custom_signup"
 
-on_login = "lms.lms.user.on_login"
+# on_login = "lms.lms.user.on_login"
 
 add_to_apps_screen = [
 	{
