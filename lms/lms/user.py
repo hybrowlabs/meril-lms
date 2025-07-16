@@ -107,7 +107,8 @@ def create_user_from_distributor(self, method=None):
                     "user_category": "Distributor",
 			"roles": [
 				{"role": "Distributor"},
-				{"role": "LMS Student"}
+				{"role": "LMS Student"},
+				{"role": "Can Edit Own Profile"}
 			],
 			"country": country
 		}).insert(ignore_permissions=True)
@@ -204,8 +205,12 @@ def on_login(login_manager):
 		frappe.local.response["home_page"] = "/lms"
 
 @frappe.whitelist(allow_guest=False)
-def get_distributor_profile(user_id):
-	print("user_id", user_id)
+def get_distributor_profile(user_id=None):
+	user_name = frappe.session.user
+	user_doc = frappe.get_doc("User", {"name": frappe.session.user})
+	roles = [role.role for role in user_doc.roles]
+	can_edit_own_profile = "Can Edit Own Profile" in roles
+	
 	fields = [ 
 		"name",
 		"division",
@@ -219,11 +224,10 @@ def get_distributor_profile(user_id):
 		"distributor_email_address",
 		"distributor_company_address",
 		"distributor_contact_number",
-		"distributor_edited_fields_once",
 		"atendee_name",
 		"designation"
 	]
-	distributor = frappe.db.get_value("Distributor", {"user_id": user_id}, fields, as_dict=True)
+	distributor = frappe.db.get_value("Distributor", {"user_id": user_name }, fields, as_dict=True)
 	
 	# Get the child table data separately
 	if distributor:
@@ -236,8 +240,9 @@ def get_distributor_profile(user_id):
 		distributor["meril_company_table"] = meril_company_table
 		
 	
-	if distributor and distributor.distributor_edited_fields_once == 1:
+	if distributor and not can_edit_own_profile:
 		frappe.local.response["home_page"] = "/lms"
+		return None
 	else:
 		frappe.local.response["home_page"] = "/edit-distributor-profile"
 	return distributor
@@ -248,13 +253,13 @@ def update_distributor_profile(data):
     user_id = frappe.session.user
     user_doc = frappe.get_doc("User", user_id)
     roles = [role.role for role in user_doc.roles]
-    has_updated_own_fields_once = getattr(user_doc, "has_updated_own_fields_once", 0)
+    can_edit_own_profile = "Can Edit Own Profile" in roles
 
     distributor = frappe.get_doc("Distributor", {"user_id": user_id})
-    if "Distributor" in roles and has_updated_own_fields_once == 1:
+    if "Distributor" in roles and not can_edit_own_profile :
         frappe.local.response["redirect"] = "/lms"
         return
-    elif distributor and has_updated_own_fields_once == 1:
+    elif distributor and not can_edit_own_profile: 
         frappe.local.response["redirect"] = "/lms"
         return
     else:
@@ -283,8 +288,7 @@ def update_distributor_profile(data):
                 })
         
         distributor.save(ignore_permissions=True)
-        # Also update the user field
-        user_doc.has_updated_own_fields_once = 1
+        user_doc.roles = [role for role in user_doc.roles if role.role != "Can Edit Own Profile"]
         user_doc.save(ignore_permissions=True)
         frappe.local.response["redirect"] = "/lms"
     return distributor

@@ -106,7 +106,10 @@
         });
         console.log("response ", res)
         $("#distributor-profile-info").removeClass("d-none");
-        fill_distributor_profile(res.message);
+        if(res?.message)
+            fill_distributor_profile(res.message);
+        else
+            window.location.href = res.redirect || "/lms";
     } catch (error) {
         console.log("error ", error);
         frappe.throw("Error fetching distributor profile", error); 

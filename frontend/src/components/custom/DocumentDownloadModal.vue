@@ -130,7 +130,12 @@
       <div class="mb-4">
        <input type="file" @change="onFileChange" class="w-full" required/>
       </div>
-      <Button theme="gray" variant="solid" class="w-full" type="submit">Submit</Button>
+      <Button theme="gray" variant="solid" class="w-full" type="submit" :disabled="loadingUploadForm">
+        <div class="flex items-center justify-center w-full">
+        <Spinner v-if="loadingUploadForm" class="w-4 mr-2" />  
+        <span>{{ loadingUploadForm ? "Uploading Document" : "Submit"}}</span>
+        </div>
+      </Button>
       </form>
     </div>
   </div>
@@ -138,7 +143,7 @@
 </template>
 
 <script setup>
-import { Button } from "frappe-ui";
+import { Button, Spinner } from "frappe-ui";
 import { defineProps, defineEmits, ref, watch } from "vue";
 import { call , TextInput, Select, toast } from 'frappe-ui'
 import { useRoute } from 'vue-router'
@@ -162,6 +167,7 @@ const name = ref('')
 const date = ref('')
 const file = ref(null)
 const documentsList = ref([])
+const loadingUploadForm = ref(false);
 
 const handleDownload = () => {
   //TODO:  validate form and save download  file from server
@@ -220,6 +226,7 @@ try {
 
 const uploadDocument = async () => {
   console.log("uploadDocument")
+  loadingUploadForm.value = true
   if(!file.value) {
     toast.error("Please select a file")
     return
@@ -254,12 +261,15 @@ const uploadDocument = async () => {
       // Reset file input
       const fileInput = document.querySelector('input[type="file"]')
       if (fileInput) fileInput.value = ''
+      checkDocumentSubmission();
     } else {
       toast.error(response?.message || 'Upload failed')
     }
   } catch (error) {
     console.error('Upload error:', error)
     toast.error(error.messages?.[0] || 'Upload failed')
+  }finally {
+    loadingUploadForm.value = false
   }
 }
 

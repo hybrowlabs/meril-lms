@@ -377,9 +377,11 @@ def get_user_status():
 @frappe.whitelist(allow_guest=False)
 def should_user_redirect():
     user = frappe.session.user
-    user_doc = frappe.get_all("User", filters={"name": user}, fields=["has_updated_own_fields_once"])
+    user_doc = frappe.get_doc("User", {"name": user}, ["roles"])
+    can_edit_own_profile = "Can Edit Own Profile" in [role.role for role in user_doc.roles]
     is_distributor = frappe.db.exists("Distributor", {"user_id": user})
-    if user_doc[0].has_updated_own_fields_once == 0 and is_distributor:
+
+    if can_edit_own_profile and is_distributor:
         return {"status": "redirect", "message": "User is a distributor. Redirecting to distributor profile."}
     else:
         return {"status": "no_redirect", "message": "User is not a distributor."}
