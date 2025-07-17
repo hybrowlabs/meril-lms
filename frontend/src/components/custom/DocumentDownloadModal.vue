@@ -44,12 +44,17 @@
         ×
       </button>
       <h3 class="text-lg font-medium mb-4">Compliance Documents</h3>
-      <ul class="space-y-4 mb-2" v-for="document in documentsList" :key="document">
-        <li class="flex items-center justify-between">
+      <ul class="space-y-4 mb-2">
+        <li v-for="document in Object.keys(print_format_links)" :key="document" class="flex items-center justify-between">
           <span>{{ document }}</span>
-          <a href="/files/cartoon-man-wearing-glasses.jpg" download>
-            <Button theme="gray" variant="solid">Download Form</Button>
-          </a>
+          <Button
+            theme="gray"
+            variant="solid"
+            @click="downloadDocument(document, print_format_links[document])"
+            :disabled="!print_format_links[document]"
+          >
+            Print
+          </Button>
         </li>
       </ul>
     </div>
@@ -170,6 +175,7 @@ const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
 const documentsList = ref([])
 const loadingUploadForm = ref(false);
+const print_format_links = ref({})
 
 const handleDownload = async() => {
   if(name.value === '' || date.value === '') {
@@ -189,7 +195,7 @@ const handleDownload = async() => {
       a.click();
       document.body.removeChild(a);
     } else {
-      toast.error(res?.message || "Error generating document")
+      toast.error(res?.error || "Error generating document")
     }
   }catch(e) {
     console.error("Error in handleDownload", e)
@@ -227,6 +233,7 @@ try {
       showDownloadForm.value = true
       showUploadForm.value = false
       documentsList.value = res.documents_list
+      print_format_links.value = res.print_format_links || {}
       console.log('Document already submitted for this course')
     } else {
       showDownloadForm.value = false
@@ -316,6 +323,13 @@ const fileToBase64 = (file) => {
   })
 }
 
+const downloadDocument = (docName, url) => {
+  if (!url) {
+    toast.error('Print format not available for this document')
+    return
+  }
+  window.open(url, '_blank')
+}
 
 </script>
 

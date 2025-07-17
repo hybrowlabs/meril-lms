@@ -13,7 +13,7 @@ import io
 def has_user_submited_document(course=None):
     user = frappe.session.user
     
-    if course == None:
+    if course is None:
         return { "submited": False }
 
     try:
@@ -21,40 +21,93 @@ def has_user_submited_document(course=None):
         if not frappe.db.exists("LMS Course", course):
             return { "submited": False }
 
-        print("course",course)
         exists = frappe.db.exists("User Course Documents", {"user": user, "course": course, "submited_document": 1})
-        print("exists",exists)
 
         user_doc = frappe.get_doc("User", user)
         roles = [role.role for role in user_doc.roles]
 
-
+        documents_list = []
+        print_format_links = {}
+        user_course_doc_name = f"{user}-{course}"
+        # Ensure base_printview_url is always defined before any use
+        base_pdf_url = "/api/method/frappe.utils.print_format.download_pdf?doctype={doctype}&name={name}&format={format}&no_letterhead=1&letterhead=No%20Letterhead&_lang=en"
         if "Distributor" in roles:
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
-            documents_list = ["Distributor Self Declaration", "Meril Distributor Compliance Code of Conduct", "Meril Distributor Compliance Policy Adoption Form"]
-            
-            for company in  distributor_doc.meril_company_table:
-                if  company.meril_company_name.lower().find("endo") != -1:
-                    documents_list.append("Meril Distributor Compliance Policy for Endo")
-                    break
-
+            distributor_doc_name = distributor_doc.name
+            documents_list = [
+                "Distributor Self Declaration",
+                "Meril Distributor Compliance Code of Conduct",
+                "Meril Distributor Compliance Policy Adoption Form"
+            ]
+            print_format_links = {
+                "Distributor Self Declaration": base_pdf_url.format(
+                    doctype="Distributor",
+                    name=distributor_doc_name,
+                    format="Distributor%20Self%20Declaration"
+                ),
+                "Meril Distributor Compliance Code of Conduct": base_pdf_url.format(
+                    doctype="Distributor",
+                    name=distributor_doc_name,
+                    format="Meril%20Distributor%20Compliance%20Code%20of%20Conduct"
+                ),
+                "Meril Distributor Compliance Policy Adoption Form": base_pdf_url.format(
+                    doctype="Distributor",
+                    name=distributor_doc_name,
+                    format="Meril%20Distributor%20Compliance%20Policy%20Adoption%20Form"
+                ),
+                "Distributor Completion Certificate": base_pdf_url.format(
+                    doctype="Distributor",
+                    name=distributor_doc_name,
+                    format="Distributor%20Completion%20Certificate"
+                )
+            }
             for company in distributor_doc.meril_company_table:
-                if  company.meril_company_name.lower().find("endo") == -1:
+                if "endo" in company.meril_company_name.lower():
+                    documents_list.append("Meril Distributor Compliance Policy for Endo")
+                    print_format_links["Meril Distributor Compliance Policy for Endo"] = base_pdf_url.format(
+                        doctype="Distributor",
+                        name=distributor_doc_name,
+                        format="Meril%20Distributor%20Compliance%20Policy%20for%20Endo"
+                    )
+                    break
+            for company in distributor_doc.meril_company_table:
+                if "endo" not in company.meril_company_name.lower():
                     documents_list.append("Meril Distributor Compliance Policy")
+                    print_format_links["Meril Distributor Compliance Policy"] = base_pdf_url.format(
+                        doctype="Distributor",
+                        name=distributor_doc_name,
+                        format="Meril%20Distributor%20Compliance%20Policy"
+                    )
                     break
         elif "Employee" in roles:
+            employee_doc = frappe.get_doc("Employee", {"user_id": user})
+            employee_doc_name = employee_doc.name
             documents_list = ["Employee Self Declaration", "Course Completion Certificate"]
-            return { "submited": True, "documents_list": documents_list }
+            print_format_links = {
+                "Employee Self Declaration": base_pdf_url.format(
+                    doctype="Employee",
+                    name=employee_doc_name,
+                    format="Employee%20Self%20Declaration"
+                ),
+                "Employee Completion Certificate": base_pdf_url.format(
+                    doctype="Employee",
+                    name=employee_doc_name,
+                    format="Course%20Completion%20Certificate"
+                )
+            }
+            return { "submited": True, "documents_list": documents_list, "print_format_links": print_format_links }
         else:
             documents_list = ["Course Completion Certificate"]
-            return { "submited": True, "documents_list": documents_list }
+            print_format_links = {
+                "Course Completion Certificate": f"/api/method/frappe.utils.print_format.download_pdf?doctype=User%20Course%20Documents&name={user_course_doc_name}&format=Course%20Completion%20Certificate&no_letterhead=1&letterhead=No%20Letterhead&_lang=en"
+            }
+            return { "submited": True, "documents_list": documents_list, "print_format_links": print_format_links }
 
-        if  exists:
-            return { "submited": True, "documents_list": documents_list }
+        if exists:
+            return { "submited": True, "documents_list": documents_list, "print_format_links": print_format_links }
         
-        return { "submited": False, "documents_list": documents_list }
+        return { "submited": False, "documents_list": documents_list, "print_format_links": print_format_links }
     except Exception as e:
-        print(f"Error in has_user_submited_document: {str(e)}")
         frappe.log_error(f"Error in has_user_submited_document: {str(e)}")
         return { "submited": False , "error": str(e)}
 
@@ -178,28 +231,28 @@ def save_user_course_document_with_file(course=None, document_name=None, filenam
         }
 
 
-@frappe.whitelist(allow_guest=False)
-def get_user_course_documents(course=None):
-    """
-    Get user's course documents
-    """
-    user = frappe.session.user
+# @frappe.whitelist(allow_guest=False)
+# def get_user_course_documents(course=None):
+#     """
+#     Get user's course documents
+#     """
+#     user = frappe.session.user
     
-    filters = {"user": user}
-    if course:
-        filters["course"] = course
+#     filters = {"user": user}
+#     if course:
+#         filters["course"] = course
     
-    documents = frappe.get_all(
-        "User Course Documents",
-        filters=filters,
-        fields=["name", "course", "document_name", "document_file", "submission_date", "submited_document"],
-        order_by="creation desc"
-    )
+#     documents = frappe.get_all(
+#         "User Course Documents",
+#         filters=filters,
+#         fields=["name", "course", "document_name", "document_file", "submission_date", "submited_document"],
+#         order_by="creation desc"
+#     )
     
-    return {
-        "success": True,
-        "documents": documents
-    }
+#     return {
+#         "success": True,
+#         "documents": documents
+#     }
 
 
 @frappe.whitelist(allow_guest=False)
