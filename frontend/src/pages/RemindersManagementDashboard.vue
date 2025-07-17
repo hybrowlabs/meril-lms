@@ -11,11 +11,11 @@
 					</template>
 					{{ __('Refresh') }}
 				</Button>
-				<Button variant="solid" @click="sendManualReminders">
+				<Button variant="solid" @click="sendCourseReminders">
 					<template #prefix>
 						<Send class="h-4 w-4" />
 					</template>
-					{{ __('Send Reminders') }}
+					{{ __('Send Course Reminders') }}
 				</Button>
 			</div>
 		</header>
@@ -23,42 +23,42 @@
 		<div class="p-5">
 			<!-- Main KPI Cards -->
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-				<!-- Total Distributors -->
-				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showDistributorsDialog('total')">
+				<!-- Total Enrolled Users -->
+				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showUsersDialog('total')">
 					<div class="flex items-center justify-between">
 						<div>
-							<p class="text-sm text-gray-600">{{ __('Total Distributors') }}</p>
+							<p class="text-sm text-gray-600">{{ __('Total Enrolled Users') }}</p>
 							<p class="text-2xl font-semibold text-gray-900">
-								{{ kpiData.total_distributors || 0 }}
+								{{ kpiData.total_enrolled_users || 0 }}
 							</p>
 						</div>
 						<Users class="h-8 w-8 text-blue-600" />
 					</div>
 				</div>
 
-				<!-- Logged In Distributors -->
-				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showDistributorsDialog('logged_in')">
+				<!-- Completed Courses -->
+				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showUsersDialog('completed')">
 					<div class="flex items-center justify-between">
 						<div>
-							<p class="text-sm text-gray-600">{{ __('Logged In') }}</p>
+							<p class="text-sm text-gray-600">{{ __('Completed Courses') }}</p>
 							<p class="text-2xl font-semibold text-green-600">
-								{{ kpiData.logged_in_distributors || 0 }}
+								{{ kpiData.completed_courses || 0 }}
 							</p>
 							<p class="text-xs text-gray-500">
-								{{ Math.round((kpiData.logged_in_distributors / kpiData.total_distributors) * 100) || 0 }}% success rate
+								{{ Math.round((kpiData.completed_courses / kpiData.total_enrolled_users) * 100) || 0 }}% completion rate
 							</p>
 						</div>
 						<CheckCircle class="h-8 w-8 text-green-600" />
 					</div>
 				</div>
 
-				<!-- Never Logged In -->
-				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showDistributorsDialog('never_logged_in')">
+				<!-- Pending Completions -->
+				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showUsersDialog('pending')">
 					<div class="flex items-center justify-between">
 						<div>
-							<p class="text-sm text-gray-600">{{ __('Never Logged In') }}</p>
+							<p class="text-sm text-gray-600">{{ __('Pending Completions') }}</p>
 							<p class="text-2xl font-semibold text-red-600">
-								{{ kpiData.never_logged_in || 0 }}
+								{{ kpiData.pending_completions || 0 }}
 							</p>
 							<p class="text-xs text-gray-500">
 								{{ kpiData.avg_reminders_sent || 0 }} avg reminders sent
@@ -72,9 +72,9 @@
 				<div class="bg-white border rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow" @click="showRemindersDialog">
 					<div class="flex items-center justify-between">
 						<div>
-							<p class="text-sm text-gray-600">{{ __('Total Reminders') }}</p>
+							<p class="text-sm text-gray-600">{{ __('Course Reminders') }}</p>
 							<p class="text-2xl font-semibold text-purple-600">
-								{{ kpiData.total_reminders_sent || 0 }}
+								{{ kpiData.total_course_reminders_sent || 0 }}
 							</p>
 							<p class="text-xs text-gray-500">
 								{{ kpiData.reminders_sent_today || 0 }} sent today
@@ -87,67 +87,66 @@
 
 			<!-- Detailed Analytics Cards -->
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-				<!-- Login Activity Timeline -->
+				<!-- Recent Course Completions -->
 				<div class="bg-white border rounded-lg p-6">
-					<h3 class="text-lg font-semibold text-gray-900 mb-4">{{ __('Recent Login Activity') }}</h3>
+					<h3 class="text-lg font-semibold text-gray-900 mb-4">{{ __('Recent Course Completions') }}</h3>
 					<div class="space-y-3 max-h-64 overflow-y-auto">
-						<div v-if="recentLogins.length === 0" class="text-center text-gray-500 py-4">
-							{{ __('No recent login activity') }}
+						<div v-if="recentCompletions.length === 0" class="text-center text-gray-500 py-4">
+							{{ __('No recent course completions') }}
 						</div>
-						<div v-for="login in recentLogins" :key="login.distributor_id" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+						<div v-for="completion in recentCompletions" :key="completion.enrollment_id" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
 							<div class="flex items-center">
 								<div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
 								<div>
-									<p class="font-medium text-gray-900">{{ login.distributor_name }}</p>
-									<p class="text-sm text-gray-600">{{ login.company_name }}</p>
+									<p class="font-medium text-gray-900">{{ completion.user_name }}</p>
+									<p class="text-sm text-gray-600">{{ completion.course_title }}</p>
 								</div>
 							</div>
 							<div class="text-right">
-								<p class="text-sm text-gray-900">{{ formatDateTime(login.last_login_date) }}</p>
+								<p class="text-sm text-gray-900">{{ formatDateTime(completion.completed_on) }}</p>
 								<p class="text-xs text-gray-500">
-									<span v-if="login.is_first_login" class="text-green-600 font-medium">First login!</span>
-									<span v-else>Regular login</span>
+									<span class="text-green-600 font-medium">{{ completion.progress }}% Complete</span>
 								</p>
 							</div>
 						</div>
 					</div>
 				</div>
 
-				<!-- Reminder Statistics -->
+				<!-- Course Reminder Statistics -->
 				<div class="bg-white border rounded-lg p-6">
-					<h3 class="text-lg font-semibold text-gray-900 mb-4">{{ __('Reminder Effectiveness') }}</h3>
+					<h3 class="text-lg font-semibold text-gray-900 mb-4">{{ __('Course Completion Effectiveness') }}</h3>
 					<div class="space-y-4">
 						<div class="flex justify-between items-center">
-							<span class="text-gray-600">{{ __('Response Rate') }}</span>
-							<span class="text-lg font-semibold text-green-600">{{ kpiData.response_rate || 0 }}%</span>
+							<span class="text-gray-600">{{ __('Completion Rate') }}</span>
+							<span class="text-lg font-semibold text-green-600">{{ kpiData.completion_rate || 0 }}%</span>
 						</div>
 						<div class="flex justify-between items-center">
-							<span class="text-gray-600">{{ __('Avg Time to First Login') }}</span>
-							<span class="text-lg font-semibold text-blue-600">{{ kpiData.avg_time_to_login || 0 }} days</span>
+							<span class="text-gray-600">{{ __('Avg Time to Complete') }}</span>
+							<span class="text-lg font-semibold text-blue-600">{{ kpiData.avg_time_to_complete || 0 }} days</span>
 						</div>
 						<div class="flex justify-between items-center">
-							<span class="text-gray-600">{{ __('Most Effective Day') }}</span>
-							<span class="text-lg font-semibold text-purple-600">{{ kpiData.most_effective_day || 'N/A' }}</span>
+							<span class="text-gray-600">{{ __('Most Active Course') }}</span>
+							<span class="text-lg font-semibold text-purple-600">{{ kpiData.most_active_course || 'N/A' }}</span>
 						</div>
 					</div>
 				</div>
 			</div>
 
-			<!-- Distributors Table -->
+			<!-- Users Table -->
 			<div class="bg-white border rounded-lg overflow-hidden">
 				<div class="px-6 py-4 border-b bg-gray-50">
 					<div class="flex justify-between items-center">
 						<div>
-							<h3 class="text-lg font-semibold text-gray-900">{{ __('Distributor Status Overview') }}</h3>
-							<p class="text-sm text-gray-600">{{ __('Login status and reminder tracking for all distributors') }}</p>
+							<h3 class="text-lg font-semibold text-gray-900">{{ __('Course Enrollment Overview') }}</h3>
+							<p class="text-sm text-gray-600">{{ __('Course completion status and reminder tracking for all users') }}</p>
 						</div>
 						<div class="flex items-center space-x-3">
 							<FormControl
 								v-model="searchTerm"
-								:placeholder="__('Search distributors...')"
+								:placeholder="__('Search users...')"
 								type="text"
 								class="w-64"
-								@input="filterDistributors"
+								@input="filterUsers"
 							>
 								<template #prefix>
 									<Search class="h-4 w-4 text-gray-400" />
@@ -157,7 +156,7 @@
 								v-model="statusFilter"
 								:options="statusFilterOptions"
 								:placeholder="__('Filter by status')"
-								@change="filterDistributors"
+								@change="filterUsers"
 							/>
 						</div>
 					</div>
@@ -165,12 +164,12 @@
 
 				<div v-if="loading" class="p-8 text-center">
 					<div class="animate-spin h-8 w-8 mx-auto mb-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-					<p class="text-gray-600">{{ __('Loading distributor data...') }}</p>
+					<p class="text-gray-600">{{ __('Loading user data...') }}</p>
 				</div>
 
-				<div v-else-if="filteredDistributors.length === 0" class="p-8 text-center">
+				<div v-else-if="filteredUsers.length === 0" class="p-8 text-center">
 					<Users class="h-12 w-12 mx-auto mb-4 text-gray-400" />
-					<p class="text-gray-600">{{ __('No distributors found') }}</p>
+					<p class="text-gray-600">{{ __('No users found') }}</p>
 				</div>
 
 				<div v-else class="overflow-x-auto">
@@ -178,19 +177,19 @@
 						<thead class="bg-gray-50">
 							<tr>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									{{ __('Distributor') }}
+									{{ __('User') }}
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									{{ __('Login Status') }}
+									{{ __('Course Status') }}
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									{{ __('Last Login') }}
+									{{ __('Progress') }}
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									{{ __('Reminders Sent') }}
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									{{ __('Days Since Created') }}
+									{{ __('Days Since Enrolled') }}
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									{{ __('Actions') }}
@@ -198,74 +197,76 @@
 							</tr>
 						</thead>
 						<tbody class="bg-white divide-y divide-gray-200">
-							<tr v-for="distributor in filteredDistributors" :key="distributor.name">
+							<tr v-for="user in filteredUsers" :key="user.enrollment_id">
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
-										<UserAvatar :user="{ name: distributor.user_id }" class="mr-3" />
+										<UserAvatar :user="{ name: user.user_id }" class="mr-3" />
 										<div>
 											<div class="text-sm font-medium text-gray-900">
-												{{ distributor.atendee_name }}
+												{{ user.user_name }}
 											</div>
 											<div class="text-sm text-gray-500">
-												{{ distributor.distributor_company_name }}
+												{{ user.course_title }}
 											</div>
 											<div class="text-xs text-gray-400">
-												{{ distributor.distributor_email_address }}
+												{{ user.user_email }}
 											</div>
 										</div>
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
-										<div v-if="distributor.first_login_date" class="flex items-center">
+										<div v-if="user.completed_on" class="flex items-center">
 											<div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-											<Badge theme="green" variant="subtle">{{ __('Logged In') }}</Badge>
+											<Badge theme="green" variant="subtle">{{ __('Completed') }}</Badge>
 										</div>
 										<div v-else class="flex items-center">
-											<div class="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-											<Badge theme="red" variant="subtle">{{ __('Never Logged In') }}</Badge>
+											<div class="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+											<Badge theme="yellow" variant="subtle">{{ __('In Progress') }}</Badge>
 											<AlertTriangle 
-												v-if="distributor.login_reminder_count >= 5" 
+												v-if="user.course_reminder_count >= 5" 
 												class="h-4 w-4 text-red-600 ml-2" 
-												:title="`${distributor.login_reminder_count} reminders sent`"
+												:title="`${user.course_reminder_count} reminders sent`"
 											/>
 										</div>
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-									<div v-if="distributor.last_login_date">
-										<div>{{ formatDateTime(distributor.last_login_date) }}</div>
-										<div class="text-xs text-gray-500">
-											{{ getTimeDifference(distributor.last_login_date) }} ago
+									<div class="flex items-center">
+										<div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+											<div 
+												class="bg-blue-600 h-2 rounded-full" 
+												:style="`width: ${user.progress || 0}%`"
+											></div>
 										</div>
+										<span class="text-xs">{{ Math.round(user.progress || 0) }}%</span>
 									</div>
-									<div v-else class="text-gray-400">{{ __('Never') }}</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
 										<Badge 
-											:theme="getReminderBadgeTheme(distributor.login_reminder_count)"
+											:theme="getReminderBadgeTheme(user.course_reminder_count)"
 											variant="subtle"
 											class="mr-2"
 										>
-											{{ distributor.login_reminder_count || 0 }}
+											{{ user.course_reminder_count || 0 }}
 										</Badge>
-										<div v-if="distributor.login_reminder_count >= 10" class="flex items-center ml-2">
+										<div v-if="user.course_reminder_count >= 10" class="flex items-center ml-2">
 											<AlertTriangle class="h-4 w-4 text-red-600" />
 											<span class="text-xs text-red-600 ml-1">High Alert</span>
 										</div>
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-									{{ getDaysSinceCreated(distributor.credentials_sent_date) }} days
+									{{ getDaysSinceEnrolled(user.creation) }} days
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
 									<div class="flex items-center space-x-2">
 										<Button
 											variant="outline"
 											size="sm"
-											@click="sendManualReminder(distributor)"
-											:disabled="distributor.first_login_date"
+											@click="sendCourseReminder(user)"
+											:disabled="user.completed_on"
 										>
 											<template #prefix>
 												<Send class="h-4 w-4" />
@@ -281,39 +282,39 @@
 			</div>
 		</div>
 
-		<!-- Distributors Details Dialog -->
-		<Dialog v-model="showDistributorsDetailsDialog" :options="{ size: 'xl' }">
+		<!-- Users Details Dialog -->
+		<Dialog v-model="showUsersDetailsDialog" :options="{ size: 'xl' }">
 			<template #body>
 				<div class="p-6">
 					<div class="flex items-center mb-4">
 						<Users class="h-6 w-6 text-blue-600 mr-2" />
-						<h3 class="text-lg font-semibold">{{ distributorsDialogTitle }}</h3>
+						<h3 class="text-lg font-semibold">{{ usersDialogTitle }}</h3>
 					</div>
 					
 					<div class="max-h-96 overflow-y-auto">
-						<div v-if="distributorsDialogData.length === 0" class="text-center text-gray-500 py-8">
-							{{ __('No distributors found in this category') }}
+						<div v-if="usersDialogData.length === 0" class="text-center text-gray-500 py-8">
+							{{ __('No users found in this category') }}
 						</div>
 						<div v-else class="space-y-3">
 							<div 
-								v-for="distributor in distributorsDialogData" 
-								:key="distributor.name"
+								v-for="user in usersDialogData" 
+								:key="user.enrollment_id"
 								class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
 							>
 								<div class="flex items-center">
-									<UserAvatar :user="{ name: distributor.user_id }" class="mr-3" />
+									<UserAvatar :user="{ name: user.user_id }" class="mr-3" />
 									<div>
-										<div class="font-medium text-gray-900">{{ distributor.atendee_name }}</div>
-										<div class="text-sm text-gray-600">{{ distributor.distributor_company_name }}</div>
-										<div class="text-xs text-gray-500">{{ distributor.distributor_email_address }}</div>
+										<div class="font-medium text-gray-900">{{ user.user_name }}</div>
+										<div class="text-sm text-gray-600">{{ user.course_title }}</div>
+										<div class="text-xs text-gray-500">{{ user.user_email }}</div>
 									</div>
 								</div>
 								<div class="text-right">
-									<div v-if="distributor.first_login_date" class="text-sm text-green-600 font-medium">
-										{{ formatDateTime(distributor.first_login_date) }}
+									<div v-if="user.completed_on" class="text-sm text-green-600 font-medium">
+										{{ formatDateTime(user.completed_on) }}
 									</div>
-									<div v-else class="text-sm text-red-600">
-										{{ distributor.login_reminder_count || 0 }} reminders sent
+									<div v-else class="text-sm text-yellow-600">
+										{{ user.progress || 0 }}% complete
 									</div>
 								</div>
 							</div>
@@ -321,7 +322,7 @@
 					</div>
 
 					<div class="flex justify-end mt-6">
-						<Button variant="subtle" @click="showDistributorsDetailsDialog = false">
+						<Button variant="subtle" @click="showUsersDetailsDialog = false">
 							{{ __('Close') }}
 						</Button>
 					</div>
@@ -335,14 +336,14 @@
 				<div class="p-6">
 					<div class="flex items-center mb-4">
 						<Mail class="h-6 w-6 text-purple-600 mr-2" />
-						<h3 class="text-lg font-semibold">{{ __('Reminder Details') }}</h3>
+						<h3 class="text-lg font-semibold">{{ __('Course Reminder Details') }}</h3>
 					</div>
 					
 					<div class="space-y-4">
 						<div class="grid grid-cols-2 gap-4">
 							<div class="bg-gray-50 p-4 rounded-lg">
 								<p class="text-sm text-gray-600">{{ __('Total Sent') }}</p>
-								<p class="text-2xl font-semibold text-purple-600">{{ kpiData.total_reminders_sent || 0 }}</p>
+								<p class="text-2xl font-semibold text-purple-600">{{ kpiData.total_course_reminders_sent || 0 }}</p>
 							</div>
 							<div class="bg-gray-50 p-4 rounded-lg">
 								<p class="text-sm text-gray-600">{{ __('Sent Today') }}</p>
@@ -356,7 +357,7 @@
 								<div v-for="breakdown in reminderBreakdown" :key="breakdown.count" class="flex justify-between items-center">
 									<span class="text-gray-600">{{ breakdown.count }} {{ __('reminders') }}</span>
 									<Badge :theme="getReminderBadgeTheme(breakdown.count)" variant="subtle">
-										{{ breakdown.distributors_count }} {{ __('distributors') }}
+										{{ breakdown.users_count }} {{ __('users') }}
 									</Badge>
 								</div>
 							</div>
@@ -403,27 +404,27 @@ const { user, isLoggedIn } = sessionStore()
 
 // Reactive data
 const kpiData = ref({})
-const distributors = ref([])
-const filteredDistributors = ref([])
-const recentLogins = ref([])
+const users = ref([])
+const filteredUsers = ref([])
+const recentCompletions = ref([])
 const reminderBreakdown = ref([])
 const loading = ref(true)
 const searchTerm = ref('')
 const statusFilter = ref(null)
 
 // Dialog states
-const showDistributorsDetailsDialog = ref(false)
+const showUsersDetailsDialog = ref(false)
 const showRemindersDetailsDialog = ref(false)
-const distributorsDialogData = ref([])
-const distributorsDialogTitle = ref('')
+const usersDialogData = ref([])
+const usersDialogTitle = ref('')
 
 // Auto-refresh interval
 let refreshInterval = null
 
 const statusFilterOptions = ref([
 	{ label: 'All Status', value: null },
-	{ label: 'Logged In', value: 'logged_in' },
-	{ label: 'Never Logged In', value: 'never_logged_in' },
+	{ label: 'Completed', value: 'completed' },
+	{ label: 'In Progress', value: 'in_progress' },
 	{ label: 'High Reminders (5+)', value: 'high_reminders' }
 ])
 
@@ -451,8 +452,8 @@ const loadData = async () => {
 	try {
 		await Promise.all([
 			loadKPIData(),
-			loadDistributors(),
-			loadRecentLogins(),
+			loadUsers(),
+			loadRecentCompletions(),
 			loadReminderBreakdown()
 		])
 	} catch (error) {
@@ -464,115 +465,115 @@ const loadData = async () => {
 
 const loadKPIData = async () => {
 	try {
-		const data = await call('lms.lms.api.get_distributor_login_stats')
+		const data = await call('lms.lms.api.get_course_completion_stats')
 		kpiData.value = data
 	} catch (error) {
 		console.error('Failed to load KPI data:', error)
 	}
 }
 
-const loadDistributors = async () => {
+const loadUsers = async () => {
 	try {
-		const data = await call('lms.lms.api.get_distributors_with_login_status')
-		distributors.value = data
-		filteredDistributors.value = data
+		const data = await call('lms.lms.api.get_users_with_course_completion_status')
+		users.value = data
+		filteredUsers.value = data
 	} catch (error) {
-		console.error('Failed to load distributors:', error)
+		console.error('Failed to load users:', error)
 	}
 }
 
-const loadRecentLogins = async () => {
+const loadRecentCompletions = async () => {
 	try {
-		const data = await call('lms.lms.api.get_recent_distributor_logins')
-		recentLogins.value = data
+		const data = await call('lms.lms.api.get_recent_course_completions')
+		recentCompletions.value = data
 	} catch (error) {
-		console.error('Failed to load recent logins:', error)
+		console.error('Failed to load recent completions:', error)
 	}
 }
 
 const loadReminderBreakdown = async () => {
 	try {
-		const data = await call('lms.lms.api.get_reminder_breakdown')
+		const data = await call('lms.lms.api.get_course_reminder_breakdown')
 		reminderBreakdown.value = data
 	} catch (error) {
 		console.error('Failed to load reminder breakdown:', error)
 	}
 }
 
-const filterDistributors = () => {
-	let filtered = distributors.value
+const filterUsers = () => {
+	let filtered = users.value
 
 	if (searchTerm.value) {
 		const search = searchTerm.value.toLowerCase()
-		filtered = filtered.filter(distributor => 
-			distributor.atendee_name.toLowerCase().includes(search) ||
-			distributor.distributor_company_name.toLowerCase().includes(search) ||
-			distributor.distributor_email_address.toLowerCase().includes(search)
+		filtered = filtered.filter(user => 
+			user.user_name.toLowerCase().includes(search) ||
+			user.course_title.toLowerCase().includes(search) ||
+			user.user_email.toLowerCase().includes(search)
 		)
 	}
 
 	if (statusFilter.value) {
-		if (statusFilter.value === 'logged_in') {
-			filtered = filtered.filter(d => d.first_login_date)
-		} else if (statusFilter.value === 'never_logged_in') {
-			filtered = filtered.filter(d => !d.first_login_date)
+		if (statusFilter.value === 'completed') {
+			filtered = filtered.filter(u => u.completion_date)
+		} else if (statusFilter.value === 'in_progress') {
+			filtered = filtered.filter(u => !u.completion_date)
 		} else if (statusFilter.value === 'high_reminders') {
-			filtered = filtered.filter(d => (d.login_reminder_count || 0) >= 5)
+			filtered = filtered.filter(u => (u.course_reminder_count || 0) >= 5)
 		}
 	}
 
-	filteredDistributors.value = filtered
+	filteredUsers.value = filtered
 }
 
-const showDistributorsDialog = (type) => {
+const showUsersDialog = (type) => {
 	let data = []
 	let title = ''
 
 	switch (type) {
 		case 'total':
-			data = distributors.value
-			title = 'All Distributors'
+			data = users.value
+			title = 'All Enrolled Users'
 			break
-		case 'logged_in':
-			data = distributors.value.filter(d => d.first_login_date)
-			title = 'Distributors Who Have Logged In'
+		case 'completed':
+			data = users.value.filter(u => u.completed_on)
+			title = 'Users Who Completed Courses'
 			break
-		case 'never_logged_in':
-			data = distributors.value.filter(d => !d.first_login_date)
-			title = 'Distributors Who Never Logged In'
+		case 'pending':
+			data = users.value.filter(u => !u.completed_on)
+			title = 'Users With Pending Course Completions'
 			break
 	}
 
-	distributorsDialogData.value = data
-	distributorsDialogTitle.value = title
-	showDistributorsDetailsDialog.value = true
+	usersDialogData.value = data
+	usersDialogTitle.value = title
+	showUsersDetailsDialog.value = true
 }
 
 const showRemindersDialog = () => {
 	showRemindersDetailsDialog.value = true
 }
 
-const sendManualReminder = async (distributor) => {
+const sendCourseReminder = async (user) => {
 	try {
-		await call('lms.lms.user.send_manual_login_reminder', {
-			distributor_id: distributor.name
+		await call('lms.lms.user.send_manual_course_reminder', {
+			enrollment_id: user.enrollment_id
 		})
-		alert('Reminder sent successfully!')
+		alert('Course reminder sent successfully!')
 		await loadData()
 	} catch (error) {
-		console.error('Failed to send reminder:', error)
-		alert('Failed to send reminder: ' + error.message)
+		console.error('Failed to send course reminder:', error)
+		alert('Failed to send course reminder: ' + error.message)
 	}
 }
 
-const sendManualReminders = async () => {
+const sendCourseReminders = async () => {
 	try {
-		const result = await call('lms.lms.user.send_daily_login_reminders')
-		alert(`Reminders sent: ${result.count} distributors notified`)
+		const result = await call('lms.lms.user.send_daily_course_reminders')
+		alert(`Course reminders sent: ${result.count} users notified`)
 		await loadData()
 	} catch (error) {
-		console.error('Failed to send reminders:', error)
-		alert('Failed to send reminders: ' + error.message)
+		console.error('Failed to send course reminders:', error)
+		alert('Failed to send course reminders: ' + error.message)
 	}
 }
 
@@ -585,19 +586,7 @@ const formatDateTime = (dateString) => {
 	return new Date(dateString).toLocaleString()
 }
 
-const getTimeDifference = (dateString) => {
-	if (!dateString) return ''
-	const now = new Date()
-	const date = new Date(dateString)
-	const diffMs = now - date
-	const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-	const diffDays = Math.floor(diffHours / 24)
-	
-	if (diffDays > 0) return `${diffDays} days`
-	return `${diffHours} hours`
-}
-
-const getDaysSinceCreated = (dateString) => {
+const getDaysSinceEnrolled = (dateString) => {
 	if (!dateString) return 0
 	const now = new Date()
 	const date = new Date(dateString)
@@ -619,15 +608,15 @@ const breadcrumbs = computed(() => [
 		route: { name: 'Courses' },
 	},
 	{
-		label: 'Reminders Management',
+		label: 'Course Completion Management',
 		route: { name: 'RemindersManagementDashboard' },
 	},
 ])
 
 usePageMeta(() => {
 	return {
-		title: 'Reminders Management Dashboard',
-		description: 'Track distributor login activities and manage reminders'
+		title: 'Course Completion Management Dashboard',
+		description: 'Track user course completion activities and manage reminders'
 	}
 })
 </script> 
