@@ -23,7 +23,14 @@
   "batch_old",
   "column_break_12",
   "member_type",
-  "role"
+  "role",
+  "completion_section",
+  "completion_status",
+  "access_restricted",
+  "column_break_completion",
+  "completed_on",
+  "re_enrolled_by",
+  "re_enrolled_on"
  ],
  "fields": [
   {
@@ -143,6 +150,51 @@
    "fieldtype": "Link",
    "label": "Certificate",
    "options": "LMS Certificate"
+  },
+  {
+   "fieldname": "completion_section",
+   "fieldtype": "Section Break",
+   "label": "Course Completion & Access Control"
+  },
+  {
+   "default": "Active",
+   "fieldname": "completion_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Completion Status",
+   "options": "Active\nCompleted\nRe-enrolled",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "access_restricted",
+   "fieldtype": "Check",
+   "label": "Access Restricted",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_completion",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "re_enrolled_by",
+   "fieldtype": "Link",
+   "label": "Re-enrolled By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "re_enrolled_on",
+   "fieldtype": "Datetime",
+   "label": "Re-enrolled On",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

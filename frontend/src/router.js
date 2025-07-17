@@ -98,55 +98,54 @@ const routes = [
 			{
 				name: 'ProfileEvaluationSchedule',
 				path: 'schedule',
-				component: () =>
-					import('@/pages/ProfileEvaluationSchedule.vue'),
+				component: () => import('@/pages/ProfileEvaluationSchedule.vue'),
 			},
 		],
 	},
 	{
-		path: '/job-openings',
+		path: '/jobs',
 		name: 'Jobs',
 		component: () => import('@/pages/Jobs.vue'),
 	},
 	{
-		path: '/job-openings/:job',
+		path: '/jobs/:jobName',
+		name: 'JobForm',
+		component: () => import('@/pages/JobForm.vue'),
+		props: true,
+	},
+	{
+		path: '/job/:jobName',
 		name: 'JobDetail',
 		component: () => import('@/pages/JobDetail.vue'),
 		props: true,
 	},
 	{
-		path: '/courses/:courseName/edit',
+		path: '/notifications',
+		name: 'Notifications',
+		component: () => import('@/pages/Notifications.vue'),
+	},
+	{
+		path: '/course-form/:courseName',
 		name: 'CourseForm',
 		component: () => import('@/pages/CourseForm.vue'),
 		props: true,
 	},
 	{
-		path: '/courses/:courseName/learn/:chapterNumber-:lessonNumber/edit',
+		path: '/lesson-form/:lessonName',
 		name: 'LessonForm',
 		component: () => import('@/pages/LessonForm.vue'),
 		props: true,
 	},
 	{
-		path: '/batches/:batchName/edit',
+		path: '/batch-form/:batchName',
 		name: 'BatchForm',
 		component: () => import('@/pages/BatchForm.vue'),
-		props: true,
-	},
-	{
-		path: '/job-opening/:jobName/edit',
-		name: 'JobForm',
-		component: () => import('@/pages/JobForm.vue'),
 		props: true,
 	},
 	{
 		path: '/certified-participants',
 		name: 'CertifiedParticipants',
 		component: () => import('@/pages/CertifiedParticipants.vue'),
-	},
-	{
-		path: '/notifications',
-		name: 'Notifications',
-		component: () => import('@/pages/Notifications.vue'),
 	},
 	{
 		path: '/badges/:badgeName/:email',
@@ -214,6 +213,16 @@ const routes = [
 		path: '/persona',
 		name: 'PersonaForm',
 		component: () => import('@/pages/PersonaForm.vue'),
+	},
+	{
+		path: '/admin/enrollment-management',
+		name: 'CourseEnrollmentManagement',
+		component: () => import('@/pages/CourseEnrollmentManagement.vue'),
+	},
+	{
+		path: '/admin/reminders-dashboard',
+		name: 'RemindersManagementDashboard',
+		component: () => import('@/pages/RemindersManagementDashboard.vue'),
 	},
 ]
 

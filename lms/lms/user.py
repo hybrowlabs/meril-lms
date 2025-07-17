@@ -116,6 +116,11 @@ def create_user_from_distributor(self, method=None):
                 update_password(email, new_password)
                 print("user", user)
                 self.db_set("user_id", user.name)
+                
+                # Set credentials sent date when user is created and email is sent
+                self.db_set("credentials_sent_date", frappe.utils.now_datetime())
+                self.db_set("is_active_user", 1)
+                self.db_set("login_reminder_count", 0)
 
                 frappe.sendmail(
                     recipients=[email],
@@ -123,6 +128,25 @@ def create_user_from_distributor(self, method=None):
                     subject='Your Merlin LMS Account',
                     message=f'<p>Hello {email},<br>Your password is: <b>{new_password}</b><br>Regards,<br>Merlin LMS</p>'
                 )
+                
+                # Send notification to admins about new distributor creation
+                from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+                
+                admins = frappe.get_all("User", 
+                    filters={"role_profile_name": "System Manager", "enabled": 1}, 
+                    pluck="email")
+                
+                if admins:
+                    notification_doc = {
+                        "type": "Alert", 
+                        "document_type": "Distributor",
+                        "document_name": self.name,
+                        "subject": f"🎯 New Distributor Created: {self.atendee_name}",
+                        "from_user": frappe.session.user,
+                        "email_content": f"<p>New distributor <b>{self.atendee_name}</b> from <b>{self.distributor_company_name}</b> has been created and credentials sent.</p><p>📧 Email: {email}</p><p>📅 Credentials sent: {frappe.utils.format_datetime(frappe.utils.now_datetime())}</p><p>🔔 Daily login reminders will start tomorrow if no login occurs.</p>"
+                    }
+                    enqueue_create_notification(admins, notification_doc)
+                
         else:
             frappe.throw(_("A user with this email already exists."))
 
@@ -200,9 +224,228 @@ def set_country_from_ip(login_manager=None, user=None):
 def on_login(login_manager):
 	user_id = login_manager.user
 
+	# Keep existing default app redirect
 	default_app = frappe.db.get_single_value("System Settings", "default_app")
 	if default_app == "lms":
 		frappe.local.response["home_page"] = "/lms"
+
+	# Add distributor login tracking
+	distributor = frappe.db.exists("Distributor", {"user_id": user_id})
+	if distributor:
+		now = frappe.utils.now_datetime()
+		
+		# Get current values
+		first_login = frappe.db.get_value("Distributor", distributor, "first_login_date")
+		
+		# Always update last login date and mark as active
+		frappe.db.set_value("Distributor", distributor, {
+			"last_login_date": now,
+			"is_active_user": 1
+		})
+		
+		# Set first login if not already set
+		if not first_login:
+			frappe.db.set_value("Distributor", distributor, "first_login_date", now)
+			
+			# Create notification log for first login
+			from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+			
+			# Get distributor details
+			distributor_doc = frappe.get_doc("Distributor", distributor)
+			
+			# Send notification to admins about first login
+			admins = frappe.get_all("User", 
+				filters={"role_profile_name": "System Manager", "enabled": 1}, 
+				pluck="email")
+			
+			if admins:
+				notification_doc = {
+					"type": "Alert",
+					"document_type": "Distributor",
+					"document_name": distributor,
+					"subject": f"✅ Distributor {distributor_doc.atendee_name} logged in for the first time",
+					"from_user": "Administrator",
+					"email_content": f"<p>Great news! Distributor <b>{distributor_doc.atendee_name}</b> from <b>{distributor_doc.distributor_company_name}</b> has successfully logged in for the first time.</p><p>📅 First Login: {frappe.utils.format_datetime(now)}</p><p>🎯 No more reminders needed for this distributor.</p>"
+				}
+				enqueue_create_notification(admins, notification_doc)
+			
+		frappe.db.commit()
+
+
+@frappe.whitelist()
+def send_daily_login_reminders():
+	"""
+	Send daily login reminders to distributors who haven't logged in yet.
+	This function should be called by scheduler daily.
+	"""
+	from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+	
+	# Get all distributors who haven't logged in yet and have user accounts
+	distributors_needing_reminders = frappe.db.sql("""
+		SELECT 
+			d.name as distributor_id,
+			d.atendee_name,
+			d.distributor_company_name,
+			d.distributor_email_address,
+			d.user_id,
+			d.credentials_sent_date,
+			d.login_reminder_count,
+			DATEDIFF(NOW(), d.credentials_sent_date) as days_since_creation
+		FROM `tabDistributor` d
+		WHERE 
+			d.first_login_date IS NULL 
+			AND d.user_id IS NOT NULL 
+			AND d.user_id != ''
+			AND d.credentials_sent_date IS NOT NULL
+			AND DATEDIFF(NOW(), d.credentials_sent_date) >= 1
+		ORDER BY d.credentials_sent_date ASC
+	""", as_dict=True)
+	
+	if not distributors_needing_reminders:
+		frappe.logger().info("No distributors need login reminders today")
+		return {"status": "success", "message": "No distributors need reminders", "count": 0}
+	
+	reminders_sent = 0
+	
+	for distributor in distributors_needing_reminders:
+		try:
+			# Increment reminder count
+			current_count = distributor.login_reminder_count or 0
+			new_count = current_count + 1
+			
+			# Determine reminder urgency based on days and count
+			days_since = distributor.days_since_creation
+			
+			if days_since <= 3:
+				urgency = "gentle"
+				subject_prefix = "👋 Gentle Reminder"
+			elif days_since <= 7:
+				urgency = "moderate" 
+				subject_prefix = "⏰ Important Reminder"
+			elif days_since <= 14:
+				urgency = "urgent"
+				subject_prefix = "🚨 Urgent Reminder"
+			else:
+				urgency = "final"
+				subject_prefix = "⚠️ Final Reminder"
+			
+			# Create personalized reminder message
+			subject = f"{subject_prefix}: Please login to Meril Learning Portal"
+			
+			message_content = get_login_reminder_message(
+				distributor.atendee_name,
+				distributor.distributor_company_name,
+				days_since,
+				new_count,
+				urgency
+			)
+			
+			# Send notification to the distributor
+			notification_doc = {
+				"type": "Alert",
+				"document_type": "Distributor", 
+				"document_name": distributor.distributor_id,
+				"subject": subject,
+				"from_user": "Administrator",
+				"email_content": message_content
+			}
+			
+			# Send to the distributor
+			enqueue_create_notification([distributor.user_id], notification_doc)
+			
+			# Update reminder count in distributor record
+			frappe.db.set_value("Distributor", distributor.distributor_id, "login_reminder_count", new_count)
+			
+			# If it's been more than 30 days, also notify admins
+			if days_since >= 30:
+				admin_notification = {
+					"type": "Alert",
+					"document_type": "Distributor",
+					"document_name": distributor.distributor_id, 
+					"subject": f"⚠️ Distributor {distributor.atendee_name} hasn't logged in for {days_since} days",
+					"from_user": "Administrator",
+					"email_content": f"<p>Distributor <b>{distributor.atendee_name}</b> from <b>{distributor.distributor_company_name}</b> has not logged in for <b>{days_since} days</b>.</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or account review.</p>"
+				}
+				
+				admins = frappe.get_all("User", 
+					filters={"role_profile_name": "System Manager", "enabled": 1}, 
+					pluck="email")
+				
+				if admins:
+					enqueue_create_notification(admins, admin_notification)
+			
+			reminders_sent += 1
+			frappe.logger().info(f"Login reminder sent to {distributor.atendee_name} (Day {days_since}, Reminder #{new_count})")
+			
+		except Exception as e:
+			frappe.log_error(f"Failed to send login reminder to {distributor.atendee_name}: {str(e)}", "Login Reminder Error")
+			continue
+	
+	# Commit all changes
+	frappe.db.commit()
+	
+	return {
+		"status": "success", 
+		"message": f"Login reminders sent to {reminders_sent} distributors",
+		"count": reminders_sent
+	}
+
+
+def get_login_reminder_message(name, company, days_since, reminder_count, urgency):
+	"""Generate personalized login reminder message based on urgency level"""
+	
+	base_message = f"""
+	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+		<h2 style="color: #2c3e50;">Hello {name}!</h2>
+		<p>We hope this message finds you well. This is a friendly reminder about your <b>Meril Learning Portal</b> account.</p>
+	"""
+	
+	if urgency == "gentle":
+		specific_message = f"""
+		<p>🎯 Your account was created <b>{days_since} day(s) ago</b>, and we're excited to have you join our learning community!</p>
+		<p>To get started with your training modules and resources, please login to your account using the credentials sent to you.</p>
+		"""
+	elif urgency == "moderate":
+		specific_message = f"""
+		<p>⏰ It's been <b>{days_since} days</b> since your account was created. We want to ensure you don't miss out on important training materials.</p>
+		<p>Your learning journey is waiting! Please take a moment to login and explore the available courses.</p>
+		"""
+	elif urgency == "urgent":
+		specific_message = f"""
+		<p>🚨 <b>Urgent Action Required:</b> It's been <b>{days_since} days</b> since your account was created.</p>
+		<p>To ensure compliance with training requirements and avoid any delays, please login to your account immediately.</p>
+		"""
+	else:  # final
+		specific_message = f"""
+		<p>⚠️ <b>Final Reminder:</b> Your account has been inactive for <b>{days_since} days</b>.</p>
+		<p>This is our final automated reminder. If you don't login soon, your account may require manual reactivation.</p>
+		<p>Please contact support if you're experiencing any login issues.</p>
+		"""
+	
+	footer_message = f"""
+		<div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
+			<h3 style="margin: 0; color: #007bff;">🚀 Quick Login Steps:</h3>
+			<ol style="margin: 10px 0;">
+				<li>Go to the Meril Learning Portal</li>
+				<li>Use your email: <b>{company}</b></li>
+				<li>Enter the password sent in your welcome email</li>
+				<li>Start exploring your personalized learning path!</li>
+			</ol>
+		</div>
+		
+		<p style="margin-top: 30px;">
+			<strong>Need Help?</strong><br>
+			If you're having trouble logging in or can't find your password, please contact our support team.
+		</p>
+		
+		<p style="color: #6c757d; font-size: 12px; margin-top: 30px;">
+			This is reminder #{reminder_count} • Company: {company} • Days since account creation: {days_since}
+		</p>
+	</div>
+	"""
+	
+	return base_message + specific_message + footer_message
+
 
 @frappe.whitelist(allow_guest=False)
 def get_distributor_profile(user_id=None):
@@ -292,6 +535,97 @@ def update_distributor_profile(data):
         user_doc.save(ignore_permissions=True)
         frappe.local.response["redirect"] = "/lms"
     return distributor
+
+
+@frappe.whitelist()
+def send_manual_login_reminder(distributor_id):
+	"""
+	Send a manual login reminder to a specific distributor.
+	This function is called from the dashboard for manual reminders.
+	"""
+	from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+	
+	try:
+		# Get distributor details
+		distributor = frappe.get_doc("Distributor", distributor_id)
+		
+		# Check if distributor has already logged in
+		if distributor.first_login_date:
+			return {"status": "error", "message": "Distributor has already logged in"}
+		
+		if not distributor.user_id:
+			return {"status": "error", "message": "Distributor has no user account"}
+		
+		# Increment reminder count
+		current_count = distributor.login_reminder_count or 0
+		new_count = current_count + 1
+		
+		# Get days since credentials were sent
+		days_since = 0
+		if distributor.credentials_sent_date:
+			from datetime import datetime
+			credentials_date = frappe.utils.get_datetime(distributor.credentials_sent_date)
+			now = frappe.utils.now_datetime()
+			days_since = (now - credentials_date).days
+		
+		# Determine urgency based on days and count
+		if days_since <= 3:
+			urgency = "gentle"
+			subject_prefix = "👋 Manual Reminder"
+		elif days_since <= 7:
+			urgency = "moderate" 
+			subject_prefix = "⏰ Manual Reminder"
+		elif days_since <= 14:
+			urgency = "urgent"
+			subject_prefix = "🚨 Manual Reminder"
+		else:
+			urgency = "final"
+			subject_prefix = "⚠️ Manual Reminder"
+		
+		# Create personalized reminder message
+		subject = f"{subject_prefix}: Please login to Meril Learning Portal"
+		
+		message_content = get_login_reminder_message(
+			distributor.atendee_name,
+			distributor.distributor_company_name,
+			days_since,
+			new_count,
+			urgency
+		)
+		
+		# Add manual reminder note
+		message_content += f"""
+		<div style="border-top: 1px solid #ddd; margin-top: 20px; padding-top: 15px; font-size: 12px; color: #666;">
+			<p><strong>Note:</strong> This is a manual reminder sent by an administrator.</p>
+		</div>
+		"""
+		
+		# Send notification to the distributor
+		notification_doc = {
+			"type": "Alert",
+			"document_type": "Distributor", 
+			"document_name": distributor_id,
+			"subject": subject,
+			"from_user": frappe.session.user,
+			"email_content": message_content
+		}
+		
+		# Send to the distributor
+		enqueue_create_notification([distributor.user_id], notification_doc)
+		
+		# Update reminder count
+		frappe.db.set_value("Distributor", distributor_id, "login_reminder_count", new_count)
+		frappe.db.commit()
+		
+		return {
+			"status": "success", 
+			"message": f"Manual reminder sent to {distributor.atendee_name}",
+			"reminder_count": new_count
+		}
+		
+	except Exception as e:
+		frappe.log_error(f"Failed to send manual reminder to {distributor_id}: {str(e)}", "Manual Reminder Error")
+		return {"status": "error", "message": str(e)}
 
 
 

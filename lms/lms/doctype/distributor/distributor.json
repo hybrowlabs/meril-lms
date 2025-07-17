@@ -8,6 +8,11 @@
   "atendee_name",
   "designation",
   "user_id",
+  "first_login_date",
+  "last_login_date",
+  "credentials_sent_date",
+  "login_reminder_count",
+  "is_active_user",
   "distributor_email_address",
   "column_break_ytyi",
   "distributor_contact_number",
@@ -135,12 +140,41 @@
    "fieldname": "designation",
    "fieldtype": "Data",
    "label": "Designation"
+  },
+  {
+   "fieldname": "first_login_date",
+   "fieldtype": "Datetime",
+   "label": "First Login Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_login_date",
+   "fieldtype": "Datetime",
+   "label": "Last Login Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "credentials_sent_date",
+   "fieldtype": "Datetime",
+   "label": "Credentials Sent Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "login_reminder_count",
+   "fieldtype": "Int",
+   "label": "Login Reminder Count"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_active_user",
+   "fieldtype": "Check",
+   "label": "Is Active User"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-04 10:55:08.553004",
+ "modified": "2025-07-16 22:53:59.093744",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",

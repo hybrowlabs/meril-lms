@@ -343,6 +343,25 @@ const addAssignments = () => {
 	}
 }
 
+const addAdminLinks = () => {
+	if (userResource.data?.is_system_manager) {
+		sidebarLinks.value.push(
+			{
+				label: 'Course Management',
+				icon: 'Settings',
+				to: 'CourseEnrollmentManagement',
+				activeFor: ['CourseEnrollmentManagement'],
+			},
+			{
+				label: 'Reminders Dashboard',
+				icon: 'Bell',
+				to: 'RemindersManagementDashboard',
+				activeFor: ['RemindersManagementDashboard'],
+			}
+		)
+	}
+}
+
 const addPrograms = () => {
 	let activeFor = ['Programs', 'ProgramForm']
 	let index = 1
@@ -628,6 +647,7 @@ watch(userResource, () => {
 		addPrograms()
 		addQuizzes()
 		addAssignments()
+		addAdminLinks()
 		setUpOnboarding()
 	}
 })

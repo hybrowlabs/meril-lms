@@ -55,16 +55,19 @@
 				</div>
 			</div>
 		</div>
+		<!-- Course Grid -->
 		<div
 			v-if="courses.data?.length"
 			class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4"
 		>
-			<router-link
+			<div
 				v-for="course in courses.data"
-				:to="{ name: 'CourseDetail', params: { courseName: course.name } }"
+				:key="course.name"
+				@click="handleCourseClick(course)"
+				class="cursor-pointer"
 			>
 				<CourseCard :course="course" />
-			</router-link>
+			</div>
 		</div>
 		<EmptyState v-else-if="!courses.list.loading" type="Courses" />
 		<div
@@ -75,6 +78,35 @@
 				{{ __('Load More') }}
 			</Button>
 		</div>
+
+		<!-- Access Restricted Modal -->
+		<Dialog v-model="showAccessDialog">
+			<template #body>
+				<div class="text-center p-6">
+					<div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+						<Lock class="h-6 w-6 text-red-600" />
+					</div>
+					<div class="text-lg font-semibold text-gray-900 mb-2">
+						{{ __('Course Access Restricted') }}
+					</div>
+					<div class="text-sm text-gray-600 mb-4">
+						{{ accessDialogMessage }}
+					</div>
+					<div class="flex justify-center space-x-3">
+						<Button variant="subtle" @click="showAccessDialog = false">
+							{{ __('Close') }}
+						</Button>
+						<Button 
+							v-if="canRequestReEnrollment"
+							variant="solid" 
+							@click="requestReEnrollment"
+						>
+							{{ __('Request Re-enrollment') }}
+						</Button>
+					</div>
+				</div>
+			</template>
+		</Dialog>
 	</div>
 </template>
 <script setup>
@@ -87,9 +119,10 @@ import {
 	Select,
 	TabButtons,
 	usePageMeta,
+	Dialog,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
-import { Plus } from 'lucide-vue-next'
+import { Plus, Lock } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import { canCreateCourse } from '@/utils'
 import CourseCard from '@/components/CourseCard.vue'
@@ -109,6 +142,12 @@ const currentTab = ref('Live')
 const { brand } = sessionStore()
 const courseCount = ref(0)
 
+// Access control related refs
+const showAccessDialog = ref(false)
+const accessDialogMessage = ref('')
+const canRequestReEnrollment = ref(false)
+const selectedRestrictedCourse = ref(null)
+
 onMounted(() => {
 	setFiltersFromQuery()
 	updateCourses()
@@ -120,6 +159,55 @@ onMounted(() => {
 		},
 	]
 })
+
+const handleCourseClick = async (course) => {
+	// Check if course access is restricted
+	if (course.membership?.access_restricted) {
+		showAccessDialog.value = true
+		selectedRestrictedCourse.value = course
+		accessDialogMessage.value = `You have completed this course on ${formatDate(course.membership.completed_on)}. Please contact your admin or senior for re-enrollment to regain access.`
+		canRequestReEnrollment.value = true
+		return
+	}
+
+	// For courses that might have access restrictions, validate on the server
+	if (course.membership) {
+		try {
+			const accessCheck = await call('lms.lms.api.validate_course_access_before_entry', {
+				course_name: course.name
+			})
+			
+			if (accessCheck.access_denied) {
+				showAccessDialog.value = true
+				selectedRestrictedCourse.value = course
+				accessDialogMessage.value = accessCheck.message
+				canRequestReEnrollment.value = true
+				return
+			}
+		} catch (error) {
+			console.warn('Could not validate course access:', error)
+		}
+	}
+
+	// Navigate to course if access is allowed
+	router.push({ 
+		name: 'CourseDetail', 
+		params: { courseName: course.name } 
+	})
+}
+
+const formatDate = (dateString) => {
+	if (!dateString) return ''
+	return new Date(dateString).toLocaleDateString()
+}
+
+const requestReEnrollment = () => {
+	// This could open a form to request re-enrollment or send a notification
+	// For now, we'll just show a message
+	showAccessDialog.value = false
+	// You could implement a notification system here
+	alert('Re-enrollment request functionality would be implemented here. Please contact your admin directly.')
+}
 
 const setFiltersFromQuery = () => {
 	let queries = new URLSearchParams(location.search)
@@ -136,8 +224,37 @@ const courses = createListResource({
 	start: start.value,
 	onSuccess(data) {
 		setCategories(data)
+		// Fetch enrollment data with completion status for logged in users
+		if (user.data?.name) {
+			fetchEnrollmentData(data)
+		}
 	},
 })
+
+const fetchEnrollmentData = async (courseData) => {
+	try {
+		const enrollments = await call('lms.lms.api.get_enrollments_with_completion_status')
+		
+		// Map enrollment data to courses
+		courseData.forEach(course => {
+			const enrollment = enrollments.active_courses?.find(e => e.course === course.name) ||
+							  enrollments.completed_courses?.find(e => e.course === course.name) ||
+							  enrollments.re_enrolled_courses?.find(e => e.course === course.name)
+			
+			if (enrollment) {
+				course.membership = {
+					...course.membership,
+					completion_status: enrollment.completion_status,
+					access_restricted: enrollment.access_restricted,
+					completed_on: enrollment.completed_on,
+					re_enrolled_on: enrollment.re_enrolled_on
+				}
+			}
+		})
+	} catch (error) {
+		console.error('Failed to fetch enrollment data:', error)
+	}
+}
 
 const setCategories = (data) => {
 	let allCategories = data.map((course) => course.category)

@@ -2,6 +2,7 @@
 	<div
 		v-if="course.title"
 		class="flex flex-col h-full rounded-md border-2 overflow-auto"
+		:class="{ 'opacity-75': isAccessRestricted }"
 		style="min-height: 350px"
 	>
 		<div
@@ -19,12 +20,33 @@
 				>
 					{{ __('Featured') }}
 				</Badge>
+				<!-- Completion Status Badge -->
+				<Badge
+					v-if="showCompletionBadge"
+					variant="subtle"
+					:theme="completionBadgeTheme"
+					size="md"
+					class="mb-1 mr-1"
+				>
+					{{ completionBadgeText }}
+				</Badge>
 				<div
 					v-if="course.tags"
 					v-for="tag in course.tags?.split(', ')"
 					class="text-xs bg-white text-gray-800 px-2 py-0.5 rounded-md mb-1 mr-1"
 				>
 					{{ tag }}
+				</div>
+			</div>
+			<!-- Access Restricted Overlay -->
+			<div
+				v-if="isAccessRestricted"
+				class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center"
+			>
+				<div class="text-white text-center p-4">
+					<Lock class="h-8 w-8 mx-auto mb-2" />
+					<div class="text-sm font-semibold">{{ __('Access Restricted') }}</div>
+					<div class="text-xs">{{ __('Course Completed') }}</div>
 				</div>
 			</div>
 			<div v-if="!course.image" class="image-placeholder">
@@ -79,16 +101,34 @@
 				{{ course.short_introduction }}
 			</div>
 
-			<ProgressBar
-				v-if="user && course.membership"
-				:progress="course.membership.progress"
-			/>
-
-			<div
-				v-if="user && course.membership"
-				class="text-sm text-ink-gray-7 mt-2 mb-4"
-			>
-				{{ Math.ceil(course.membership.progress) }}% completed
+			<!-- Progress Bar and Completion Status -->
+			<div v-if="user && course.membership">
+				<ProgressBar
+					v-if="!isAccessRestricted"
+					:progress="course.membership.progress"
+				/>
+				
+				<!-- Completion Information -->
+				<div v-if="isAccessRestricted" class="mt-2 mb-4">
+					<div class="flex items-center text-sm text-ink-gray-7 mb-1">
+						<CheckCircle class="h-4 w-4 mr-1 text-green-600" />
+						{{ __('Course Completed') }}
+					</div>
+					<div class="text-xs text-ink-gray-6">
+						{{ __('Completed on') }}: {{ formatCompletionDate }}
+					</div>
+					<div class="text-xs text-red-600 mt-1">
+						{{ __('Contact admin for re-enrollment') }}
+					</div>
+				</div>
+				
+				<!-- Active Progress -->
+				<div
+					v-else-if="course.membership.progress"
+					class="text-sm text-ink-gray-7 mt-2 mb-4"
+				>
+					{{ Math.ceil(course.membership.progress) }}% completed
+				</div>
 			</div>
 
 			<div class="flex items-center justify-between mt-auto">
@@ -119,7 +159,8 @@
 	</div>
 </template>
 <script setup>
-import { BookOpen, Users, Star } from 'lucide-vue-next'
+import { BookOpen, Users, Star, Lock, CheckCircle } from 'lucide-vue-next'
+import { computed } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { sessionStore } from '@/stores/session'
 import { Badge, Tooltip } from 'frappe-ui'
@@ -134,6 +175,49 @@ const props = defineProps({
 		default: null,
 	},
 })
+
+// Computed properties for completion status
+const isAccessRestricted = computed(() => {
+	return props.course.membership?.access_restricted || false
+})
+
+const completionStatus = computed(() => {
+	return props.course.membership?.completion_status || 'Active'
+})
+
+const showCompletionBadge = computed(() => {
+	return user && props.course.membership && 
+		   (completionStatus.value === 'Completed' || completionStatus.value === 'Re-enrolled')
+})
+
+const completionBadgeText = computed(() => {
+	switch (completionStatus.value) {
+		case 'Completed':
+			return __('Completed')
+		case 'Re-enrolled':
+			return __('Re-enrolled')
+		default:
+			return ''
+	}
+})
+
+const completionBadgeTheme = computed(() => {
+	switch (completionStatus.value) {
+		case 'Completed':
+			return 'green'
+		case 'Re-enrolled':
+			return 'blue'
+		default:
+			return 'gray'
+	}
+})
+
+const formatCompletionDate = computed(() => {
+	if (!props.course.membership?.completed_on) return ''
+	
+	const date = new Date(props.course.membership.completed_on)
+	return date.toLocaleDateString()
+})
 </script>
 <style>
 .course-image {
@@ -142,6 +226,7 @@ const props = defineProps({
 	background-size: cover;
 	background-position: center;
 	background-repeat: no-repeat;
+	position: relative;
 }
 
 .course-card-pills {

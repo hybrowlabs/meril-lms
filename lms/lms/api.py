@@ -1493,3 +1493,342 @@ def update_meta_info(type, route, meta_tags):
 				print(new_tag)
 				new_tag.insert()
 				print(new_tag.as_dict())
+
+
+@frappe.whitelist()
+def validate_course_access_before_entry(course_name):
+	"""Validate if user can access course before allowing entry"""
+	from lms.lms.doctype.lms_enrollment.lms_enrollment import check_course_access
+	
+	access_result = check_course_access(course_name)
+	
+	if not access_result.get("access"):
+		return {
+			"access_denied": True,
+			"message": access_result.get("message"),
+			"completion_status": access_result.get("completion_status"),
+			"completed_on": access_result.get("completed_on")
+		}
+	
+	return {"access_denied": False}
+
+
+@frappe.whitelist()
+def get_course_with_access_check(course_name):
+	"""Get course details with access validation"""
+	# First check if user can access the course
+	access_check = validate_course_access_before_entry(course_name)
+	
+	if access_check.get("access_denied"):
+		return access_check
+	
+	# If access is allowed, return course details
+	course = frappe.get_doc("LMS Course", course_name)
+	return {
+		"access_denied": False,
+		"course": course,
+		"enrollment": access_check.get("enrollment")
+	}
+
+
+@frappe.whitelist()
+def get_enrollments_with_completion_status(member=None):
+	"""Get user enrollments with completion status for dashboard"""
+	from lms.lms.doctype.lms_enrollment.lms_enrollment import get_user_course_enrollments
+	
+	enrollments = get_user_course_enrollments(member)
+	
+	# Categorize enrollments
+	active_courses = []
+	completed_courses = []
+	re_enrolled_courses = []
+	
+	for enrollment in enrollments:
+		if enrollment.completion_status == "Completed":
+			completed_courses.append(enrollment)
+		elif enrollment.completion_status == "Re-enrolled":
+			re_enrolled_courses.append(enrollment)
+		else:
+			active_courses.append(enrollment)
+	
+	return {
+		"active_courses": active_courses,
+		"completed_courses": completed_courses,
+		"re_enrolled_courses": re_enrolled_courses,
+		"total_active": len(active_courses),
+		"total_completed": len(completed_courses),
+		"total_re_enrolled": len(re_enrolled_courses)
+	}
+
+
+@frappe.whitelist()
+def admin_re_enroll_user(course_name, member_email, reset_progress=False):
+	"""Admin function to re-enroll a user in a course"""
+	from lms.lms.doctype.lms_enrollment.lms_enrollment import re_enroll_user_in_course
+	
+	# Check if current user has permission to re-enroll
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to re-enroll users"))
+	
+	try:
+		result = re_enroll_user_in_course(course_name, member_email, reset_progress)
+		return result
+	except Exception as e:
+		frappe.throw(_("Failed to re-enroll user: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def get_users_for_re_enrollment(course_name=None):
+	"""Get list of users who have completed courses and can be re-enrolled"""
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to view this data"))
+	
+	filters = {
+		"completion_status": "Completed",
+		"access_restricted": 1
+	}
+	
+	if course_name:
+		filters["course"] = course_name
+	
+	completed_enrollments = frappe.get_all(
+		"LMS Enrollment",
+		filters=filters,
+		fields=[
+			"name", "member", "member_name", "course", "completed_on", 
+			"progress", "member_type"
+		]
+	)
+	
+	# Add course titles
+	for enrollment in completed_enrollments:
+		course_title = frappe.db.get_value("LMS Course", enrollment.course, "title")
+		enrollment.course_title = course_title
+	
+	return completed_enrollments
+
+
+@frappe.whitelist()
+def bulk_re_enroll_users(enrollments_data):
+	"""Bulk re-enroll multiple users"""
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to perform bulk re-enrollment"))
+	
+	enrollments = frappe.parse_json(enrollments_data)
+	results = []
+	
+	for enrollment_data in enrollments:
+		try:
+			course = enrollment_data.get("course")
+			member = enrollment_data.get("member")
+			reset_progress = enrollment_data.get("reset_progress", False)
+			
+			result = admin_re_enroll_user(course, member, reset_progress)
+			results.append({
+				"course": course,
+				"member": member,
+				"success": result.get("success"),
+				"message": result.get("message")
+			})
+		except Exception as e:
+			results.append({
+				"course": enrollment_data.get("course"),
+				"member": enrollment_data.get("member"),
+				"success": False,
+				"message": str(e)
+			})
+	
+	return results
+
+
+@frappe.whitelist()
+def get_course_completion_analytics(course_name=None):
+	"""Get analytics data for course completions"""
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to view analytics"))
+	
+	filters = {}
+	if course_name:
+		filters["course"] = course_name
+	
+	# Get completion statistics
+	total_enrollments = frappe.db.count("LMS Enrollment", filters)
+	
+	completed_filters = filters.copy()
+	completed_filters["completion_status"] = "Completed"
+	completed_enrollments = frappe.db.count("LMS Enrollment", completed_filters)
+	
+	re_enrolled_filters = filters.copy()
+	re_enrolled_filters["completion_status"] = "Re-enrolled"
+	re_enrolled_count = frappe.db.count("LMS Enrollment", re_enrolled_filters)
+	
+	# Get completion trend data
+	completion_trend = frappe.db.sql("""
+		SELECT 
+			DATE(completed_on) as completion_date,
+			COUNT(*) as completions
+		FROM `tabLMS Enrollment`
+		WHERE completion_status = 'Completed'
+		{course_filter}
+		AND completed_on IS NOT NULL
+		AND completed_on >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+		GROUP BY DATE(completed_on)
+		ORDER BY completion_date
+	""".format(
+		course_filter=f"AND course = '{course_name}'" if course_name else ""
+	), as_dict=True)
+	
+	return {
+		"total_enrollments": total_enrollments,
+		"completed_enrollments": completed_enrollments,
+		"re_enrolled_count": re_enrolled_count,
+		"completion_rate": (completed_enrollments / total_enrollments * 100) if total_enrollments > 0 else 0,
+		"completion_trend": completion_trend
+	}
+
+@frappe.whitelist()
+def get_distributor_login_stats():
+	"""Get KPI data for distributor login dashboard"""
+	
+	# Get total distributors
+	total_distributors = frappe.db.count('Distributor', {'user_id': ['!=', None]})
+	
+	# Get logged in distributors (those with first_login_date)
+	logged_in_distributors = frappe.db.count('Distributor', {
+		'user_id': ['!=', None],
+		'first_login_date': ['!=', None]
+	})
+	
+	# Never logged in
+	never_logged_in = total_distributors - logged_in_distributors
+	
+	# Total reminders sent
+	total_reminders = frappe.db.sql("""
+		SELECT SUM(login_reminder_count) as total
+		FROM `tabDistributor` 
+		WHERE user_id IS NOT NULL AND login_reminder_count > 0
+	""", as_dict=True)[0].total or 0
+	
+	# Reminders sent today
+	today = frappe.utils.nowdate()
+	reminders_today = frappe.db.count('Notification Log', {
+		'type': 'Alert',
+		'subject': ['like', '%login%'],
+		'creation': ['>=', today + ' 00:00:00']
+	})
+	
+	# Average reminders sent per never-logged-in distributor
+	avg_reminders = 0
+	if never_logged_in > 0:
+		avg_reminders_data = frappe.db.sql("""
+			SELECT AVG(login_reminder_count) as avg_reminders
+			FROM `tabDistributor` 
+			WHERE user_id IS NOT NULL AND first_login_date IS NULL AND login_reminder_count > 0
+		""", as_dict=True)
+		avg_reminders = round(avg_reminders_data[0].avg_reminders or 0, 1)
+	
+	# Response rate (percentage who logged in)
+	response_rate = 0
+	if total_distributors > 0:
+		response_rate = round((logged_in_distributors / total_distributors) * 100, 1)
+	
+	# Average time to first login
+	avg_time_to_login = 0
+	avg_time_data = frappe.db.sql("""
+		SELECT AVG(DATEDIFF(first_login_date, credentials_sent_date)) as avg_days
+		FROM `tabDistributor` 
+		WHERE first_login_date IS NOT NULL AND credentials_sent_date IS NOT NULL
+	""", as_dict=True)
+	if avg_time_data and avg_time_data[0].avg_days:
+		avg_time_to_login = round(avg_time_data[0].avg_days, 1)
+	
+	return {
+		'total_distributors': total_distributors,
+		'logged_in_distributors': logged_in_distributors,
+		'never_logged_in': never_logged_in,
+		'total_reminders_sent': int(total_reminders),
+		'reminders_sent_today': reminders_today,
+		'avg_reminders_sent': avg_reminders,
+		'response_rate': response_rate,
+		'avg_time_to_login': avg_time_to_login,
+		'most_effective_day': 'Day 3'  # This would require more complex analysis
+	}
+
+@frappe.whitelist()
+def get_distributors_with_login_status():
+	"""Get all distributors with their login status and reminder information"""
+	
+	distributors = frappe.db.sql("""
+		SELECT 
+			name,
+			atendee_name,
+			distributor_company_name,
+			distributor_email_address,
+			user_id,
+			first_login_date,
+			last_login_date,
+			credentials_sent_date,
+			login_reminder_count,
+			is_active_user
+		FROM `tabDistributor`
+		WHERE user_id IS NOT NULL AND user_id != ''
+		ORDER BY 
+			CASE WHEN first_login_date IS NULL THEN 0 ELSE 1 END,
+			login_reminder_count DESC,
+			credentials_sent_date DESC
+	""", as_dict=True)
+	
+	return distributors
+
+@frappe.whitelist()
+def get_recent_distributor_logins(limit=10):
+	"""Get recent distributor login activities"""
+	
+	recent_logins = frappe.db.sql("""
+		SELECT 
+			d.name as distributor_id,
+			d.atendee_name as distributor_name,
+			d.distributor_company_name as company_name,
+			d.last_login_date,
+			d.first_login_date,
+			CASE WHEN d.first_login_date = d.last_login_date THEN 1 ELSE 0 END as is_first_login
+		FROM `tabDistributor` d
+		WHERE d.last_login_date IS NOT NULL
+		ORDER BY d.last_login_date DESC
+		LIMIT %s
+	""", (limit,), as_dict=True)
+	
+	return recent_logins
+
+@frappe.whitelist()
+def get_reminder_breakdown():
+	"""Get breakdown of reminders by count ranges"""
+	
+	breakdown = frappe.db.sql("""
+		SELECT 
+			CASE 
+				WHEN login_reminder_count = 0 THEN 0
+				WHEN login_reminder_count BETWEEN 1 AND 2 THEN 2
+				WHEN login_reminder_count BETWEEN 3 AND 5 THEN 5
+				WHEN login_reminder_count BETWEEN 6 AND 10 THEN 10
+				ELSE 15
+			END as count,
+			COUNT(*) as distributors_count
+		FROM `tabDistributor`
+		WHERE user_id IS NOT NULL AND first_login_date IS NULL
+		GROUP BY 
+			CASE 
+				WHEN login_reminder_count = 0 THEN 0
+				WHEN login_reminder_count BETWEEN 1 AND 2 THEN 2
+				WHEN login_reminder_count BETWEEN 3 AND 5 THEN 5
+				WHEN login_reminder_count BETWEEN 6 AND 10 THEN 10
+				ELSE 15
+			END
+		ORDER BY count
+	""", as_dict=True)
+	
+	return breakdown
