@@ -45,16 +45,9 @@
       </button>
       <h3 class="text-lg font-medium mb-4">Compliance Documents</h3>
       <ul class="space-y-4 mb-2">
-        <li v-for="document in Object.keys(print_format_links)" :key="document" class="flex items-center justify-between">
+        <li v-for="document in documentsList" :key="document" class="flex items-center justify-between">
           <span>{{ document }}</span>
-          <Button
-            theme="gray"
-            variant="solid"
-            @click="downloadDocument(document, print_format_links[document])"
-            :disabled="!print_format_links[document]"
-          >
-            Print
-          </Button>
+          <Button theme="gray" variant="solid" @click="downloadDocument(document)">Download</Button>
         </li>
       </ul>
     </div>
@@ -82,7 +75,7 @@
         <label for="name">Name</label>
         <TextInput
             id="name"
-            v-model="name"
+            v-model="name"  
             type="text"
             placeholder="Name"
             class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
@@ -175,7 +168,7 @@ const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
 const documentsList = ref([])
 const loadingUploadForm = ref(false);
-const print_format_links = ref({})
+const errorMessage = ref('')
 
 const handleDownload = async() => {
   if(name.value === '' || date.value === '') {
@@ -233,7 +226,6 @@ try {
       showDownloadForm.value = true
       showUploadForm.value = false
       documentsList.value = res.documents_list
-      print_format_links.value = res.print_format_links || {}
       console.log('Document already submitted for this course')
     } else {
       showDownloadForm.value = false
@@ -323,12 +315,38 @@ const fileToBase64 = (file) => {
   })
 }
 
-const downloadDocument = (docName, url) => {
-  if (!url) {
-    toast.error('Print format not available for this document')
-    return
+const downloadDocument = async (document) => {
+  try {
+    // Use $call to get the PDF file as a blob and trigger download
+    console.log("document", document)
+    try {
+      const response = await call('lms.overrides.documents.download_user_print_format', { name: document }, { responseType: 'arraybuffer' });
+      // The filename is returned in response.headers['content-disposition'] or in response.filename
+      console.log("response", response)
+      let filename = 'document.pdf';
+      if (response && response.filename) {
+        filename = response.filename;
+      } else if (response && response.headers && response.headers['content-disposition']) {
+        const match = response.headers['content-disposition'].match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+      // Create a blob and trigger download
+      const blob = new Blob([response.filecontent || response], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      toast.error('Failed to download document');
+      console.error("Error in downloadDocument", e);
+    }
+    
+  } catch (e) {
+    toast.error('Failed to download document')
+    console.error("Error in downloadDocument", e)
   }
-  window.open(url, '_blank')
 }
 
 </script>

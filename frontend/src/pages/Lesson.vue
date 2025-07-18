@@ -54,6 +54,38 @@
 					</Button>
 				</div>
 			</div>
+			<!-- Access Restricted Section for Completed Lessons -->
+			<div v-else-if="lesson.data.access_restricted" class="border-r">
+				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+					<div class="flex items-center justify-center mt-4 space-x-2">
+						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
+						<div class="text-lg font-semibold text-ink-gray-7">
+							{{ __('Lesson Access Restricted') }}
+						</div>
+					</div>
+					<div class="mt-1 mb-4 text-ink-gray-7">
+						{{ lesson.data.restriction_message || __('This lesson was completed and is currently restricted.') }}
+					</div>
+					<div v-if="lesson.data.lesson_completed" class="mt-2 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+						<div class="flex items-center justify-center text-green-700">
+							<CheckCircle class="w-4 h-4 mr-2" />
+							<span class="text-sm font-medium">{{ __('Lesson Completed') }}</span>
+						</div>
+						<p class="text-xs text-green-600 mt-1">
+							{{ __('You have successfully completed this lesson.') }}
+						</p>
+					</div>
+					<div class="text-sm text-ink-gray-6 mb-4">
+						{{ __('Contact the administrator for re-enrollment to access completed content.') }}
+					</div>
+					<Button
+						@click="goBackToCourse()"
+						variant="subtle"
+					>
+						{{ __('Back to Course') }}
+					</Button>
+				</div>
+			</div>
 			<div
 				v-else
 				ref="lessonContainer"
@@ -298,6 +330,7 @@ import {
 	Focus,
 	Info,
 	MessageCircleQuestion,
+	CheckCircle,
 } from 'lucide-vue-next'
 import Discussions from '@/components/Discussions.vue'
 import { getEditorTools, enablePlyr } from '@/utils'
@@ -620,6 +653,11 @@ function downloadLessonPrintFormat() {
 	const printFormat = 'Standard' // Change if you have a custom print format
 	const url = `/api/method/frappe.utils.print_format.download_pdf?doctype=Course+Lesson&name=${encodeURIComponent(lesson.data.name)}&format=${encodeURIComponent(printFormat)}`
 	window.open(url, '_blank')
+const goBackToCourse = () => {
+	router.push({
+		name: 'CourseDetail',
+		params: { courseName: props.courseName },
+	})
 }
 
 usePageMeta(() => {
