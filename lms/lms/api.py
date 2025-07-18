@@ -2088,6 +2088,7 @@ def get_distributor_login_stats():
 		return {}
 
 
+# Fixed function with correct indentation
 @frappe.whitelist()
 def get_distributors_with_login_status():
 	"""
@@ -2154,16 +2155,16 @@ def get_reminder_breakdown():
 	"""
 	try:
 		breakdown_data = frappe.db.sql("""
-		SELECT 
+			SELECT 
 				login_reminder_count as count,
-			COUNT(*) as distributors_count
-		FROM `tabDistributor`
+				COUNT(*) as distributors_count
+			FROM `tabDistributor`
 			WHERE login_reminder_count IS NOT NULL
 			AND login_reminder_count > 0
 			AND first_login_date IS NULL
 			GROUP BY login_reminder_count
 			ORDER BY login_reminder_count
-	""", as_dict=True)
+		""", as_dict=True)
 	
 		return breakdown_data
 		
