@@ -75,9 +75,7 @@
 							{{ __('You have successfully completed this lesson.') }}
 						</p>
 					</div>
-					<div class="text-sm text-ink-gray-6 mb-4">
-						{{ __('Contact the administrator for re-enrollment to access completed content.') }}
-					</div>
+					
 					<Button
 						@click="goBackToCourse()"
 						variant="subtle"

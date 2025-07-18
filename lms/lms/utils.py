@@ -395,16 +395,42 @@ def is_eligible_to_review(course):
 
 
 def get_course_progress(course, member=None):
-	"""Returns the course progress of the session user"""
+	"""Returns the course progress of the session user for a specific enrollment"""
+	member = member or frappe.session.user
+	
+	# Get the most recent active enrollment for this member and course
+	enrollment = frappe.db.get_value(
+		"LMS Enrollment",
+		{
+			"course": course, 
+			"member": member,
+			"docstatus": ("!=", 2)
+		},
+		["name", "completion_status"],
+		order_by="creation desc"
+	)
+	
+	if not enrollment:
+		return 0
+		
 	lesson_count = get_lessons(course, get_details=False)
 	if not lesson_count:
 		return 0
+	
+	# Count completed lessons for this specific enrollment
 	completed_lessons = frappe.db.count(
 		"LMS Course Progress",
-		{"course": course, "member": member or frappe.session.user, "status": "Complete"},
+		{
+			"enrollment": enrollment[0],  # enrollment[0] is the name
+			"status": "Complete",
+			"is_complete": 1
+		}
 	)
+	
 	precision = cint(frappe.db.get_default("float_precision")) or 3
-	return flt(((completed_lessons / lesson_count) * 100), precision)
+	progress = flt(((completed_lessons / lesson_count) * 100), precision)
+	
+	return progress
 
 
 def get_initial_members(course):
