@@ -653,6 +653,8 @@ function downloadLessonPrintFormat() {
 	const printFormat = 'Standard' // Change if you have a custom print format
 	const url = `/api/method/frappe.utils.print_format.download_pdf?doctype=Course+Lesson&name=${encodeURIComponent(lesson.data.name)}&format=${encodeURIComponent(printFormat)}`
 	window.open(url, '_blank')
+}
+
 const goBackToCourse = () => {
 	router.push({
 		name: 'CourseDetail',
