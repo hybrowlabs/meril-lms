@@ -2026,19 +2026,19 @@ def get_distributor_login_stats():
 		logged_in_distributors = frappe.db.count("Distributor", filters={
 			"first_login_date": ("is", "set"),
 			"user_id": ("is", "set")
-	})
-	
-	# Never logged in
-	never_logged_in = total_distributors - logged_in_distributors
-	
-	# Total reminders sent
-	total_reminders = frappe.db.sql("""
+		})
+		
+		# Never logged in
+		never_logged_in = total_distributors - logged_in_distributors
+		
+		# Total reminders sent
+		total_reminders = frappe.db.sql("""
 			SELECT COALESCE(SUM(login_reminder_count), 0) as total
-		FROM `tabDistributor` 
+			FROM `tabDistributor` 
 			WHERE login_reminder_count IS NOT NULL
 		""")[0][0] or 0
-	
-	# Reminders sent today
+		
+		# Reminders sent today
 		today = frappe.utils.today()
 		reminders_today = frappe.db.sql("""
 			SELECT COUNT(*) as count
@@ -2046,16 +2046,16 @@ def get_distributor_login_stats():
 			WHERE subject LIKE '%login to Meril Learning Portal%'
 			AND DATE(creation) = %s
 		""", today)[0][0] or 0
-	
+		
 		# Calculate response rate
-	response_rate = 0
-	if total_distributors > 0:
-		response_rate = round((logged_in_distributors / total_distributors) * 100, 1)
-	
+		response_rate = 0
+		if total_distributors > 0:
+			response_rate = round((logged_in_distributors / total_distributors) * 100, 1)
+		
 		# Average time to login (in days)
 		avg_time_query = frappe.db.sql("""
-		SELECT AVG(DATEDIFF(first_login_date, credentials_sent_date)) as avg_days
-		FROM `tabDistributor` 
+			SELECT AVG(DATEDIFF(first_login_date, credentials_sent_date)) as avg_days
+			FROM `tabDistributor` 
 			WHERE first_login_date IS NOT NULL
 			AND credentials_sent_date IS NOT NULL
 		""")
@@ -2070,8 +2070,8 @@ def get_distributor_login_stats():
 			AND login_reminder_count > 0
 		""")
 		avg_reminders_sent = round(avg_reminders_query[0][0] or 0, 1)
-	
-	return {
+		
+		return {
 			"total_distributors": total_distributors,
 			"logged_in_distributors": logged_in_distributors,
 			"never_logged_in": never_logged_in,
@@ -2095,7 +2095,7 @@ def get_distributors_with_login_status():
 	"""
 	try:
 		distributors_data = frappe.db.sql("""
-		SELECT 
+			SELECT 
 				d.name,
 				d.atendee_name,
 				d.distributor_company_name,
@@ -2109,8 +2109,8 @@ def get_distributors_with_login_status():
 			WHERE d.user_id IS NOT NULL
 			AND d.user_id != ''
 			ORDER BY d.credentials_sent_date DESC
-	""", as_dict=True)
-	
+		""", as_dict=True)
+		
 		return distributors_data
 		
 	except Exception as e:
@@ -2124,23 +2124,23 @@ def get_recent_distributor_logins():
 	Legacy function for recent distributor logins - kept for backward compatibility
 	"""
 	try:
-	recent_logins = frappe.db.sql("""
-		SELECT 
-			d.name as distributor_id,
-			d.atendee_name as distributor_name,
-			d.distributor_company_name as company_name,
-			d.last_login_date,
+		recent_logins = frappe.db.sql("""
+			SELECT 
+				d.name as distributor_id,
+				d.atendee_name as distributor_name,
+				d.distributor_company_name as company_name,
+				d.last_login_date,
 				CASE 
 					WHEN d.first_login_date = d.last_login_date THEN 1
 					ELSE 0
 				END as is_first_login
-		FROM `tabDistributor` d
-		WHERE d.last_login_date IS NOT NULL
-		ORDER BY d.last_login_date DESC
+			FROM `tabDistributor` d
+			WHERE d.last_login_date IS NOT NULL
+			ORDER BY d.last_login_date DESC
 			LIMIT 10
 		""", as_dict=True)
-	
-	return recent_logins
+		
+		return recent_logins
 		
 	except Exception as e:
 		frappe.log_error(f"Error getting recent distributor logins: {str(e)}", "Recent Logins Error")
