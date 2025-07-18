@@ -1309,6 +1309,25 @@ def get_lesson(course, chapter, lesson):
 			"disable_self_learning": course_info.disable_self_learning,
 		}
 
+	# Check lesson-level access restrictions for completed lessons
+	if (
+		frappe.session.user != "Guest" 
+		and membership 
+		and not has_course_moderator_role() 
+		and not is_instructor(course)
+	):
+		from lms.lms.api import validate_lesson_access
+		access_result = validate_lesson_access(course, lesson_name)
+		
+		if not access_result.get("access_granted", True):
+			return {
+				"access_restricted": 1,
+				"title": lesson_details.title,
+				"course_title": course_info.title,
+				"restriction_message": access_result.get("message", "Access restricted"),
+				"lesson_completed": access_result.get("lesson_completed", False)
+			}
+
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",
 		lesson_name,

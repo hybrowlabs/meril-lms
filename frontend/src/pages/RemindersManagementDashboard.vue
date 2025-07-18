@@ -386,7 +386,7 @@ import {
 	Dialog,
 	usePageMeta,
 } from 'frappe-ui'
-import { computed, onMounted, ref, onUnmounted } from 'vue'
+import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import {
 	RefreshCw,
 	Users,
@@ -421,6 +421,20 @@ const usersDialogTitle = ref('')
 // Auto-refresh interval
 let refreshInterval = null
 
+// Watch for user authentication changes
+watch(
+	() => [isLoggedIn, user.name],
+	([newIsLoggedIn, newUserName], [oldIsLoggedIn, oldUserName]) => {
+		console.log('User auth state changed:', { newIsLoggedIn, newUserName, oldIsLoggedIn, oldUserName })
+		if (newIsLoggedIn && newUserName && (!oldIsLoggedIn || !oldUserName)) {
+			// User just logged in or session initialized
+			console.log('User session initialized, loading data...')
+			loadData()
+		}
+	},
+	{ immediate: false }
+)
+
 const statusFilterOptions = ref([
 	{ label: 'All Status', value: null },
 	{ label: 'Completed', value: 'completed' },
@@ -443,60 +457,92 @@ onUnmounted(() => {
 
 const checkPermissions = () => {
 	if (!isLoggedIn || !user.roles?.some(role => ['System Manager', 'Administrator'].includes(role))) {
+		console.error('Permission check failed:', { isLoggedIn, roles: user.roles })
 		router.push({ name: 'NotPermitted' })
+		return false
 	}
+	return true
 }
 
 const loadData = async () => {
+	if (!checkPermissions()) return
+	
 	loading.value = true
+	console.log('Starting data load...')
+	
 	try {
-		await Promise.all([
+		// Load data with individual error handling to prevent one failure from stopping others
+		const results = await Promise.allSettled([
 			loadKPIData(),
 			loadUsers(),
 			loadRecentCompletions(),
 			loadReminderBreakdown()
 		])
+		
+		// Log any rejected promises for debugging
+		results.forEach((result, index) => {
+			if (result.status === 'rejected') {
+				const functionNames = ['KPI Data', 'Users', 'Recent Completions', 'Reminder Breakdown']
+				console.error(`Failed to load ${functionNames[index]}:`, result.reason)
+			} else {
+				const functionNames = ['KPI Data', 'Users', 'Recent Completions', 'Reminder Breakdown']
+				console.log(`Successfully loaded ${functionNames[index]}`)
+			}
+		})
+		
+		// If critical data (users) failed to load, try again after a short delay
+		if (users.value.length === 0 && results[1].status === 'rejected') {
+			console.log('Retrying user data load...')
+			setTimeout(() => loadUsers(), 1000)
+		}
+		
 	} catch (error) {
 		console.error('Failed to load dashboard data:', error)
 	} finally {
 		loading.value = false
+		console.log('Data load completed. Users loaded:', users.value.length)
 	}
 }
 
 const loadKPIData = async () => {
 	try {
 		const data = await call('lms.lms.api.get_course_completion_stats')
-		kpiData.value = data
+		kpiData.value = data || {}
 	} catch (error) {
 		console.error('Failed to load KPI data:', error)
+		kpiData.value = {}
 	}
 }
 
 const loadUsers = async () => {
 	try {
 		const data = await call('lms.lms.api.get_users_with_course_completion_status')
-		users.value = data
-		filteredUsers.value = data
+		users.value = data || []
+		filteredUsers.value = data || []
 	} catch (error) {
 		console.error('Failed to load users:', error)
+		users.value = []
+		filteredUsers.value = []
 	}
 }
 
 const loadRecentCompletions = async () => {
 	try {
 		const data = await call('lms.lms.api.get_recent_course_completions')
-		recentCompletions.value = data
+		recentCompletions.value = data || []
 	} catch (error) {
 		console.error('Failed to load recent completions:', error)
+		recentCompletions.value = []
 	}
 }
 
 const loadReminderBreakdown = async () => {
 	try {
 		const data = await call('lms.lms.api.get_course_reminder_breakdown')
-		reminderBreakdown.value = data
+		reminderBreakdown.value = data || []
 	} catch (error) {
 		console.error('Failed to load reminder breakdown:', error)
+		reminderBreakdown.value = []
 	}
 }
 

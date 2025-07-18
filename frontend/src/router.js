@@ -131,7 +131,7 @@ const routes = [
 		props: true,
 	},
 	{
-		path: '/lesson-form/:courseName/:chapterNumber/:lessonNumber',
+		path: '/lesson-form/:lessonName',
 		name: 'LessonForm',
 		component: () => import('@/pages/LessonForm.vue'),
 		props: true,
