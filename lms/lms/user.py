@@ -626,8 +626,8 @@ def get_distributor_profile(user_id=None):
 	
 	fields = [ 
 		"name",
-		"division",
-		"meril_company_name",
+		
+		
 		"bu__fd_head",
 		"rsm__state_head",
 		"region",
@@ -804,10 +804,10 @@ def send_manual_course_reminder(enrollment_id):
 		enrollment = frappe.get_doc("LMS Enrollment", enrollment_id)
 		
 		# Check if course is already completed
-		if enrollment.completion_date:
+		if enrollment.completed_on:
 			return {"status": "error", "message": "Course is already completed"}
 		
-		user = frappe.get_doc("User", enrollment.student)
+		user = frappe.get_doc("User", enrollment.member)
 		course = frappe.get_doc("LMS Course", enrollment.course)
 		
 		# Increment reminder count

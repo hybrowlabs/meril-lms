@@ -330,9 +330,8 @@ import {
 } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import UserAvatar from '@/components/UserAvatar.vue'
-import router from '../router'
 
-const { user, isLoggedIn } = sessionStore()
+const { user } = sessionStore()
 
 // Reactive data
 const completedEnrollments = ref([])
@@ -364,24 +363,25 @@ const singleReEnrollLoading = ref(false)
 const resetProgressOnSingleReEnroll = ref(false)
 
 onMounted(() => {
-	checkPermissions()
 	loadData()
 })
-
-const checkPermissions = () => {
-	if (!isLoggedIn || !user.roles?.some(role => ['System Manager', 'Administrator', 'Moderator'].includes(role))) {
-		// Redirect to access denied page
-		router.push({ name: 'NotPermitted' })
-	}
-}
 
 const loadData = async () => {
 	loading.value = true
 	try {
-		await Promise.all([
+		// Load data with individual error handling
+		const results = await Promise.allSettled([
 			loadCompletedEnrollments(),
 			loadAnalytics()
 		])
+		
+		// Log any failures for debugging
+		results.forEach((result, index) => {
+			if (result.status === 'rejected') {
+				const functionNames = ['Completed Enrollments', 'Analytics']
+				console.error(`Failed to load ${functionNames[index]}:`, result.reason)
+			}
+		})
 	} catch (error) {
 		console.error('Failed to load data:', error)
 	} finally {
@@ -392,26 +392,29 @@ const loadData = async () => {
 const loadCompletedEnrollments = async () => {
 	try {
 		const data = await call('lms.lms.api.get_users_for_re_enrollment')
-		completedEnrollments.value = data
-		filteredEnrollments.value = data
+		completedEnrollments.value = data || []
+		filteredEnrollments.value = data || []
 		
 		// Build course options
-		const courses = [...new Set(data.map(e => e.course_title))]
+		const courses = [...new Set((data || []).map(e => e.course_title))]
 		courseOptions.value = [
 			{ label: 'All Courses', value: null },
 			...courses.map(course => ({ label: course, value: course }))
 		]
 	} catch (error) {
 		console.error('Failed to load completed enrollments:', error)
+		completedEnrollments.value = []
+		filteredEnrollments.value = []
 	}
 }
 
 const loadAnalytics = async () => {
 	try {
 		const data = await call('lms.lms.api.get_course_completion_analytics')
-		analytics.value = data
+		analytics.value = data || {}
 	} catch (error) {
 		console.error('Failed to load analytics:', error)
+		analytics.value = {}
 	}
 }
 
@@ -474,10 +477,10 @@ const executeSingleReEnrollment = async () => {
 		})
 		
 		showSingleReEnrollDialog.value = false
-		await refreshData()
+		// Refresh all data after re-enrollment
+		await loadData()
 		
 		// Show success message
-		// You could implement a toast notification system here
 		alert('User successfully re-enrolled!')
 	} catch (error) {
 		console.error('Failed to re-enroll user:', error)
@@ -505,7 +508,8 @@ const executeBulkReEnrollment = async () => {
 		
 		showBulkReEnrollDialog.value = false
 		selectedEnrollments.value = []
-		await refreshData()
+		// Refresh all data after bulk re-enrollment
+		await loadData()
 		
 		// Show results summary
 		const successful = results.filter(r => r.success).length

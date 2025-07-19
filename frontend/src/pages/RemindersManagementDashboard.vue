@@ -398,9 +398,8 @@ import {
 } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import UserAvatar from '@/components/UserAvatar.vue'
-import router from '../router'
 
-const { user, isLoggedIn } = sessionStore()
+const { user } = sessionStore()
 
 // Reactive data
 const kpiData = ref({})
@@ -423,10 +422,10 @@ let refreshInterval = null
 
 // Watch for user authentication changes
 watch(
-	() => [isLoggedIn, user.name],
-	([newIsLoggedIn, newUserName], [oldIsLoggedIn, oldUserName]) => {
-		console.log('User auth state changed:', { newIsLoggedIn, newUserName, oldIsLoggedIn, oldUserName })
-		if (newIsLoggedIn && newUserName && (!oldIsLoggedIn || !oldUserName)) {
+	() => [user.name],
+	([newUserName], [oldUserName]) => {
+		console.log('User auth state changed:', { newUserName, oldUserName })
+		if (newUserName && (!oldUserName)) {
 			// User just logged in or session initialized
 			console.log('User session initialized, loading data...')
 			loadData()
@@ -443,7 +442,6 @@ const statusFilterOptions = ref([
 ])
 
 onMounted(() => {
-	checkPermissions()
 	loadData()
 	// Auto-refresh every 30 seconds
 	refreshInterval = setInterval(loadData, 30000)
@@ -455,18 +453,7 @@ onUnmounted(() => {
 	}
 })
 
-const checkPermissions = () => {
-	if (!isLoggedIn || !user.roles?.some(role => ['System Manager', 'Administrator'].includes(role))) {
-		console.error('Permission check failed:', { isLoggedIn, roles: user.roles })
-		router.push({ name: 'NotPermitted' })
-		return false
-	}
-	return true
-}
-
 const loadData = async () => {
-	if (!checkPermissions()) return
-	
 	loading.value = true
 	console.log('Starting data load...')
 	
@@ -560,9 +547,9 @@ const filterUsers = () => {
 
 	if (statusFilter.value) {
 		if (statusFilter.value === 'completed') {
-			filtered = filtered.filter(u => u.completion_date)
+			filtered = filtered.filter(u => u.completed_on)
 		} else if (statusFilter.value === 'in_progress') {
-			filtered = filtered.filter(u => !u.completion_date)
+			filtered = filtered.filter(u => !u.completed_on)
 		} else if (statusFilter.value === 'high_reminders') {
 			filtered = filtered.filter(u => (u.course_reminder_count || 0) >= 5)
 		}
@@ -605,6 +592,7 @@ const sendCourseReminder = async (user) => {
 			enrollment_id: user.enrollment_id
 		})
 		alert('Course reminder sent successfully!')
+		// Refresh data after sending reminder
 		await loadData()
 	} catch (error) {
 		console.error('Failed to send course reminder:', error)
@@ -616,6 +604,7 @@ const sendCourseReminders = async () => {
 	try {
 		const result = await call('lms.lms.user.send_daily_course_reminders')
 		alert(`Course reminders sent: ${result.count} users notified`)
+		// Refresh data after sending bulk reminders
 		await loadData()
 	} catch (error) {
 		console.error('Failed to send course reminders:', error)

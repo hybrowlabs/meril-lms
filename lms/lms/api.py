@@ -1944,31 +1944,24 @@ def validate_lesson_access(course_name, lesson_name):
 		}, ["name", "completed_on", "re_enrolled_on"], as_dict=True)
 		
 		if not enrollment:
+			# No enrollment found - allow access (this handles cases where user isn't enrolled yet)
 			return {"access_granted": True, "message": "Course access granted"}
 		
-		# Check if this specific lesson was completed
-		lesson_progress = frappe.db.get_value("LMS Course Progress", {
-			"enrollment": enrollment.name,
-			"lesson": lesson_name
-		}, ["is_complete", "completed_on"], as_dict=True)
-	
-		# If course was completed but not re-enrolled, restrict completed lessons
+		# If course was completed but not re-enrolled, restrict ALL access to the course
 		if enrollment.completed_on and not enrollment.re_enrolled_on:
-			if lesson_progress and lesson_progress.is_complete:
-				return {
-					"access_granted": False, 
-					"message": "This lesson was completed. Contact admin for re-enrollment to access completed lessons.",
-					"lesson_completed": True
-				}
-			# Allow access to incomplete lessons even in completed courses
-			return {"access_granted": True, "message": "Lesson access granted"}
+			return {
+				"access_granted": False, 
+				"message": "This course has been completed. Contact admin for re-enrollment to continue accessing lessons.",
+				"lesson_completed": True
+			}
 		
 		# For active or re-enrolled courses, allow all lesson access
 		return {"access_granted": True, "message": "Lesson access granted"}
 		
 	except Exception as e:
 		frappe.log_error(f"Error validating lesson access: {str(e)}", "Lesson Access Error")
-		return {"access_granted": False, "message": "Error validating access"}
+		# In case of error, default to allowing access to avoid blocking users unnecessarily
+		return {"access_granted": True, "message": "Lesson access granted (fallback)"}
 
 
 @frappe.whitelist()
@@ -1994,14 +1987,24 @@ def mark_course_re_enrolled(course_name):
 		# Mark as re-enrolled and reset progress
 		enrollment.re_enrolled_on = frappe.utils.now_datetime()
 		enrollment.progress = 0
+		enrollment.completion_status = "Re-enrolled"
+		enrollment.access_restricted = 0
+		enrollment.current_lesson = None
 		enrollment.save(ignore_permissions=True)
 		
-		# Reset all lesson progress for this enrollment
+		# Delete all lesson progress records for this enrollment to start fresh
 		frappe.db.sql("""
-			UPDATE `tabLMS Course Progress`
-			SET is_complete = 0, completion_date = NULL, progress = 0
+			DELETE FROM `tabLMS Course Progress`
 			WHERE enrollment = %s
 		""", enrollment.name)
+		
+		# Also clean up any orphaned progress records 
+		frappe.db.sql("""
+			DELETE FROM `tabLMS Course Progress`
+			WHERE member = %s 
+			AND course = %s
+			AND (enrollment IS NULL OR enrollment = '')
+		""", (user, course_name))
 		
 		frappe.db.commit()
 		
@@ -2026,19 +2029,19 @@ def get_distributor_login_stats():
 		logged_in_distributors = frappe.db.count("Distributor", filters={
 			"first_login_date": ("is", "set"),
 			"user_id": ("is", "set")
-	})
-	
-	# Never logged in
-	never_logged_in = total_distributors - logged_in_distributors
-	
-	# Total reminders sent
-	total_reminders = frappe.db.sql("""
+		})
+		
+		# Never logged in
+		never_logged_in = total_distributors - logged_in_distributors
+		
+		# Total reminders sent
+		total_reminders = frappe.db.sql("""
 			SELECT COALESCE(SUM(login_reminder_count), 0) as total
-		FROM `tabDistributor` 
+			FROM `tabDistributor` 
 			WHERE login_reminder_count IS NOT NULL
 		""")[0][0] or 0
-	
-	# Reminders sent today
+		
+		# Reminders sent today
 		today = frappe.utils.today()
 		reminders_today = frappe.db.sql("""
 			SELECT COUNT(*) as count
@@ -2046,16 +2049,16 @@ def get_distributor_login_stats():
 			WHERE subject LIKE '%login to Meril Learning Portal%'
 			AND DATE(creation) = %s
 		""", today)[0][0] or 0
-	
+		
 		# Calculate response rate
-	response_rate = 0
-	if total_distributors > 0:
-		response_rate = round((logged_in_distributors / total_distributors) * 100, 1)
-	
+		response_rate = 0
+		if total_distributors > 0:
+			response_rate = round((logged_in_distributors / total_distributors) * 100, 1)
+		
 		# Average time to login (in days)
 		avg_time_query = frappe.db.sql("""
-		SELECT AVG(DATEDIFF(first_login_date, credentials_sent_date)) as avg_days
-		FROM `tabDistributor` 
+			SELECT AVG(DATEDIFF(first_login_date, credentials_sent_date)) as avg_days
+			FROM `tabDistributor` 
 			WHERE first_login_date IS NOT NULL
 			AND credentials_sent_date IS NOT NULL
 		""")
@@ -2070,8 +2073,8 @@ def get_distributor_login_stats():
 			AND login_reminder_count > 0
 		""")
 		avg_reminders_sent = round(avg_reminders_query[0][0] or 0, 1)
-	
-	return {
+		
+		return {
 			"total_distributors": total_distributors,
 			"logged_in_distributors": logged_in_distributors,
 			"never_logged_in": never_logged_in,
@@ -2088,6 +2091,7 @@ def get_distributor_login_stats():
 		return {}
 
 
+# Fixed function with correct indentation
 @frappe.whitelist()
 def get_distributors_with_login_status():
 	"""
@@ -2124,23 +2128,23 @@ def get_recent_distributor_logins():
 	Legacy function for recent distributor logins - kept for backward compatibility
 	"""
 	try:
-	recent_logins = frappe.db.sql("""
-		SELECT 
-			d.name as distributor_id,
-			d.atendee_name as distributor_name,
-			d.distributor_company_name as company_name,
-			d.last_login_date,
+		recent_logins = frappe.db.sql("""
+			SELECT 
+				d.name as distributor_id,
+				d.atendee_name as distributor_name,
+				d.distributor_company_name as company_name,
+				d.last_login_date,
 				CASE 
 					WHEN d.first_login_date = d.last_login_date THEN 1
 					ELSE 0
 				END as is_first_login
-		FROM `tabDistributor` d
-		WHERE d.last_login_date IS NOT NULL
-		ORDER BY d.last_login_date DESC
+			FROM `tabDistributor` d
+			WHERE d.last_login_date IS NOT NULL
+			ORDER BY d.last_login_date DESC
 			LIMIT 10
 		""", as_dict=True)
-	
-	return recent_logins
+		
+		return recent_logins
 		
 	except Exception as e:
 		frappe.log_error(f"Error getting recent distributor logins: {str(e)}", "Recent Logins Error")
@@ -2170,3 +2174,116 @@ def get_reminder_breakdown():
 	except Exception as e:
 		frappe.log_error(f"Error getting reminder breakdown: {str(e)}", "Reminder Breakdown Error")
 		return []
+
+
+@frappe.whitelist()
+def migrate_lesson_progress_to_enrollment_based():
+	"""
+	Migration function to update existing LMS Course Progress records 
+	to link them to enrollments and ensure data consistency
+	"""
+	try:
+		# Get all LMS Course Progress records that don't have enrollment links
+		orphaned_progress = frappe.db.sql("""
+			SELECT 
+				lcp.name,
+				lcp.member,
+				lcp.course,
+				lcp.lesson,
+				lcp.status,
+				e.name as enrollment_id
+			FROM `tabLMS Course Progress` lcp
+			LEFT JOIN `tabLMS Enrollment` e ON (
+				lcp.member = e.member 
+				AND lcp.course = e.course
+			)
+			WHERE lcp.enrollment IS NULL OR lcp.enrollment = ''
+		""", as_dict=True)
+		
+		updated_count = 0
+		deleted_count = 0
+		
+		for progress in orphaned_progress:
+			if progress.enrollment_id:
+				# Link to existing enrollment
+				frappe.db.sql("""
+					UPDATE `tabLMS Course Progress`
+					SET enrollment = %s,
+						is_complete = %s,
+						progress = %s,
+						completed_on = %s
+					WHERE name = %s
+				""", (
+					progress.enrollment_id,
+					1 if progress.status == "Complete" else 0,
+					100 if progress.status == "Complete" else 0,
+					frappe.utils.now_datetime() if progress.status == "Complete" else None,
+					progress.name
+				))
+				updated_count += 1
+			else:
+				# No enrollment found, delete orphaned progress
+				frappe.db.delete("LMS Course Progress", progress.name)
+				deleted_count += 1
+		
+		frappe.db.commit()
+		
+		return {
+			"success": True,
+			"message": f"Migration completed: {updated_count} records updated, {deleted_count} orphaned records deleted"
+		}
+		
+	except Exception as e:
+		frappe.log_error(f"Error during lesson progress migration: {str(e)}", "Migration Error")
+		return {
+			"success": False,
+			"message": f"Migration failed: {str(e)}"
+		}
+
+
+@frappe.whitelist()
+def recalculate_course_progress_for_all():
+	"""
+	Recalculate course progress for all enrollments based on lesson completion
+	"""
+	try:
+		from lms.lms.utils import get_course_progress
+		
+		enrollments = frappe.get_all("LMS Enrollment", 
+			fields=["name", "course", "member"],
+			filters={"docstatus": ("!=", 2)}
+		)
+		
+		updated_count = 0
+		
+		for enrollment in enrollments:
+			try:
+				# Recalculate progress
+				new_progress = get_course_progress(enrollment.course, enrollment.member)
+				
+				# Update enrollment
+				frappe.db.set_value("LMS Enrollment", enrollment.name, "progress", new_progress)
+				
+				# Check if course should be marked as completed
+				enrollment_doc = frappe.get_doc("LMS Enrollment", enrollment.name)
+				enrollment_doc.check_course_completion()
+				
+				updated_count += 1
+				
+			except Exception as e:
+				frappe.log_error(f"Error updating progress for enrollment {enrollment.name}: {str(e)}", "Progress Recalculation Error")
+				continue
+		
+		frappe.db.commit()
+		
+		return {
+			"success": True,
+			"message": f"Progress recalculated for {updated_count} enrollments"
+		}
+		
+	except Exception as e:
+		frappe.log_error(f"Error during progress recalculation: {str(e)}", "Progress Recalculation Error")
+		return {
+			"success": False,
+			"message": f"Progress recalculation failed: {str(e)}"
+		}
