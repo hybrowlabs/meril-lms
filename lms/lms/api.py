@@ -1791,6 +1791,8 @@ def get_users_with_course_completion_status():
 				e.completed_on,
 				e.progress,
 				e.course_reminder_count,
+				e.completion_status,
+				e.re_enrolled_on,
 				c.title as course_title,
 				u.full_name as user_name,
 				u.email as user_email
@@ -1951,7 +1953,7 @@ def validate_lesson_access(course_name, lesson_name):
 		if enrollment.completed_on and not enrollment.re_enrolled_on:
 			return {
 				"access_granted": False, 
-				"message": "This course has been completed. Contact admin for re-enrollment to continue accessing lessons.",
+				"message": "This course has been completed. Access to lessons is currently restricted.",
 				"lesson_completed": True
 			}
 		
