@@ -128,6 +128,7 @@ scheduler_events = {
 		"lms.lms.doctype.lms_live_class.lms_live_class.send_live_class_reminder",
 		"lms.lms.user.send_daily_login_reminders",  # Added login reminder function
 	],
+	
 }
 
 fixtures = ["Custom Field", "Function", "Industry", "LMS Category", "Role", "User Course Documents", "Print Format",

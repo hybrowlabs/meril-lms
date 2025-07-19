@@ -8,12 +8,14 @@ from frappe.utils.file_manager import save_file
 from docx import Document
 from frappe.utils import get_fullname
 import io
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import RGBColor
             
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
     user = frappe.session.user
     
-    if course == None:
+    if course is None:
         return { "submited": False }
 
     try:
@@ -21,42 +23,47 @@ def has_user_submited_document(course=None):
         if not frappe.db.exists("LMS Course", course):
             return { "submited": False }
 
-        print("course",course)
         exists = frappe.db.exists("User Course Documents", {"user": user, "course": course, "submited_document": 1})
-        print("exists",exists)
 
         user_doc = frappe.get_doc("User", user)
         roles = [role.role for role in user_doc.roles]
 
-
+        documents_list = []
+        # print_format_links = {}
+        # printview_links = {}
+        user_course_doc_name = f"{user}-{course}"
+        # Ensure base_printview_url is always defined before any use
         if "Distributor" in roles:
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
-            documents_list = ["Distributor Self Declaration", "Meril Distributor Compliance Code of Conduct", "Meril Distributor Compliance Policy Adoption Form"]
-            
-            for company in  distributor_doc.meril_company_table:
-                if  company.meril_company_name.lower().find("endo") != -1:
+            distributor_doc_name = distributor_doc.name
+            documents_list = [
+                "Distributor Completion Certificate",
+                "Distributor Self Declaration",
+                "Meril Distributor Compliance Code of Conduct",
+                "Meril Distributor Compliance Policy Adoption Form"
+            ]
+            for company in distributor_doc.meril_company_table:
+                if "endo" in company.meril_company_name.lower():
                     documents_list.append("Meril Distributor Compliance Policy for Endo")
                     break
-
             for company in distributor_doc.meril_company_table:
-                if  company.meril_company_name.lower().find("endo") == -1:
+                if "endo" not in company.meril_company_name.lower():
                     documents_list.append("Meril Distributor Compliance Policy")
                     break
+            return { "submited": True, "documents_list": documents_list }
         elif "Employee" in roles:
+            employee_doc = frappe.get_doc("Employee", {"user_id": user})
+            employee_doc_name = employee_doc.name
             documents_list = ["Employee Self Declaration", "Course Completion Certificate"]
             return { "submited": True, "documents_list": documents_list }
         else:
             documents_list = ["Course Completion Certificate"]
-            return { "submited": True, "documents_list": documents_list }
-
-        if  exists:
-            return { "submited": True, "documents_list": documents_list }
-        
-        return { "submited": False, "documents_list": documents_list }
+            if exists:
+                return { "submited": True, "documents_list": documents_list }
+            else:
+                return { "submited": False, "documents_list": documents_list }
     except Exception as e:
-        print(f"Error in has_user_submited_document: {str(e)}")
-        frappe.log_error(f"Error in has_user_submited_document: {str(e)}")
-        return { "submited": False , "error": str(e)}
+        return { "submited": False , "error": str(e) }
 
 
 @frappe.whitelist(allow_guest=False)
@@ -178,28 +185,28 @@ def save_user_course_document_with_file(course=None, document_name=None, filenam
         }
 
 
-@frappe.whitelist(allow_guest=False)
-def get_user_course_documents(course=None):
-    """
-    Get user's course documents
-    """
-    user = frappe.session.user
+# @frappe.whitelist(allow_guest=False)
+# def get_user_course_documents(course=None):
+#     """
+#     Get user's course documents
+#     """
+#     user = frappe.session.user
     
-    filters = {"user": user}
-    if course:
-        filters["course"] = course
+#     filters = {"user": user}
+#     if course:
+#         filters["course"] = course
     
-    documents = frappe.get_all(
-        "User Course Documents",
-        filters=filters,
-        fields=["name", "course", "document_name", "document_file", "submission_date", "submited_document"],
-        order_by="creation desc"
-    )
+#     documents = frappe.get_all(
+#         "User Course Documents",
+#         filters=filters,
+#         fields=["name", "course", "document_name", "document_file", "submission_date", "submited_document"],
+#         order_by="creation desc"
+#     )
     
-    return {
-        "success": True,
-        "documents": documents
-    }
+#     return {
+#         "success": True,
+#         "documents": documents
+#     }
 
 
 @frappe.whitelist(allow_guest=False)
@@ -274,9 +281,14 @@ def generate_dynamic_docx(name=None):
         today = get_datetime().strftime("%d-%m-%Y")
 
         doc = Document()
-        doc.add_paragraph("On letter head of distributor", style='Normal')
+        para = doc.add_paragraph("On letter head of distributor", style='Normal')
+        para.alignment = 1  
         doc.add_paragraph()
-        doc.add_heading("Meril Distributor- Compliance Policy Adoption Form", level=1)
+        heading = doc.add_heading("", level=1)
+        run = heading.add_run("Meril Distributor- Compliance Policy Adoption Form")
+        run.font.underline = True
+        run.font.color.rgb = RGBColor(0, 0, 0)
+        heading.alignment = 1
         doc.add_paragraph()
         doc.add_paragraph(today)
         doc.add_paragraph()
@@ -323,3 +335,79 @@ def generate_dynamic_docx(name=None):
             "success": False,
             "error": str(e)
         }
+
+
+def download_user_print_format_logic(document, user=None):
+    """
+    Internal logic for downloading a user's print format as PDF, with permission checks.
+    Accepts only the document name, determines doctype and print_format, checks access, and generates the PDF.
+    """
+    if not user:
+        user = frappe.session.user
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+
+    # Determine doctype and print_format based on document name
+    if "Distributor" in document:
+        doctype = "Distributor"
+        # Find distributor doc for this user
+        distributor = frappe.get_doc("Distributor", {"user_id": user})
+        docname = distributor.name
+        print_format = document
+        if distributor.user_id != user:
+            frappe.throw("You are not allowed to access this Distributor document.")
+    elif "Employee" in document:
+        doctype = "Employee"
+        employee = frappe.get_doc("Employee", {"user_id": user})
+        docname = employee.name
+        print_format = document
+        if employee.user_id != user:
+            frappe.throw("You are not allowed to access this Employee document.")
+    else:
+        doctype = "User Course Documents"
+        # Assume courseName is part of document name after a dash, or use a convention
+        # Here, we expect document to be the print_format, and courseName to be passed as a param
+        # For now, use the first course document for this user
+        user_course_docs = frappe.get_all(
+            "User Course Documents",
+            filters={"user": user},
+            fields=["name", "course"],
+            limit_page_length=1
+        )
+        if not user_course_docs:
+            frappe.throw("No course document found for this user.")
+        docname = user_course_docs[0]["name"]
+        print_format = document
+        # Check access
+        doc = frappe.get_doc("User Course Documents", docname)
+        if doc.user != user:
+            frappe.throw("You are not allowed to access this course document.")
+
+    # Use Frappe's print format system to generate PDF
+    frappe.local.flags.ignore_permissions = True
+    try:
+        pdf_file = frappe.get_print(
+            doctype=doctype,
+            name=docname,
+            print_format=print_format,
+            as_pdf=True,
+            no_letterhead=1
+        )
+    finally:
+        frappe.local.flags.ignore_permissions = False
+    return {
+        "filename": f"{doctype}-{docname}.pdf",
+        "filecontent": pdf_file,
+        "type": "pdf"
+    }
+
+@frappe.whitelist(allow_guest=False)
+def download_user_print_format(name):
+    """
+    Whitelisted endpoint to download a user's print format as PDF.
+    Calls the internal logic and sets the Frappe response.
+    """
+    result = download_user_print_format_logic(name)
+    frappe.local.response.filename = result["filename"]
+    frappe.local.response.filecontent = result["filecontent"]
+    frappe.local.response.type = result["type"]

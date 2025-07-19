@@ -291,9 +291,10 @@ def send_daily_login_reminders():
 			AND d.user_id IS NOT NULL 
 			AND d.user_id != ''
 			AND d.credentials_sent_date IS NOT NULL
-			AND DATEDIFF(NOW(), d.credentials_sent_date) >= 1
+			AND DATEDIFF(NOW(), d.credentials_sent_date) >= 0
 		ORDER BY d.credentials_sent_date ASC
 	""", as_dict=True)
+	
 	
 	if not distributors_needing_reminders:
 		frappe.logger().info("No distributors need login reminders today")

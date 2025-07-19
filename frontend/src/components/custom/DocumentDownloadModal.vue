@@ -44,12 +44,10 @@
         ×
       </button>
       <h3 class="text-lg font-medium mb-4">Compliance Documents</h3>
-      <ul class="space-y-4 mb-2" v-for="document in documentsList" :key="document">
-        <li class="flex items-center justify-between">
+      <ul class="space-y-4 mb-2">
+        <li v-for="document in documentsList" :key="document" class="flex items-center justify-between">
           <span>{{ document }}</span>
-          <a href="/files/cartoon-man-wearing-glasses.jpg" download>
-            <Button theme="gray" variant="solid">Download Form</Button>
-          </a>
+          <Button theme="gray" variant="solid" @click="downloadDocument(document)">Download</Button>
         </li>
       </ul>
     </div>
@@ -77,7 +75,7 @@
         <label for="name">Name</label>
         <TextInput
             id="name"
-            v-model="name"
+            v-model="name"  
             type="text"
             placeholder="Name"
             class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
@@ -170,6 +168,7 @@ const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
 const documentsList = ref([])
 const loadingUploadForm = ref(false);
+const errorMessage = ref('')
 
 const handleDownload = async() => {
   if(name.value === '' || date.value === '') {
@@ -189,7 +188,7 @@ const handleDownload = async() => {
       a.click();
       document.body.removeChild(a);
     } else {
-      toast.error(res?.message || "Error generating document")
+      toast.error(res?.error || "Error generating document")
     }
   }catch(e) {
     console.error("Error in handleDownload", e)
@@ -316,6 +315,39 @@ const fileToBase64 = (file) => {
   })
 }
 
+const downloadDocument = async (document) => {
+  try {
+    // Use $call to get the PDF file as a blob and trigger download
+    console.log("document", document)
+    try {
+      const response = await call('lms.overrides.documents.download_user_print_format', { name: document }, { responseType: 'arraybuffer' });
+      // The filename is returned in response.headers['content-disposition'] or in response.filename
+      console.log("response", response)
+      let filename = 'document.pdf';
+      if (response && response.filename) {
+        filename = response.filename;
+      } else if (response && response.headers && response.headers['content-disposition']) {
+        const match = response.headers['content-disposition'].match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+      // Create a blob and trigger download
+      const blob = new Blob([response.filecontent || response], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      toast.error('Failed to download document');
+      console.error("Error in downloadDocument", e);
+    }
+    
+  } catch (e) {
+    toast.error('Failed to download document')
+    console.error("Error in downloadDocument", e)
+  }
+}
 
 </script>
 

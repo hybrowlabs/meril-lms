@@ -3,7 +3,67 @@ import random
 from datetime import timedelta
 from frappe.utils import now_datetime, validate_email_address, get_datetime
 
+import requests
+from urllib.parse import urlencode
+import frappe
 
+@frappe.whitelist(allow_guest=False)
+def send_mobile_notification(mobile_no, message):
+    """
+    Send an SMS notification using the 24x7sms API and log the attempt.
+    Args:
+        mobile_no (str): The recipient's mobile number.
+        message (str): The message to send.
+    Returns:
+        dict: API response or error message.
+    """
+
+    print("send mobile otp function called")
+    api_key = 'RHPQkxJSCEE'
+    service_type = 'TEMPLATE_BASED'
+    sender_id = 'MerilD'
+    sms_end_point = 'https://smsapi.24x7sms.com/api_2.0/SendSMS.aspx'
+
+    if not mobile_no or not message:
+        return {'response': 'Mobile number and message cannot be empty.'}
+
+    params = {
+        'APIKEY': api_key,
+        'MobileNo': mobile_no,
+        'SenderID': sender_id,
+        'Message': message,
+        'ServiceName': service_type
+    }
+    request_url = f"{sms_end_point}?{urlencode(params)}"
+
+    status = 'failure'
+    api_response = ''
+    try:
+        response = requests.get(request_url, timeout=10)
+        response.raise_for_status()
+        api_response = response.text
+        # Check for success in response text (customize as per your API)
+        if 'success' in response.text.lower() or response.status_code == 200:
+            status = 'success'
+        else:
+            status = 'failure'
+    except requests.exceptions.RequestException as e:
+        api_response = f"Something went wrong: {e}"
+        status = 'failure'
+
+    # Log the SMS notification
+    log_doc = frappe.get_doc({
+        'doctype': 'sms_notification_log',
+        'mobile_no': mobile_no,
+        'message': message,
+        'status': status,
+        'response': api_response
+    })
+    log_doc.insert(ignore_permissions=True)
+
+    return {'status': status, 'response': api_response}
+
+        
 @frappe.whitelist(allow_guest=False)
 def verify_email_otp(otp=None, otp1=None):
     user = frappe.session.user
@@ -94,40 +154,74 @@ def verify_email_otp(otp=None, otp1=None):
 
 @frappe.whitelist(allow_guest=False)
 def send_email_otp():
-    user = frappe.session.user
-    if user == "Guest":
-        return {"status": "error", "message": "Please log in to send OTP"}
+    try:
+        user = frappe.session.user
+        if user == "Guest":
+            return {"status": "error", "message": "Please log in to send OTP"}
 
-    email = frappe.db.get_value("User", user, "email")
-    mobile = frappe.db.get_value("User", user, "mobile_no")
+        email = frappe.db.get_value("User", user, "email")
+        mobile = frappe.db.get_value("User", user, "mobile_no")
 
-    if not email:
-        return {"status": "error", "message": "User email not found"}
+        if not email:
+            return {"status": "error", "message": "User email not found"}
 
-    now = now_datetime()
+        now = now_datetime()
 
-    latest_doc = frappe.get_all("Custom Auth Data", filters={
-        "email": email,
-        "is_verified": 0,
-        "is_expired": 0
-    }, fields=[
-        "name", "email_otp", "mobile_otp",
-        "email_otp_expiry_datetime", "mobile_otp_expiry_datetime"
-    ], order_by="creation desc", limit=1)
+        latest_doc = frappe.get_all("Custom Auth Data", filters={
+            "email": email,
+            "is_verified": 0,
+            "is_expired": 0
+        }, fields=[
+            "name", "email_otp", "mobile_otp",
+            "email_otp_expiry_datetime", "mobile_otp_expiry_datetime"
+        ], order_by="creation desc", limit=1)
 
-    email_otp = str(random.randint(100000, 999999))
-    mobile_otp = str(random.randint(100000, 999999))
+        email_otp = str(random.randint(100000, 999999))
+        mobile_otp = str(random.randint(100000, 999999))
 
-    if latest_doc:
-        otp_info = latest_doc[0]
-        email_expired = otp_info.email_otp_expiry_datetime and now > otp_info.email_otp_expiry_datetime
-        mobile_expired = otp_info.mobile_otp_expiry_datetime and now > otp_info.mobile_otp_expiry_datetime
+        if latest_doc:
+            otp_info = latest_doc[0]
+            email_expired = otp_info.email_otp_expiry_datetime and now > otp_info.email_otp_expiry_datetime
+            mobile_expired = otp_info.mobile_otp_expiry_datetime and now > otp_info.mobile_otp_expiry_datetime
 
-        if email_expired and mobile_expired:
-            old_doc = frappe.get_doc("Custom Auth Data", otp_info.name)
-            old_doc.is_expired = 1
-            old_doc.save(ignore_permissions=True)
+            if email_expired and mobile_expired:
+                try:
+                    old_doc = frappe.get_doc("Custom Auth Data", otp_info.name)
+                    old_doc.is_expired = 1
+                    old_doc.save(ignore_permissions=True)
 
+                    new_doc = frappe.get_doc({
+                        "doctype": "Custom Auth Data",
+                        "email": email,
+                        "email_otp": email_otp,
+                        "mobile_otp": mobile_otp,
+                        "email_otp_expiry_datetime": now + timedelta(minutes=15),
+                        "mobile_otp_expiry_datetime": now + timedelta(minutes=15),
+                        "otp_attempts_remaining": 3,
+                        "is_verified": 0,
+                        "is_expired": 0,
+                        "user": user
+                    })
+                    new_doc.insert(ignore_permissions=True)
+
+                    frappe.sendmail(
+                        recipients=[email],
+                        subject="Your Email OTP Code (Resent)",
+                        message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
+                        now=True
+                    )
+                    # Send mobile OTP via SMS instead of email
+                    send_mobile_notification(
+                        mobile_no=mobile,
+                        message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
+                    )
+
+                    return {"status": "resent", "message": "Previous OTPs resent in a new record"}
+                except Exception as e:
+                    frappe.log_error(frappe.get_traceback(), "Error resending OTPs")
+                    return {"status": "error", "message": f"Failed to resend OTPs: {str(e)}"}
+
+        try:
             new_doc = frappe.get_doc({
                 "doctype": "Custom Auth Data",
                 "email": email,
@@ -140,53 +234,29 @@ def send_email_otp():
                 "is_expired": 0,
                 "user": user
             })
+
             new_doc.insert(ignore_permissions=True)
 
             frappe.sendmail(
                 recipients=[email],
-                subject="Your Email OTP Code (Resent)",
+                subject="Your Email OTP Code",
                 message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
                 now=True
             )
-            frappe.sendmail(
-                recipients=[email],
-                subject="Your Mobile OTP Code (Resent)",
-                message=f"Your Mobile OTP is <b>{mobile_otp}</b>. It will expire in 15 minutes.",
-                now=True
+            # Send mobile OTP via SMS notification instead of email
+            send_mobile_notification(
+                mobile_no=mobile,
+                message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
             )
 
-            return {"status": "resent", "message": "Previous OTPs resent in a new record"}
+            return {"status": "new", "message": "New OTPs sent"}
+        except Exception as e:
+            frappe.log_error(frappe.get_traceback(), "Error sending new OTPs")
+            return {"status": "error", "message": f"Failed to send OTPs: {str(e)}"}
 
-    new_doc = frappe.get_doc({
-        "doctype": "Custom Auth Data",
-        "email": email,
-        "email_otp": email_otp,
-        "mobile_otp": mobile_otp,
-        "email_otp_expiry_datetime": now + timedelta(minutes=15),
-        "mobile_otp_expiry_datetime": now + timedelta(minutes=15),
-        "otp_attempts_remaining": 3,
-        "is_verified": 0,
-        "is_expired": 0,
-        "user": user
-    })
-
-    new_doc.insert(ignore_permissions=True)
-
-    frappe.sendmail(
-        recipients=[email],
-        subject="Your Email OTP Code",
-        message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
-        now=True
-    )
-    frappe.sendmail(
-        recipients=[email],
-        subject="Your Mobile OTP Code",
-        message=f"Your Mobile OTP is <b>{mobile_otp}</b>. It will expire in 15 minutes.",
-        now=True
-    )
-
-    return {"status": "new", "message": "New OTPs sent"}
-
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error in send_email_otp")
+        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 # @frappe.whitelist(allow_guest=False)
 # def send_mobile_otp():

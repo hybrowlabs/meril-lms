@@ -10,7 +10,10 @@
   "submited_document",
   "signature",
   "column_break_siss",
-  "course"
+  "course",
+  "section_break_qxui",
+  "distributor_completion_certificate",
+  "employee_declaration_form"
  ],
  "fields": [
   {
@@ -40,12 +43,28 @@
    "fieldtype": "Link",
    "label": "Signature",
    "options": "Signature Type"
+  },
+  {
+   "fieldname": "section_break_qxui",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "distributor_completion_certificate",
+   "fieldtype": "Link",
+   "label": "Distributor Completion Certificate",
+   "options": "Print Format"
+  },
+  {
+   "fieldname": "employee_declaration_form",
+   "fieldtype": "Link",
+   "label": "Employee Declaration Form",
+   "options": "Print Format"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-16 17:57:30.302172",
+ "modified": "2025-07-17 14:21:19.557494",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "User Course Documents",
