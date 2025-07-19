@@ -79,6 +79,32 @@ class LMSEnrollment(Document):
 			self.progress = 0
 			self.current_lesson = None
 			
+			# Delete all existing lesson progress records for this enrollment
+			# This ensures fresh tracking for the new enrollment cycle
+			frappe.db.sql("""
+				DELETE FROM `tabLMS Course Progress`
+				WHERE enrollment = %s
+			""", self.name)
+			
+			# Also delete any orphaned progress records for this member and course
+			# that might not have enrollment links (legacy data)
+			frappe.db.sql("""
+				DELETE FROM `tabLMS Course Progress`
+				WHERE member = %s 
+				AND course = %s
+				AND (enrollment IS NULL OR enrollment = '')
+			""", (self.member, self.course))
+			
+		else:
+			# If not resetting progress, just update existing records to link to this enrollment
+			frappe.db.sql("""
+				UPDATE `tabLMS Course Progress`
+				SET enrollment = %s
+				WHERE member = %s 
+				AND course = %s
+				AND (enrollment IS NULL OR enrollment = '')
+			""", (self.name, self.member, self.course))
+			
 		self.save()
 		
 		frappe.logger().info(f"User {self.member} re-enrolled in course {self.course} by {self.re_enrolled_by}")

@@ -7,11 +7,16 @@
  "field_order": [
   "member",
   "member_name",
+  "enrollment",
   "status",
   "column_break_3",
   "lesson",
   "chapter",
-  "course"
+  "course",
+  "section_break_progress",
+  "is_complete",
+  "progress",
+  "completed_on"
  ],
  "fields": [
   {
@@ -68,6 +73,37 @@
    "fieldtype": "Data",
    "label": "Member Name",
    "read_only": 1
+  },
+  {
+   "fieldname": "enrollment",
+   "fieldtype": "Link",
+   "label": "Enrollment",
+   "options": "LMS Enrollment",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "section_break_progress",
+   "fieldtype": "Section Break",
+   "label": "Progress Details"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_complete",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Is Complete"
+  },
+  {
+   "fieldname": "progress",
+   "fieldtype": "Percent",
+   "label": "Progress",
+   "precision": "2"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On"
   }
  ],
  "index_web_pages_for_search": 1,
