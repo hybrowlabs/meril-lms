@@ -22,14 +22,33 @@
 							class="mb-4"
 							:required="true"
 						/>
-						<FormControl
-							v-model="lesson.duration"
-							label="Duration (minutes)"
-							class="mb-4"
-							type="number"
-							min="0"
-							:required="true"
-						/>
+						<div class="mb-4">
+							<label class="block font-medium text-ink-gray-5 mb-1">
+								{{ __('Duration') }}
+								<span v-if="duration_minutes || duration_seconds" class="ml-2 text-ink-gray-4 text-sm">
+									({{ (duration_minutes || 0) }}m {{ (duration_seconds || 0) }}s)
+								</span>
+							</label>
+							<div class="flex gap-4">
+								<FormControl
+									v-model="duration_minutes"
+									label="minutes"
+									type="number"
+									min="0"
+									:required="true"
+									class="flex-1"
+								/>
+								<FormControl
+									v-model="duration_seconds"
+									label="seconds"
+									type="number"
+									min="0"
+									max="59"
+									:required="true"
+									class="flex-1"
+								/>
+							</div>
+						</div>
 						<FormControl
 							v-model="lesson.include_in_preview"
 							type="checkbox"
@@ -101,6 +120,8 @@ import {
 	inject,
 	ref,
 	onBeforeUnmount,
+	watch,
+	nextTick,
 } from 'vue'
 import { sessionStore } from '../stores/session'
 import EditorJS from '@editorjs/editorjs'
@@ -134,12 +155,13 @@ const props = defineProps({
 	},
 })
 
-onMounted(() => {
+onMounted(async () => {
 	if (!user.data?.is_moderator && !user.data?.is_instructor) {
 		window.location.href = '/login'
 	}
 	capture('lesson_form_opened')
 	startRecording()
+	await nextTick() // Wait for DOM to be ready
 	editor.value = renderEditor('content')
 	instructorEditor.value = renderEditor('instructor-notes')
 	window.addEventListener('keydown', keyboardShortcut)
@@ -158,6 +180,7 @@ const renderEditor = (holder) => {
 	})
 }
 
+
 const lesson = reactive({
 	title: '',
 	duration: 0,
@@ -166,6 +189,20 @@ const lesson = reactive({
 	instructor_notes: '',
 	content: '',
 })
+
+const duration_seconds = ref(0);
+const duration_minutes = ref(0);
+
+watch(() => lesson.duration, () => {
+	console.log("lesson duration", lesson.duration)
+	if (lesson.duration != null && !isNaN(lesson.duration)) {
+		duration_minutes.value = Math.floor(lesson.duration / 60)
+		duration_seconds.value = lesson.duration % 60
+	} else {
+		duration_minutes.value = 0
+		duration_seconds.value = 0
+	}
+}, {immediate: true})
 
 const lessonDetails = createResource({
 	url: 'lms.lms.utils.get_lesson_creation_details',
@@ -180,6 +217,8 @@ const lessonDetails = createResource({
 			Object.keys(data.lesson).forEach((key) => {
 				lesson[key] = data.lesson[key]
 			})
+			// Force reactivity for duration
+			lesson.duration = Number(data.lesson.duration || 0)
 			lesson.include_in_preview = data?.lesson?.include_in_preview
 				? true
 				: false
@@ -217,9 +256,9 @@ const addInstructorNotes = (data) => {
 }
 
 const enableAutoSave = () => {
-	autoSaveInterval = setInterval(() => {
-		saveLesson({ showSuccessMessage: false })
-	}, 5000)
+	// autoSaveInterval = setInterval(() => {
+	// 	saveLesson({ showSuccessMessage: false })
+	// }, 5000)
 }
 
 const keyboardShortcut = (e) => {
@@ -390,6 +429,11 @@ const convertToJSON = (lessonData) => {
 
 const saveLesson = (e) => {
 	showSuccessMessage = false
+
+	const minutes = Number(duration_minutes.value) || 0
+	const seconds = Number(duration_seconds.value) || 0
+	lesson.duration = minutes * 60 + seconds
+
 	if (typeof e != 'undefined' && e.showSuccessMessage) {
 		showSuccessMessage = true
 	}

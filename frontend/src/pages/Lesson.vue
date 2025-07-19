@@ -129,13 +129,6 @@
 									<MessageCircleQuestion class="w-4 h-4 stroke-1.5" />
 								</template>
 							</Button>
-							<!-- Download/Print Button -->
-							<Button v-if="lesson.data" @click="downloadLessonPrintFormat">
-								<template #icon>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" /></svg>
-								</template>
-								{{ __('Download') }}
-							</Button>
 							<router-link
 								v-if="lesson.data.prev"
 								:to="{
@@ -275,9 +268,29 @@
 			</div>
 			<div class="sticky top-10">
 				<div class="bg-surface-menu-bar py-5 px-2 border-b">
-					<div class="text-lg font-semibold text-ink-gray-9">
-						{{ lesson.data.course_title }}
-					</div>
+					<div class="flex w-full">
+						<div class="text-lg font-semibold text-ink-gray-9">
+							{{ lesson.data.course_title }}
+						</div>
+						<div v-show="lesson?.data?.duration && lesson?.data?.duration>=0" class="ml-auto flex items-center gap-2 text-ink-gray-7">
+							<span class="flex items-center gap-1">
+								<svg xmlns="http://www.w3.org/2000/svg" class="inline w-5 h-5 text-ink-gray-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<circle cx="12" cy="12" r="10" stroke-width="2" />
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2" />
+								</svg>
+								<span class="font-medium">
+									{{
+										lesson.data.progress >= 100
+											? (lesson.data.duration + 's')
+											: ((timer >= lesson.data.duration
+												? lesson.data.duration
+												: timer) + 's')
+									}}
+									/ {{ lesson.data.duration }}s
+								</span>
+							</span>
+						</div>
+						</div>
 					<div
 						v-if="user && lesson.data.membership"
 						class="text-sm mt-4 mb-2 text-ink-gray-5"
@@ -457,6 +470,8 @@ const markProgress = () => {
 	}
 }
 
+
+
 const progress = createResource({
 	url: 'lms.lms.doctype.course_lesson.course_lesson.save_progress',
 	makeParams() {
@@ -530,14 +545,13 @@ const startTimer = () => {
 	timer.value = 0
 
 	// Validate duration
-	const durationMinutes = Number(lesson.data?.duration)
-	const durationSeconds = (isNaN(durationMinutes) || durationMinutes <= 0)
-		? 30 // fallback to 30 seconds if invalid
-		: durationMinutes * 60
+	const durationSeconds = (isNaN(Number(lesson.data?.duration)) || Number(lesson.data?.duration) <= 0)
+		? 30 
+		: Number(lesson.data?.duration)
 
 	timerInterval = setInterval(() => {
 		timer.value++
-		if (timer.value >= durationSeconds) {
+		if (timer.value >= durationSeconds || durationSeconds==0 ) {
 			clearInterval(timerInterval)
 			markProgress()
 		}
@@ -644,13 +658,6 @@ const scrollDiscussionsIntoView = () => {
 
 const redirectToLogin = () => {
 	window.location.href = `/login?redirect-to=/lms/courses/${props.courseName}`
-}
-
-function downloadLessonPrintFormat() {
-	if (!lesson.data?.name) return
-	const printFormat = 'Standard' // Change if you have a custom print format
-	const url = `/api/method/frappe.utils.print_format.download_pdf?doctype=Course+Lesson&name=${encodeURIComponent(lesson.data.name)}&format=${encodeURIComponent(printFormat)}`
-	window.open(url, '_blank')
 }
 
 const goBackToCourse = () => {
