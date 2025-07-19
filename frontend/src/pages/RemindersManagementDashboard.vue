@@ -216,7 +216,11 @@
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
-										<div v-if="user.completed_on" class="flex items-center">
+										<div v-if="user.completion_status === 'Re-enrolled'" class="flex items-center">
+											<div class="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+											<Badge theme="blue" variant="subtle">{{ __('Re-enrolled') }}</Badge>
+										</div>
+										<div v-else-if="user.completed_on" class="flex items-center">
 											<div class="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
 											<Badge theme="green" variant="subtle">{{ __('Completed') }}</Badge>
 										</div>
@@ -266,7 +270,7 @@
 											variant="outline"
 											size="sm"
 											@click="sendCourseReminder(user)"
-											:disabled="user.completed_on"
+											:disabled="user.completed_on && user.completion_status !== 'Re-enrolled'"
 										>
 											<template #prefix>
 												<Send class="h-4 w-4" />
@@ -310,7 +314,10 @@
 									</div>
 								</div>
 								<div class="text-right">
-									<div v-if="user.completed_on" class="text-sm text-green-600 font-medium">
+									<div v-if="user.completion_status === 'Re-enrolled'" class="text-sm text-blue-600 font-medium">
+										Re-enrolled {{ formatDateTime(user.re_enrolled_on) }}
+									</div>
+									<div v-else-if="user.completed_on" class="text-sm text-green-600 font-medium">
 										{{ formatDateTime(user.completed_on) }}
 									</div>
 									<div v-else class="text-sm text-yellow-600">
@@ -437,6 +444,7 @@ watch(
 const statusFilterOptions = ref([
 	{ label: 'All Status', value: null },
 	{ label: 'Completed', value: 'completed' },
+	{ label: 'Re-enrolled', value: 're_enrolled' },
 	{ label: 'In Progress', value: 'in_progress' },
 	{ label: 'High Reminders (5+)', value: 'high_reminders' }
 ])
@@ -547,9 +555,11 @@ const filterUsers = () => {
 
 	if (statusFilter.value) {
 		if (statusFilter.value === 'completed') {
-			filtered = filtered.filter(u => u.completed_on)
+			filtered = filtered.filter(u => u.completed_on && u.completion_status !== 'Re-enrolled')
+		} else if (statusFilter.value === 're_enrolled') {
+			filtered = filtered.filter(u => u.completion_status === 'Re-enrolled')
 		} else if (statusFilter.value === 'in_progress') {
-			filtered = filtered.filter(u => !u.completed_on)
+			filtered = filtered.filter(u => !u.completed_on || u.completion_status === 'Re-enrolled')
 		} else if (statusFilter.value === 'high_reminders') {
 			filtered = filtered.filter(u => (u.course_reminder_count || 0) >= 5)
 		}
@@ -568,11 +578,11 @@ const showUsersDialog = (type) => {
 			title = 'All Enrolled Users'
 			break
 		case 'completed':
-			data = users.value.filter(u => u.completed_on)
+			data = users.value.filter(u => u.completed_on && u.completion_status !== 'Re-enrolled')
 			title = 'Users Who Completed Courses'
 			break
 		case 'pending':
-			data = users.value.filter(u => !u.completed_on)
+			data = users.value.filter(u => !u.completed_on || u.completion_status === 'Re-enrolled')
 			title = 'Users With Pending Course Completions'
 			break
 	}
