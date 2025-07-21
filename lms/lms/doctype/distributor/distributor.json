@@ -18,6 +18,7 @@
   "distributor_contact_number",
   "distributor_company_name",
   "account__distributor_code",
+  "distributor_name",
   "section_break_vifn",
   "rsm__state_head",
   "column_break_yezz",
@@ -169,12 +170,17 @@
    "fieldname": "is_active_user",
    "fieldtype": "Check",
    "label": "Is Active User"
+  },
+  {
+   "fieldname": "distributor_name",
+   "fieldtype": "Data",
+   "label": "Distributor Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-16 22:53:59.093744",
+ "modified": "2025-07-19 18:59:07.331616",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",

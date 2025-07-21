@@ -6,8 +6,9 @@
 			</div>
 		</Layout>
 		<Dialogs />
-		<OtpDialog />
 	</FrappeUIProvider>
+	<OtpDialog />
+	<DocumentDownloadModal />
 </template>
 <script setup>
 import { FrappeUIProvider } from 'frappe-ui'
@@ -21,6 +22,7 @@ import { usersStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
 import { posthogSettings } from '@/telemetry'
 import OtpDialog from '@/components/custom/OtpDialog.vue'
+import DocumentDownloadModal from './components/custom/DocumentDownloadModal.vue'
 
 const screenSize = useScreenSize()
 const router = useRouter()

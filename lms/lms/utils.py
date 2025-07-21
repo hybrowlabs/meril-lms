@@ -1891,6 +1891,7 @@ def get_lesson_creation_details(course, chapter, lesson):
 			[
 				"name",
 				"title",
+				"duration",
 				"include_in_preview",
 				"body",
 				"content",

@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-19 18:48:05.749173",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "distributor",
+  "course",
+  "has_submitted_documents",
+  "column_break_iqxo",
+  "entered_name",
+  "signature_style",
+  "compleion_year",
+  "documents_section",
+  "distributor_completion_certificate",
+  "distributor_self_declaration",
+  "column_break_wsmw",
+  "distributor_declaration__ethical_practices_and_compliance",
+  "meril_distributor_compliance_code_of_conduct"
+ ],
+ "fields": [
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Distributor",
+   "options": "Distributor"
+  },
+  {
+   "fieldname": "documents_section",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "distributor_completion_certificate",
+   "fieldtype": "Link",
+   "label": "Distributor Completion Certificate",
+   "options": "Print Format"
+  },
+  {
+   "fieldname": "distributor_self_declaration",
+   "fieldtype": "Link",
+   "label": "Distributor Self Declaration",
+   "options": "Print Format"
+  },
+  {
+   "fieldname": "column_break_wsmw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "distributor_declaration__ethical_practices_and_compliance",
+   "fieldtype": "Link",
+   "label": "Distributor Declaration  Ethical Practices And Compliance",
+   "options": "Print Format"
+  },
+  {
+   "fieldname": "meril_distributor_compliance_code_of_conduct",
+   "fieldtype": "Link",
+   "label": "Meril Distributor Compliance Code of Conduct",
+   "options": "Print Format"
+  },
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "column_break_iqxo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entered_name",
+   "fieldtype": "Data",
+   "label": "Entered Name"
+  },
+  {
+   "fieldname": "signature_style",
+   "fieldtype": "Link",
+   "label": "Signature Style",
+   "options": "Signature Type"
+  },
+  {
+   "fieldname": "compleion_year",
+   "fieldtype": "Data",
+   "label": "Completion Year"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_submitted_documents",
+   "fieldtype": "Check",
+   "label": "has submitted documents"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-07-21 08:43:53.813359",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Distributor Course Documents",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

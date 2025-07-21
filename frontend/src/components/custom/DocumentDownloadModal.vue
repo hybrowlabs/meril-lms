@@ -1,11 +1,11 @@
 <template>
-  <div v-if="show">
+  <div v-if="state?.showDocument">
     <div v-if="showError">
       <div class="fixed inset-0 z-50 bg-black bg-opacity-50">
         <div class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg rounded-lg bg-white p-6 relative">
           <button
         class="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
-         @click="$emit('close')"
+         @click="closeDialog"
         aria-label="Close"
       >
         ×
@@ -38,7 +38,7 @@
       <!-- Close Icon -->
       <button
         class="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
-        @click="$emit('close')"
+        @click="closeDialog"
         aria-label="Close"
       >
         ×
@@ -61,7 +61,7 @@
       <!-- Close Icon -->
       <button
         class="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
-         @click="$emit('close')"
+         @click="closeDialog"
         aria-label="Close"
       >
         ×
@@ -144,13 +144,11 @@
 
 <script setup>
 import { Button, Spinner } from "frappe-ui";
-import { defineProps, defineEmits, ref, watch } from "vue";
+import { defineEmits, ref, watch, computed } from "vue";
 import { call , TextInput, Select, toast } from 'frappe-ui'
 import { useRoute } from 'vue-router'
+import { resetCourseCompletion, state } from "../../stores/course_completion.js";
 
-const props = defineProps({
-  show: Boolean
-});
 
 
 const emit = defineEmits(['close']);
@@ -169,6 +167,7 @@ const file = ref(null)
 const documentsList = ref([])
 const loadingUploadForm = ref(false);
 const errorMessage = ref('')
+const distributor_id = ref('');
 
 const handleDownload = async() => {
   if(name.value === '' || date.value === '') {
@@ -196,16 +195,18 @@ const handleDownload = async() => {
   }
 }
 
+const closeDialog = ()=>{
+  resetCourseCompletion();
+}
 
 const onFileChange = (e) => {
   file.value = e.target.files[0]
 }
 
 const route = useRoute()
-const courseName = route.params.courseName
+const courseName = computed(() => route.params.courseName || state.courseName)
 
-
-watch(() => props.show, (newVal) => {
+watch( () => state.showDocument , (newVal) => {
   if (newVal) {
     checkDocumentSubmission()
   }
@@ -214,7 +215,7 @@ watch(() => props.show, (newVal) => {
 const checkDocumentSubmission = async () => {
 try {
     loadingScreen.value = true
-    const res = await call('lms.overrides.documents.has_user_submited_document', { course: courseName })
+    const res = await call('lms.overrides.documents.has_user_submited_document', { course: courseName.value })
     console.log("res",res)
     if(res.error){
       showError.value = true
@@ -226,6 +227,7 @@ try {
       showDownloadForm.value = true
       showUploadForm.value = false
       documentsList.value = res.documents_list
+      distributor_id.value = res.distributor_id
       console.log('Document already submitted for this course')
     } else {
       showDownloadForm.value = false
@@ -264,7 +266,7 @@ const uploadDocument = async () => {
     
     // Call the save_user_course_document_with_file method
     const response = await call('lms.overrides.documents.save_user_course_document_with_file', {
-      course: courseName,
+      course: courseName.value,
       document_name: name.value || file.value.name,
       filename: file.value.name,
       base64_file_data: base64Data,
@@ -315,23 +317,46 @@ const fileToBase64 = (file) => {
   })
 }
 
-const downloadDocument = async (document) => {
+// Download document using direct URL for Distributor documents, otherwise use backend call
+const downloadDocument = async (document, distributor_id = null) => {
   try {
-    // Use $call to get the PDF file as a blob and trigger download
-    console.log("document", document)
+    // If distributor_id is provided, construct the direct download URL
+    if (distributor_id) {
+      const baseUrl = window.location.origin;
+      const params = new URLSearchParams({
+        doctype: 'Distributor',
+        name: distributor_id,
+        format: document,
+        no_letterhead: '1',
+        letterhead: 'No Letterhead',
+        settings: '{}',
+        _lang: 'en'
+      });
+      const url = `${baseUrl}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
+      // Open in new tab or trigger download
+      window.open(url, '_blank');
+      return;
+    }
+
+    // Otherwise, fallback to backend call (for Employee or Course Completion Certificate, etc.)
     try {
-      const response = await call('lms.overrides.documents.download_user_print_format', { name: document }, { responseType: 'arraybuffer' });
-      // The filename is returned in response.headers['content-disposition'] or in response.filename
-      console.log("response", response)
+      const response = await fetch('/api/method/lms.overrides.documents.download_user_print_format', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/pdf'
+        },
+        body: JSON.stringify({ name: document })
+      });
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
       let filename = 'document.pdf';
-      if (response && response.filename) {
-        filename = response.filename;
-      } else if (response && response.headers && response.headers['content-disposition']) {
-        const match = response.headers['content-disposition'].match(/filename="?([^"]+)"?/);
+      // Try to get filename from headers
+      const disposition = response.headers.get('content-disposition');
+      if (disposition) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
         if (match) filename = match[1];
       }
-      // Create a blob and trigger download
-      const blob = new Blob([response.filecontent || response], { type: 'application/pdf' });
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
       link.download = filename;
@@ -342,10 +367,9 @@ const downloadDocument = async (document) => {
       toast.error('Failed to download document');
       console.error("Error in downloadDocument", e);
     }
-    
   } catch (e) {
-    toast.error('Failed to download document')
-    console.error("Error in downloadDocument", e)
+    toast.error('Failed to download document');
+    console.error("Error in downloadDocument", e);
   }
 }
 

@@ -351,6 +351,7 @@ import LessonContent from '@/components/LessonContent.vue'
 import CourseInstructors from '@/components/CourseInstructors.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import CertificationLinks from '@/components/CertificationLinks.vue'
+import { setCourseCompletion } from "../stores/course_completion.js";
 
 const user = inject('$user')
 const socket = inject('$socket')
@@ -482,6 +483,13 @@ const progress = createResource({
 	},
 	onSuccess(data) {
 		lessonProgress.value = data
+		if(parseInt(data)==100){
+			console.log("setCourse completion called")
+			setCourseCompletion({
+				courseName: props.courseName,
+				showDocument: true
+			})
+		}
 	},
 })
 
@@ -549,9 +557,13 @@ const startTimer = () => {
 		? 30 
 		: Number(lesson.data?.duration)
 
+	if(durationSeconds == 0 ){
+		markProgress()
+		return;
+	}
 	timerInterval = setInterval(() => {
 		timer.value++
-		if (timer.value >= durationSeconds || durationSeconds==0 ) {
+		if (timer.value >= durationSeconds ) {
 			clearInterval(timerInterval)
 			markProgress()
 		}

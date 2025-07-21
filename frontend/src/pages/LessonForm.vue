@@ -193,16 +193,7 @@ const lesson = reactive({
 const duration_seconds = ref(0);
 const duration_minutes = ref(0);
 
-watch(() => lesson.duration, () => {
-	console.log("lesson duration", lesson.duration)
-	if (lesson.duration != null && !isNaN(lesson.duration)) {
-		duration_minutes.value = Math.floor(lesson.duration / 60)
-		duration_seconds.value = lesson.duration % 60
-	} else {
-		duration_minutes.value = 0
-		duration_seconds.value = 0
-	}
-}, {immediate: true})
+
 
 const lessonDetails = createResource({
 	url: 'lms.lms.utils.get_lesson_creation_details',
@@ -228,6 +219,21 @@ const lessonDetails = createResource({
 		}
 	},
 })
+
+// Update duration_minutes and duration_seconds when lessonDetails is fetched
+watch(
+	() => lessonDetails.data,
+	(data) => {
+		if (data && data.lesson && data.lesson.duration != null && !isNaN(data.lesson.duration)) {
+			duration_minutes.value = Math.floor(Number(data.lesson.duration) / 60)
+			duration_seconds.value = Number(data.lesson.duration) % 60
+		} else {
+			duration_minutes.value = 0
+			duration_seconds.value = 0
+		}
+	},
+	{ immediate: true }
+)
 
 const addLessonContent = (data) => {
 	editor.value.isReady.then(() => {

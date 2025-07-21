@@ -10,7 +10,7 @@ from frappe.utils import get_fullname
 import io
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import RGBColor
-            
+
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
     user = frappe.session.user
@@ -29,10 +29,8 @@ def has_user_submited_document(course=None):
         roles = [role.role for role in user_doc.roles]
 
         documents_list = []
-        # print_format_links = {}
-        # printview_links = {}
         user_course_doc_name = f"{user}-{course}"
-        # Ensure base_printview_url is always defined before any use
+
         if "Distributor" in roles:
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
             distributor_doc_name = distributor_doc.name
@@ -50,7 +48,12 @@ def has_user_submited_document(course=None):
                 if "endo" not in company.meril_company_name.lower():
                     documents_list.append("Meril Distributor Compliance Policy")
                     break
-            return { "submited": True, "documents_list": documents_list }
+            # Return distributor_id as well
+            return { 
+                "submited": True if exists else False,
+                "documents_list": documents_list,
+                "distributor_id": distributor_doc_name
+            }
         elif "Employee" in roles:
             employee_doc = frappe.get_doc("Employee", {"user_id": user})
             employee_doc_name = employee_doc.name
