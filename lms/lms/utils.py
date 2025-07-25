@@ -1352,7 +1352,7 @@ def get_lesson(course, chapter, lesson):
 				"course_title": course_info.title,
 				"restriction_message": access_result.get("message", "Access restricted"),
 				"lesson_completed": access_result.get("lesson_completed", False)
-			}
+		}
 
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",

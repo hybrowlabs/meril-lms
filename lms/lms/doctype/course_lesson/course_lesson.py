@@ -67,10 +67,10 @@ def save_progress(lesson, course):
 	if not already_completed and quiz_completed and assignment_completed:
 		# Create progress record linked to enrollment
 		progress_doc = frappe.get_doc({
-			"doctype": "LMS Course Progress",
-			"lesson": lesson,
-			"status": "Complete",
-			"member": frappe.session.user,
+				"doctype": "LMS Course Progress",
+				"lesson": lesson,
+				"status": "Complete",
+				"member": frappe.session.user,
 			"enrollment": membership,
 			"completed_on": frappe.utils.now_datetime(),
 			"is_complete": 1,
