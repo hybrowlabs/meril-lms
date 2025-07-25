@@ -146,7 +146,7 @@
 	</Dialog>
 </template>
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, defineEmits } from 'vue'
 import { Pause, Maximize, Volume2, VolumeX } from 'lucide-vue-next'
 import { Button, Dialog } from 'frappe-ui'
 import { formatSeconds, formatTimestamp } from '@/utils'
@@ -176,7 +176,7 @@ const props = defineProps({
 		default: 'video/mp4',
 	},
 	readOnly: {
-		type: String,
+		type: Boolean,
 		default: true,
 	},
 	quizzes: {
@@ -188,15 +188,33 @@ const props = defineProps({
 	},
 })
 
+const emit = defineEmits(['video-completed', 'video-duration'])
+
 onMounted(() => {
 	updateCurrentTime()
 	updateNextQuiz()
+	// Pause video if user moves to a different tab
+	document.addEventListener('visibilitychange', handleVisibilityChange)
 })
+
+onBeforeUnmount(() => {
+	document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
+
+const handleVisibilityChange = () => {
+	if (document.visibilityState === 'hidden') {
+		if (playing.value && videoRef.value) {
+			videoRef.value.pause()
+			playing.value = false
+		}
+	}
+}
 
 const updateCurrentTime = () => {
 	setTimeout(() => {
 		videoRef.value.onloadedmetadata = () => {
 			duration.value = videoRef.value.duration
+			emit('video-duration', { file: props.file, duration: duration.value })
 		}
 		videoRef.value.ontimeupdate = () => {
 			currentTime.value = videoRef.value?.currentTime || currentTime.value
@@ -282,6 +300,8 @@ const togglePlay = () => {
 
 const videoEnded = () => {
 	playing.value = false
+	emit('video-completed', props.file)
+	window.dispatchEvent(new CustomEvent('video-completed', { detail: { file: props.file } }))
 }
 
 const toggleMute = () => {
@@ -345,7 +365,6 @@ iframe {
 	input[type='range'] {
 		overflow: hidden;
 		width: 100%;
-		-webkit-appearance: none;
 	}
 
 	input[type='range']::-webkit-slider-thumb {

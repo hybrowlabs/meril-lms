@@ -11,59 +11,24 @@
   "column_break_iqxo",
   "entered_name",
   "signature_style",
-  "compleion_year",
-  "documents_section",
-  "distributor_completion_certificate",
-  "distributor_self_declaration",
-  "column_break_wsmw",
-  "distributor_declaration__ethical_practices_and_compliance",
-  "meril_distributor_compliance_code_of_conduct"
+  "completion_date"
  ],
  "fields": [
   {
    "fieldname": "distributor",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Distributor",
-   "options": "Distributor"
-  },
-  {
-   "fieldname": "documents_section",
-   "fieldtype": "Section Break",
-   "label": "Documents"
-  },
-  {
-   "fieldname": "distributor_completion_certificate",
-   "fieldtype": "Link",
-   "label": "Distributor Completion Certificate",
-   "options": "Print Format"
-  },
-  {
-   "fieldname": "distributor_self_declaration",
-   "fieldtype": "Link",
-   "label": "Distributor Self Declaration",
-   "options": "Print Format"
-  },
-  {
-   "fieldname": "column_break_wsmw",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "distributor_declaration__ethical_practices_and_compliance",
-   "fieldtype": "Link",
-   "label": "Distributor Declaration  Ethical Practices And Compliance",
-   "options": "Print Format"
-  },
-  {
-   "fieldname": "meril_distributor_compliance_code_of_conduct",
-   "fieldtype": "Link",
-   "label": "Meril Distributor Compliance Code of Conduct",
-   "options": "Print Format"
+   "options": "Distributor",
+   "reqd": 1
   },
   {
    "fieldname": "course",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Course",
-   "options": "LMS Course"
+   "options": "LMS Course",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_iqxo",
@@ -81,21 +46,21 @@
    "options": "Signature Type"
   },
   {
-   "fieldname": "compleion_year",
-   "fieldtype": "Data",
-   "label": "Completion Year"
-  },
-  {
    "default": "0",
    "fieldname": "has_submitted_documents",
    "fieldtype": "Check",
    "label": "has submitted documents"
+  },
+  {
+   "fieldname": "completion_date",
+   "fieldtype": "Date",
+   "label": "Completion Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-21 08:43:53.813359",
+ "modified": "2025-07-24 18:27:29.259140",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor Course Documents",

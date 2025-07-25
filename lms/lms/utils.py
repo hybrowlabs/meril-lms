@@ -1354,6 +1354,65 @@ def get_lesson(course, chapter, lesson):
 				"lesson_completed": access_result.get("lesson_completed", False)
 			}
 
+	# Restrict access unless all previous lessons in the course (across all chapters, strictly by course order) are completed
+	if (
+		frappe.session.user != "Guest"
+		and membership
+		and not has_course_moderator_role()
+		and not is_instructor(course)
+	):
+		# Get all chapters in order for this course
+		chapters = frappe.get_all(
+			"Course Chapter",
+			{"course": course},
+			["name", "idx"],
+			order_by="creation"
+		)
+		print("chapters in dict", chapters)
+
+		# Build a flat, ordered list of (chapter_name, lesson_name) tuples for the course
+		ordered_lessons = []
+		for ch in chapters:
+			lesson_refs = frappe.get_all(
+				"Lesson Reference",
+				{"parent": ch.name},
+				["lesson", "idx"],
+				order_by="idx"
+			)
+			for ref in lesson_refs:
+				ordered_lessons.append((ch.name, ref.lesson))
+
+		# Find the index of the current lesson in the flat list
+		current_idx = None
+		for idx, (ch_name, lsn_name) in enumerate(ordered_lessons):
+			if ch_name == chapter_name and lsn_name == lesson_name:
+				current_idx = idx
+				break
+
+		# All lessons before the current lesson must be completed
+		if current_idx is not None and current_idx > 0:
+			lessons_to_check = ordered_lessons[:current_idx]
+			for prev_chapter, prev_lesson in lessons_to_check:
+				prev_completed = frappe.db.exists(
+					"LMS Course Progress",
+					{
+						"course": course,
+						"member": membership.member,
+						"lesson": prev_lesson,
+						"status": "Complete",
+						"is_complete": 1
+					}
+				)
+				if not prev_completed:
+					prev_lesson_title = frappe.db.get_value("Course Lesson", prev_lesson, "title")
+					return {
+						"access_restricted": 1,
+						"title": lesson_details.title,
+						"course_title": course_info.title,
+						"restriction_message": f"You must complete the previous lesson: {prev_lesson_title}",
+						"lesson_completed": False
+					}
+	
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",
 		lesson_name,

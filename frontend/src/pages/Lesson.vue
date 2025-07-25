@@ -274,14 +274,24 @@
 						</div>
 						<div v-show="lesson?.data?.duration && lesson?.data?.duration>=0" class="ml-auto flex items-center gap-2 text-ink-gray-7">
 							<span class="flex items-center gap-1">
-								<svg xmlns="http://www.w3.org/2000/svg" class="inline w-5 h-5 text-ink-gray-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="inline w-5 h-5"
+									:class="{
+										'text-ink-gray-5': lesson.data.progress === null,
+										'text-green-600': lesson.data.progress !== null
+									}"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
 									<circle cx="12" cy="12" r="10" stroke-width="2" />
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2" />
 								</svg>
-								<span class="font-medium">
+								<span class="font-medium" v-show="(videoFiles?.length==0)">
 									{{
-										lesson.data.progress >= 100
-											? (lesson.data.duration + 's')
+										!!lesson.data.progress ?
+											 (lesson.data.duration + 's')
 											: ((timer >= lesson.data.duration
 												? lesson.data.duration
 												: timer) + 's')
@@ -367,7 +377,37 @@ const hasQuiz = ref(false)
 const discussionsContainer = ref(null)
 const timer = ref(0)
 const { brand } = sessionStore()
-let timerInterval
+let timerFrame
+
+// --- Video completion logic ---
+const videoFiles = ref([]) // List of video URLs in the lesson
+const completedVideos = ref(new Set())
+let markProgressTimeout = null
+function handleVideoCompleted(e) {
+  onVideoCompleted(e.detail.file)
+}
+
+function onVideoCompleted(fileUrl) {
+  console.log("onVideoCompleted called with fileUrl:", fileUrl)
+  const before = completedVideos.value.size
+  completedVideos.value.add(fileUrl)
+  console.log(
+    "completed video (array):",
+    Array.from(completedVideos.value),
+    [...videoFiles.value],
+    before
+  )
+  if (
+    completedVideos.value.size === videoFiles.value.length &&
+    before !== completedVideos.value.size
+  ) {
+    console.log("passed condition")
+    if (markProgressTimeout) clearTimeout(markProgressTimeout)
+    markProgressTimeout = setTimeout(() => {
+      markProgress()
+    }, 200)
+  }
+}
 
 const props = defineProps({
 	courseName: {
@@ -392,9 +432,15 @@ onMounted(() => {
 			lessonProgress.value = data.progress
 		}
 	})
+	window.addEventListener('video-completed', handleVideoCompleted)
+	window.addEventListener("message", handleMessage )
 	console.log(lesson.data)
 })
 
+const handleMessage = (data) =>{
+	if(data.data === "quize completed")
+		markProgress();
+}
 const attachFullscreenEvent = () => {
 	if (document.fullscreenElement) {
 		zenModeEnabled.value = true
@@ -409,6 +455,8 @@ const attachFullscreenEvent = () => {
 
 onBeforeUnmount(() => {
 	document.removeEventListener('fullscreenchange', attachFullscreenEvent)
+	window.removeEventListener('video-completed', handleVideoCompleted)
+	if (timerFrame) cancelAnimationFrame(timerFrame)
 })
 
 const lesson = createResource({
@@ -423,6 +471,7 @@ const lesson = createResource({
 	auto: true,
 })
 
+
 const setupLesson = (data) => {
 	if (Object.keys(data).length === 0) {
 		router.push({
@@ -432,7 +481,36 @@ const setupLesson = (data) => {
 		return
 	}
 	lessonProgress.value = data.membership?.progress
-	if (data.content) editor.value = renderEditor('editor', data.content)
+	let contentRendered = false
+	if (data.content) {
+		try {
+			editor.value = renderEditor('editor', data.content)
+			contentRendered = true
+		} catch (e) {
+			console.error('Failed to render lesson content:', e)
+			contentRendered = false
+		}
+	}
+	if (!contentRendered && data.body) {
+		// Remove any previous EditorJS instance
+		if (editor.value && editor.value.destroy) editor.value.destroy()
+		// Render legacy body as HTML
+		const editorDiv = document.getElementById('editor')
+		if (editorDiv) {
+			editorDiv.innerHTML = ''
+			const bodyDiv = document.createElement('div')
+			bodyDiv.className = 'lesson-content prose'
+			bodyDiv.innerHTML = data.body
+			editorDiv.appendChild(bodyDiv)
+		}
+	}
+	if (!contentRendered && !data.body) {
+		// Show a fallback message if no content
+		const editorDiv = document.getElementById('editor')
+		if (editorDiv) {
+			editorDiv.innerHTML = '<div class="text-ink-gray-5 text-center py-10">No content available for this lesson.</div>'
+		}
+	}
 	if (
 		data.instructor_content &&
 		JSON.parse(data.instructor_content)?.blocks?.length > 1
@@ -465,23 +543,36 @@ const renderEditor = (holder, content) => {
 	})
 }
 
+// --- Override markProgress ---
 const markProgress = () => {
-	if (user.data && lesson.data && !lesson.data.progress) {
-		progress.submit()
-	}
+  console.log("correct lessonname begin send", lesson.data?.name)
+  console.log("markProgress called")
+  if (user.data && lesson.data && !lesson.data.progress) {
+    // If there are videos, only mark complete if all are done
+    if (videoFiles.value.length > 0) {
+		console.log("markProgress: completedVideosArray:", Array.from(completedVideos.value), "videoFiles:", [...videoFiles.value])
+      if (completedVideos.value.size < videoFiles.value.length) return
+	  console.log("progress ", completedVideos.value)
+      progress.submit({ completed_videos: JSON.stringify(Array.from(completedVideos.value)) })
+    } else {
+      progress.submit()
+    }
+  }
 }
-
 
 
 const progress = createResource({
 	url: 'lms.lms.doctype.course_lesson.course_lesson.save_progress',
-	makeParams() {
+	makeParams(values) {
+		console.log("lesson data in progress", lesson.data, "makeParams values", values)
 		return {
+			...(values || {}), // Ensure completed_videos and any other params are included
 			lesson: lesson.data.name,
-			course: props.courseName,
+			course: props.courseName
 		}
 	},
 	onSuccess(data) {
+		console.log("progress onSuccess, data:", data)
 		lessonProgress.value = data
 		if(parseInt(data)==100){
 			console.log("setCourse completion called")
@@ -527,7 +618,7 @@ watch(
 				chapter: newChapterNumber,
 				lesson: newLessonNumber,
 			})
-			clearInterval(timerInterval)
+			if (timerFrame) cancelAnimationFrame(timerFrame)
 			timer.value = 0
 			startTimer()
 			enablePlyr()
@@ -536,42 +627,95 @@ watch(
 )
 
 watch(
-	() => lesson.data,
-	(data) => {
-		if (data) {
-			console.log('Lesson loaded:', data)
-			setupLesson(data)
-			enablePlyr()
-			startTimer()
-		}
-	}
+  () => lesson.data,
+  (data) => {
+    console.log('Lesson loaded (watcher):', data)
+    if (data) {
+      setupLesson(data)
+    }
+  },
+  { immediate: true }
 )
 
+watch(
+  () => lesson.data,
+  (data) => {
+    if (data && data.content) {
+      try {
+        const blocks = JSON.parse(data.content).blocks
+        console.log("Parsed blocks:", blocks)
+        videoFiles.value = extractVideoFiles(blocks)
+        completedVideos.value = new Set()
+      } catch (e) {
+        videoFiles.value = []
+        completedVideos.value = new Set()
+      }
+    } else {
+      videoFiles.value = []
+      completedVideos.value = new Set()
+    }
+  },
+  { immediate: true }
+)
+
+// Watch for changes in the number of video files and start/stop the timer accordingly
+watch(
+  () => videoFiles.value.length + lesson?.data?.duration,
+  () => {
+    startTimer()
+  }
+)
+
+function isVideoFile(type) {
+  const result = ["mp4", "mov", "avi", "mkv", "webm"].includes((type || "").toLowerCase())
+  return result
+}
+
+function extractVideoFiles(blocks) {
+  const files = blocks
+    .filter(b => {
+      const isVideo = isVideoFile(b.data.file_type)
+      return b.type === 'upload' && isVideo
+    })
+    .map(b => b.data.file_url)
+//   console.log("extractVideoFiles found:", files)
+  return files
+}
+
+// --- Update startTimer to skip timer if videos exist ---
 const startTimer = () => {
-	// Clear any previous timer
-	clearInterval(timerInterval)
-	timer.value = 0
-
-	// Validate duration
-	const durationSeconds = (isNaN(Number(lesson.data?.duration)) || Number(lesson.data?.duration) <= 0)
-		? 30 
-		: Number(lesson.data?.duration)
-
-	if(durationSeconds == 0 ){
-		markProgress()
-		return;
-	}
-	timerInterval = setInterval(() => {
-		timer.value++
-		if (timer.value >= durationSeconds ) {
-			clearInterval(timerInterval)
-			markProgress()
-		}
-	}, 1000)
+  if (timerFrame) cancelAnimationFrame(timerFrame)
+  timer.value = 0
+  console.log("duration", lesson.data?.duration);
+  if (videoFiles.value.length > 0) return // Don't use timer for video lessons
+  let durationSeconds = Number(lesson.data?.duration)
+  if (isNaN(durationSeconds) || durationSeconds < 0) durationSeconds = 30
+  // Enforce a minimum visible duration of 2s
+  console.log("durationSeconds", durationSeconds);
+  if (durationSeconds > 0 && durationSeconds < 2) durationSeconds = 2
+  if (durationSeconds === 0) {
+    markProgress()
+    return
+  }
+  let startTimestamp = null
+  const tick = (timestamp) => {
+    if (!startTimestamp) startTimestamp = timestamp
+    const elapsed = Math.floor((timestamp - startTimestamp) / 1000)
+    if (elapsed > timer.value) {
+      timer.value = elapsed
+    }
+    if (timer.value >= durationSeconds) {
+      timer.value = durationSeconds
+      markProgress()
+      return
+    }
+    timerFrame = requestAnimationFrame(tick)
+  }
+  timerFrame = requestAnimationFrame(tick)
 }
 
 onBeforeUnmount(() => {
-	clearInterval(timerInterval)
+	if (timerFrame) cancelAnimationFrame(timerFrame)
 })
 
 const checkIfDiscussionsAllowed = () => {

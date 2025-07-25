@@ -2103,7 +2103,7 @@ def get_distributors_with_login_status():
 		distributors_data = frappe.db.sql("""
 		SELECT 
 				d.name,
-				d.atendee_name,
+				d.attendee_name,
 				d.distributor_company_name,
 				d.distributor_email_address,
 				d.user_id,
@@ -2133,7 +2133,7 @@ def get_recent_distributor_logins():
 		recent_logins = frappe.db.sql("""
 			SELECT 
 				d.name as distributor_id,
-				d.atendee_name as distributor_name,
+				d.attendee_name as distributor_name,
 				d.distributor_company_name as company_name,
 				d.last_login_date,
 				CASE 

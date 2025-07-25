@@ -10,166 +10,274 @@ from frappe.utils import get_fullname
 import io
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import RGBColor
+import base64
+import unicodedata
+from frappe.utils import now_datetime
+
 
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
     user = frappe.session.user
+    if not course:
+        return {"submited": False, "message": "No course provided"}
     
-    if course is None:
-        return { "submited": False }
-
     try:
-        # Check if course exists using db.exists instead of get_doc
+        # Check if course exists
         if not frappe.db.exists("LMS Course", course):
-            return { "submited": False }
+            return {"submited": False, "message": "Course does not exist"}
 
-        exists = frappe.db.exists("User Course Documents", {"user": user, "course": course, "submited_document": 1})
+        enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+        if not enrollment:
+            frappe.local.response["http_status_code"] = 403
+            return {
+                "submited": False,
+                "message": "User is not enrolled in this course"
+            }
+        enrollment_name, progress = enrollment
+        if not progress or int(progress) < 100:
+            frappe.local.response["http_status_code"] = 403
+            return {
+                "submited": False,
+                "message": "Course progress is not completed"
+            }
 
         user_doc = frappe.get_doc("User", user)
         roles = [role.role for role in user_doc.roles]
 
         documents_list = []
-        user_course_doc_name = f"{user}-{course}"
+        distributor_id = None
 
+        # Distributor logic
         if "Distributor" in roles:
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
-            distributor_doc_name = distributor_doc.name
+            distributor_id = distributor_doc.name
+
+            # Check if a submitted document exists for this distributor and course
+            exists = frappe.db.exists(
+                "Distributor Course Documents",
+                {
+                    "distributor": distributor_id,
+                    "course": course,
+                    "has_submitted_documents": 1
+                }
+            )
+
+            if not exists:
+                return {"success": False, "message": "User Has not Submitted Documents"}
+
             documents_list = [
                 "Distributor Completion Certificate",
                 "Distributor Self Declaration",
                 "Meril Distributor Compliance Code of Conduct",
-                "Meril Distributor Compliance Policy Adoption Form"
+                "Distributor Declaration - Ethical Practices & Compliance"
             ]
+
+            # Add Endo/Non-Endo compliance policy documents based on company names
+            has_endo = False
+            has_non_endo = False
             for company in distributor_doc.meril_company_table:
-                if "endo" in company.meril_company_name.lower():
-                    documents_list.append("Meril Distributor Compliance Policy for Endo")
-                    break
-            for company in distributor_doc.meril_company_table:
-                if "endo" not in company.meril_company_name.lower():
-                    documents_list.append("Meril Distributor Compliance Policy")
-                    break
-            # Return distributor_id as well
-            return { 
-                "submited": True if exists else False,
+                name = (company.meril_company_name or "").lower()
+                if "endo" in name:
+                    has_endo = True
+                else:
+                    has_non_endo = True
+            if has_endo:
+                documents_list.append("Meril Distributor Compliance Policy for Endo")
+            if has_non_endo:
+                documents_list.append("Meril Distributor Compliance Policy")
+
+            return {
+                "submited": bool(exists),
                 "documents_list": documents_list,
-                "distributor_id": distributor_doc_name
+                "course_documents_record_id": exists
             }
+
+        # Employee logic
         elif "Employee" in roles:
             employee_doc = frappe.get_doc("Employee", {"user_id": user})
-            employee_doc_name = employee_doc.name
+            # Check if a submitted document exists for this employee and course
+            exists = frappe.db.exists(
+                "Employee Course Documents",
+                {"employee": employee_doc.name, "course": course, "submited_document": 1}
+            )
             documents_list = ["Employee Self Declaration", "Course Completion Certificate"]
-            return { "submited": True, "documents_list": documents_list }
+            return {
+                "submited": True,
+                "documents_list": documents_list
+            }
+
+        # Other users (students, etc.)
         else:
+            # Check if a submitted document exists for this user and course
+            exists = frappe.db.exists(
+                "User Course Documents",
+                {"user": user, "course": course, "submited_document": 1}
+            )
             documents_list = ["Course Completion Certificate"]
-            if exists:
-                return { "submited": True, "documents_list": documents_list }
-            else:
-                return { "submited": False, "documents_list": documents_list }
+            return {
+                "submited": True,
+                "documents_list": documents_list
+            }
+
     except Exception as e:
-        return { "submited": False , "error": str(e) }
+        return {"submited": False, "error": str(e)}
 
 
 @frappe.whitelist(allow_guest=False)
-def save_user_course_document_with_file(course=None, document_name=None, filename=None, base64_file_data=None, is_private=1, signature_type=None):
+def save_user_course_document_with_file(
+    course=None,
+    document_name=None,
+    filename=None,
+    base64_file_data=None,
+    is_private=1,
+    signature_type=None,
+    name=None
+):
     """
-    Save user course document with file upload using base64 data
+    Save user course document with file upload using base64 data.
+    Only Distributors can upload. Only one submission per course per year is allowed.
     """
+
     user = frappe.session.user
-    
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+
+    enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+    if not enrollment:
+        frappe.local.response["http_status_code"] = 403
+        return {
+            "submited": False,
+            "message": "User is not enrolled in this course"
+        }
+    enrollment_name, progress = enrollment
+    if not progress or int(progress) < 100:
+        frappe.local.response["http_status_code"] = 403
+        return {
+            "submited": False,
+            "message": "Course progress is not completed"
+        }
+
+    # Only Distributors can upload
+    if "Distributor" not in roles:
+        return {"success": False, "message": "User is not Distributor"}
+
     if not course:
         return {"success": False, "message": "No course provided"}
-    
+
     if not document_name:
         return {"success": False, "message": "Document name is required"}
-    
+
+    if not name:
+        return {"success": False, "message": "name is required"}
+
     if not filename or not base64_file_data:
         return {"success": False, "message": "File data is required"}
-    
+
     # Debug: Log the first few characters of base64 data
     print(f"Base64 data length: {len(base64_file_data)}")
     print(f"Base64 data preview: {base64_file_data[:50]}...")
-    
+
     try:
+        distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+
         # Validate course exists
         if not frappe.db.exists("LMS Course", course):
             return {"success": False, "message": "Course not found"}
-        
-        # Check if document already exists for this user and course
-        existing_doc = frappe.db.exists("User Course Documents", {"user": user, "course": course})
-        
-        if existing_doc:
-            # Get existing document
-            doc = frappe.get_doc("User Course Documents", existing_doc)
-            
-            # Check if document is already submitted
-            if doc.submited_document:
+
+        from datetime import datetime
+
+        # Check if a document for this distributor, course, and year exists
+        existing_doc_name = frappe.db.exists(
+            "Distributor Course Documents",
+            {
+                "distributor": distributor_doc.name,
+                "course": course,
+            }
+        )
+
+        doc = None
+        if existing_doc_name:
+            doc = frappe.get_doc("Distributor Course Documents", existing_doc_name)
+            # If already submitted, do not allow another upload
+            if doc.has_submitted_documents:
                 return {
-                    "success": False, 
+                    "success": False,
                     "message": "Document already submitted. You cannot upload another file for this course."
                 }
         else:
-            # Create new document
+            # Create new document for this distributor, course, and year
             doc = frappe.get_doc({
-                "doctype": "User Course Documents",
-                "user": user,
+                "doctype": "Distributor Course Documents",
+                "distributor": distributor_doc.name,
                 "course": course,
-                "submited_document": 0
+                "completion_date": frappe.utils.nowdate(),
+                "signature_style": signature_type,
+                "entered_name": name,
+                "has_submitted_documents": 0
             })
-            doc.insert(ignore_permissions=True)  # Insert the document first to get a name, ignoring permissions
-        
-        # Decode the base64 file data with proper encoding handling
+            doc.insert(ignore_permissions=True)
+
+        # Decode the base64 file data robustly
         try:
-            # Clean the base64 string first
-            base64_file_data = base64_file_data.strip()
+            # Clean the base64 string
+            base64_file_data_clean = base64_file_data.strip()
             # Remove any non-base64 characters
-            base64_file_data = ''.join(c for c in base64_file_data if c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=')
-            
+            base64_file_data_clean = ''.join(
+                c for c in base64_file_data_clean if c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
+            )
             # Add padding if needed
-            padding = 4 - len(base64_file_data) % 4
-            if padding != 4:
-                base64_file_data += '=' * padding
-            
-            file_content = base64.b64decode(base64_file_data)
+            missing_padding = len(base64_file_data_clean) % 4
+            if missing_padding:
+                base64_file_data_clean += '=' * (4 - missing_padding)
+            file_content = base64.b64decode(base64_file_data_clean)
         except Exception as decode_error:
             try:
-                # Try URL-safe decoding
-                file_content = base64.urlsafe_b64decode(base64_file_data)
+                file_content = base64.urlsafe_b64decode(base64_file_data_clean)
             except Exception as url_decode_error:
                 try:
-                    # Try with different padding
-                    base64_file_data = base64_file_data.rstrip('=')
-                    padding = 4 - len(base64_file_data) % 4
-                    if padding != 4:
-                        base64_file_data += '=' * padding
-                    file_content = base64.b64decode(base64_file_data)
+                    base64_file_data_clean = base64_file_data_clean.rstrip('=')
+                    missing_padding = len(base64_file_data_clean) % 4
+                    if missing_padding:
+                        base64_file_data_clean += '=' * (4 - missing_padding)
+                    file_content = base64.b64decode(base64_file_data_clean)
                 except Exception as final_error:
-                    frappe.log_error(f"Base64 decode failed: {str(decode_error)}, URL decode failed: {str(url_decode_error)}, Final attempt failed: {str(final_error)}")
-                    return {"success": False, "message": "Invalid file data format. Please try uploading the file again."}
-        
+                    frappe.log_error(
+                        f"Base64 decode failed: {str(decode_error)}, "
+                        f"URL decode failed: {str(url_decode_error)}, "
+                        f"Final attempt failed: {str(final_error)}"
+                    )
+                    return {
+                        "success": False,
+                        "message": "Invalid file data format. Please try uploading the file again."
+                    }
+
         # Sanitize filename to handle special characters
-        filename = unicodedata.normalize('NFKD', filename).encode('ascii', 'ignore').decode('ascii')
-        print("uploaded file name",filename)
+        filename_ascii = unicodedata.normalize('NFKD', filename).encode('ascii', 'ignore').decode('ascii')
+        print("uploaded file name", filename_ascii)
+
         # Ensure file_content is bytes
         if not isinstance(file_content, bytes):
             file_content = file_content.encode('utf-8') if isinstance(file_content, str) else bytes(file_content)
-        
-        # Save the file using Frappe's file manager with correct parameters
+
+        # Save the file using Frappe's file manager
         file_doc = save_file(
-            fname=filename,
+            fname=filename_ascii,
             content=file_content,
-            dt="User Course Documents",
+            dt="Distributor Course Documents",
             dn=doc.name,
             is_private=is_private
         )
-        
+
         # Update document fields
         doc.document_name = document_name
         doc.document_file = file_doc.file_url
         doc.submission_date = now_datetime()
-        doc.submited_document = 1
-        
+        doc.has_submitted_documents = 1
+        if signature_type:
+            doc.signature_type = signature_type
+
         doc.save(ignore_permissions=True)
-        
+
         return {
             "success": True,
             "message": "Document saved successfully",
@@ -177,67 +285,15 @@ def save_user_course_document_with_file(course=None, document_name=None, filenam
             "file_url": file_doc.file_url,
             "file_name": file_doc.file_name
         }
-        
+
     except Exception as e:
-        print("FIle UPlaod error", str(e))
+        print("File Upload error", str(e))
         frappe.log_error(f"Error saving user course document: {str(e)}")
         return {
             "success": False,
-
             "message": f"Error saving document: {str(e)}"
         }
 
-
-# @frappe.whitelist(allow_guest=False)
-# def get_user_course_documents(course=None):
-#     """
-#     Get user's course documents
-#     """
-#     user = frappe.session.user
-    
-#     filters = {"user": user}
-#     if course:
-#         filters["course"] = course
-    
-#     documents = frappe.get_all(
-#         "User Course Documents",
-#         filters=filters,
-#         fields=["name", "course", "document_name", "document_file", "submission_date", "submited_document"],
-#         order_by="creation desc"
-#     )
-    
-#     return {
-#         "success": True,
-#         "documents": documents
-#     }
-
-
-@frappe.whitelist(allow_guest=False)
-def delete_user_course_document(docname=None):
-    """
-    Delete user course document
-    """
-    user = frappe.session.user
-    
-    if not docname:
-        return {"success": False, "message": "No document name provided"}
-    
-    # Check if document exists and belongs to user
-    if not frappe.db.exists("User Course Documents", {"name": docname, "user": user}):
-        return {"success": False, "message": "Document not found or access denied"}
-    
-    try:
-        frappe.delete_doc("User Course Documents", docname)
-        return {
-            "success": True,
-            "message": "Document deleted successfully"
-        }
-    except Exception as e:
-        frappe.log_error(f"Error deleting user course document: {str(e)}")
-        return {
-            "success": False,
-            "message": f"Error deleting document: {str(e)}"
-        }
 
 
 @frappe.whitelist(allow_guest=False)
@@ -250,7 +306,7 @@ def generate_dynamic_docx(name=None):
             "success": False,
             "message": "No distributor name provided"
         }
-    
+
     roles = [role.role for role in user_doc.roles]
     if "Distributor" not in roles:
         return {
@@ -258,15 +314,15 @@ def generate_dynamic_docx(name=None):
             "message": "This document can only be generated for Distributor users."
         }
 
-    distributor_doc = frappe.get_doc("Distributor", {"user_id": user}) 
-    
+    distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+
     try:
         # Check for required fields and throw error if missing
         if not distributor_doc.meril_company_table or not distributor_doc.meril_company_table[0].meril_company_name:
             frappe.throw("Meril company name is missing in distributor document.")
         if not distributor_doc.distributor_company_name:
             frappe.throw("Distributor company name is missing in distributor document.")
-        if not distributor_doc.atendee_name:
+        if not distributor_doc.attendee_name:
             frappe.throw("Attendee name is missing in distributor document.")
         if not distributor_doc.designation:
             frappe.throw("Designation is missing in distributor document.")
@@ -277,7 +333,7 @@ def generate_dynamic_docx(name=None):
 
         meril_company_name = distributor_doc.meril_company_table[0].meril_company_name
         distributor_company_name = distributor_doc.distributor_company_name
-        distributor_name = distributor_doc.atendee_name
+        distributor_name = distributor_doc.attendee_name
         designation = distributor_doc.designation
         email = distributor_doc.distributor_email_address or user_doc.email
         contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
@@ -285,7 +341,7 @@ def generate_dynamic_docx(name=None):
 
         doc = Document()
         para = doc.add_paragraph("On letter head of distributor", style='Normal')
-        para.alignment = 1  
+        para.alignment = 1
         doc.add_paragraph()
         heading = doc.add_heading("", level=1)
         run = heading.add_run("Meril Distributor- Compliance Policy Adoption Form")
@@ -293,7 +349,7 @@ def generate_dynamic_docx(name=None):
         run.font.color.rgb = RGBColor(0, 0, 0)
         heading.alignment = 1
         doc.add_paragraph()
-        doc.add_paragraph(today)
+        doc.add_paragraph(frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy"))
         doc.add_paragraph()
         doc.add_paragraph(
             f"We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.\n\n"
@@ -303,7 +359,7 @@ def generate_dynamic_docx(name=None):
         doc.add_paragraph("Nomination of Compliance Officer:")
         doc.add_paragraph()
         doc.add_paragraph(
-            f"{name} is nominated as Compliance Officer of our organization with effect from {today}"
+            f"{name} is nominated as Compliance Officer of our organization with effect from {frappe.utils.format_date(frappe.utils.nowdate(), 'd MMMM yyyy')}"
         )
         doc.add_paragraph()
         doc.add_paragraph(f"Authorized representative of {distributor_name}")
@@ -404,6 +460,7 @@ def download_user_print_format_logic(document, user=None):
         "type": "pdf"
     }
 
+
 @frappe.whitelist(allow_guest=False)
 def download_user_print_format(name):
     """
@@ -414,3 +471,126 @@ def download_user_print_format(name):
     frappe.local.response.filename = result["filename"]
     frappe.local.response.filecontent = result["filecontent"]
     frappe.local.response.type = result["type"]
+
+
+@frappe.whitelist(allow_guest=False)
+def get_public_signature_font_styles():
+    """
+    Returns a list of available signature font styles (Signature Type doctype)
+    where the font file is not private (i.e., not in /private/files/).
+    """
+    try:
+        font_types = frappe.get_all(
+            "Signature Type",
+            filters={
+                "font_file": ["not like", "/private/files/%"]
+            },
+            fields=["name", "font_name", "font_file"]
+        )
+        # Optionally, add a 'label' and 'value' for frontend select
+        result = []
+        for font in font_types:
+            result.append({
+                "label": font.get("font_name") or font.get("name"),
+                "value": font.get("name"),
+                "css": font.get("font_name"),  # Assuming font_name is the CSS font-family
+                "font_file": font.get("font_file")
+            })
+        return result
+    except Exception as e:
+        frappe.log_error(f"Error fetching public signature font styles: {str(e)}")
+        return []
+
+@frappe.whitelist(allow_guest=False)
+def downlaod_nonendo_file():
+    from frappe.utils.file_manager import get_file_path
+    user = frappe.session.user
+
+    # Check if user has Distributor role
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+    if "Distributor" not in roles:
+        frappe.local.response["http_status_code"] = 403
+        frappe.local.response["message"] = "Only Distributor can download this file"
+        return
+
+    # Try to get Distributor doc by user_id (not by name, which is not always user email)
+    distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
+    if not distributor_doc:
+        frappe.local.response["http_status_code"] = 403
+        frappe.local.response["message"] = "Distributor record not found"
+        return
+
+    # Check if any company name does NOT contain "endo" (case-insensitive)
+    for company in distributor_doc.meril_company_table:
+        name = (company.meril_company_name or "").lower()
+        if "endo" not in name:
+            # Use the direct file path as requested
+            file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy.pdf"})
+            if not file_docname:
+                frappe.local.response["http_status_code"] = 404
+                frappe.local.response["message"] = "File not found"
+                return
+
+            file_doc = frappe.get_doc("File", file_docname)
+            file_path = get_file_path(file_doc.file_url)
+
+            with open(file_path, "rb") as f:
+                file_content = f.read()
+
+            # Set response headers for file download
+            frappe.response["type"] = "binary"
+            frappe.response["filename"] = file_doc.file_name
+            frappe.response["filecontent"] = file_content
+            return
+
+    frappe.local.response["http_status_code"] = 403
+    frappe.local.response["message"] = "Distributor can not access this resource"
+    return
+
+@frappe.whitelist(allow_guest=False)
+def downlaod_endo_file():
+    from frappe.utils.file_manager import get_file_path
+    user = frappe.session.user
+
+    # Check if user has Distributor role
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+    if "Distributor" not in roles:
+        frappe.local.response["http_status_code"] = 403
+        frappe.local.response["message"] = "Only Distributor can download this file"
+        return
+
+    # Try to get Distributor doc by user_id (not by name, which is not always user email)
+    distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
+    if not distributor_doc:
+        frappe.local.response["http_status_code"] = 403
+        frappe.local.response["message"] = "Distributor record not found"
+        return
+
+    # Check if any company name contains "endo" (case-insensitive)
+    for company in distributor_doc.meril_company_table:
+        name = (company.meril_company_name or "").lower()
+        if "endo" in name:
+            # Use the direct file path as requested
+            file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy for Endo.pdf"})
+            if not file_docname:
+                frappe.local.response["http_status_code"] = 404
+                frappe.local.response["message"] = "File not found"
+                return
+
+            file_doc = frappe.get_doc("File", file_docname)
+            file_path = get_file_path(file_doc.file_url)
+
+            with open(file_path, "rb") as f:
+                file_content = f.read()
+
+            # Set response headers for file download
+            frappe.response["type"] = "binary"
+            frappe.response["filename"] = file_doc.file_name
+            frappe.response["filecontent"] = file_content
+            return
+
+    frappe.local.response["http_status_code"] = 403
+    frappe.local.response["message"] = "Distributor can not access this resource"
+    return

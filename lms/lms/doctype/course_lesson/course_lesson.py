@@ -42,8 +42,11 @@ class CourseLesson(Document):
 				)
 
 
+def normalize_url(url):
+    return url.lower().rstrip('/') if url else url
+
 @frappe.whitelist()
-def save_progress(lesson, course):
+def save_progress(lesson, course, completed_videos=None):
 	membership = frappe.db.exists(
 		"LMS Enrollment", {"course": course, "member": frappe.session.user}
 	)
@@ -64,19 +67,60 @@ def save_progress(lesson, course):
 	quiz_completed = get_quiz_progress(lesson)
 	assignment_completed = get_assignment_progress(lesson)
 
-	if not already_completed and quiz_completed and assignment_completed:
-		# Create progress record linked to enrollment
-		progress_doc = frappe.get_doc({
-			"doctype": "LMS Course Progress",
+	# --- Video completion logic ---
+	video_urls = [normalize_url(url) for url in get_lesson_video_urls(lesson)]
+	all_videos_completed = True
+	print("videos", completed_videos ,"already completed", already_completed, 'lesson', lesson)
+	completed_videos_list = []
+	if completed_videos:
+		try:
+			completed_videos_list = json.loads(completed_videos) if isinstance(completed_videos, str) else completed_videos
+		except Exception:
+			completed_videos_list = []
+	completed_videos_list = [normalize_url(url) for url in completed_videos_list]
+	if video_urls:
+		# If there are videos, require all to be completed
+		all_videos_completed = set(video_urls) <= set(completed_videos_list)
+	frappe.logger().info(f"[save_progress] video_urls: {video_urls}")
+	frappe.logger().info(f"[save_progress] completed_videos_list: {completed_videos_list}")
+	frappe.logger().info(f"[save_progress] all_videos_completed: {all_videos_completed}")
+	# --- End video logic ---
+
+	print("video_urls", video_urls, "all_videos_completed", all_videos_completed)
+	# PATCH: Update existing progress record if all requirements are now met
+	if already_completed:
+		print("already completed")
+		progress_doc = frappe.get_doc("LMS Course Progress", {
 			"lesson": lesson,
-			"status": "Complete",
 			"member": frappe.session.user,
-			"enrollment": membership,
-			"completed_on": frappe.utils.now_datetime(),
-			"is_complete": 1,
-			"progress": 100
+			"enrollment": membership
 		})
-		progress_doc.save(ignore_permissions=True)
+		print("already check")
+		if quiz_completed and assignment_completed and (not video_urls or all_videos_completed):
+			print("already check after if")
+			progress_doc.status = "Complete"
+			progress_doc.is_complete = 1
+			progress_doc.progress = 100
+			progress_doc.completed_on = frappe.utils.now_datetime()
+			if completed_videos_list:
+				progress_doc.completed_videos = json.dumps(completed_videos_list)
+			progress_doc.save(ignore_permissions=True)
+	else:
+		print("aleary not completed")
+		if quiz_completed and assignment_completed and (not video_urls or all_videos_completed):
+			# Create progress record linked to enrollment
+			progress_doc = frappe.get_doc({
+				"doctype": "LMS Course Progress",
+				"lesson": lesson,
+				"status": "Complete",
+				"member": frappe.session.user,
+				"enrollment": membership,
+				"completed_on": frappe.utils.now_datetime(),
+				"is_complete": 1,
+				"progress": 100,
+				"completed_videos": json.dumps(completed_videos_list) if completed_videos_list else None
+			})
+			progress_doc.save(ignore_permissions=True)
 
 	progress = get_course_progress(course)
 	capture_progress_for_analytics(progress, course)
@@ -167,3 +211,25 @@ def get_assignment_progress(lesson):
 @frappe.whitelist()
 def get_lesson_info(chapter):
 	return frappe.db.get_value("Course Chapter", chapter, "course")
+
+
+def get_lesson_video_urls(lesson):
+	lesson_details = frappe.db.get_value(
+		"Course Lesson", lesson, ["body", "content"], as_dict=1
+	)
+	video_urls = []
+	if lesson_details.content:
+		try:
+			content = json.loads(lesson_details.content)
+			for block in content.get("blocks", []):
+				if block.get("type") == "upload":
+					data = block.get("data", {})
+					file_type = data.get("file_type", "").lower()
+					if file_type in ["mp4", "mov", "avi", "mkv", "webm"]:
+						url = data.get("file_url")
+						if url:
+							video_urls.append(url)
+		except Exception:
+			pass
+	# Optionally, parse body for legacy video macros if needed
+	return video_urls

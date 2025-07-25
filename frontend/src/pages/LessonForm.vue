@@ -29,6 +29,9 @@
 									({{ (duration_minutes || 0) }}m {{ (duration_seconds || 0) }}s)
 								</span>
 							</label>
+							<div v-if="Object.keys(videoDurations).length > 0" class="text-xs text-ink-gray-4 mb-1">
+								{{ __('Duration is auto-set from total video length.') }}
+							</div>
 							<div class="flex gap-4">
 								<FormControl
 									v-model="duration_minutes"
@@ -37,6 +40,7 @@
 									min="0"
 									:required="true"
 									class="flex-1"
+									:readonly="Object.keys(videoDurations).length > 0"
 								/>
 								<FormControl
 									v-model="duration_seconds"
@@ -46,6 +50,7 @@
 									max="59"
 									:required="true"
 									class="flex-1"
+									:readonly="Object.keys(videoDurations).length > 0"
 								/>
 							</div>
 						</div>
@@ -139,6 +144,16 @@ const openInstructorEditor = ref(false)
 const { updateOnboardingStep } = useOnboarding('learning')
 let autoSaveInterval
 let showSuccessMessage = false
+const videoDurations = ref({})
+
+function updateLessonDurationFromVideos() {
+  const durations = Object.values(videoDurations.value)
+  if (durations.length === 0) return
+  const totalSeconds = Math.round(durations.reduce((a, b) => a + b, 0))
+  duration_minutes.value = Math.floor(totalSeconds / 60)
+  duration_seconds.value = totalSeconds % 60
+  lesson.duration = totalSeconds
+}
 
 const props = defineProps({
 	courseName: {
@@ -166,6 +181,14 @@ onMounted(async () => {
 	instructorEditor.value = renderEditor('instructor-notes')
 	window.addEventListener('keydown', keyboardShortcut)
 	enablePlyr()
+	// Listen for video-duration events
+	window.addEventListener('video-duration', (e) => {
+		const { file, duration } = e.detail || {}
+		if (file && duration) {
+			videoDurations.value[file] = duration
+			updateLessonDurationFromVideos()
+		}
+	})
 })
 
 const renderEditor = (holder) => {
