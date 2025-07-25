@@ -19,15 +19,17 @@
    "unique": 1
   },
   {
+   "description": "please enter file with extention .ttf or .woff here",
    "fieldname": "font_file",
    "fieldtype": "Attach",
-   "label": "font file"
+   "label": "font file",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-16 17:58:48.304239",
+ "modified": "2025-07-22 17:58:55.556397",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Signature Type",

@@ -1,6 +1,11 @@
 <template>
-    <Teleport to="body">
-  <div v-if="showOtpDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+<Teleport to="body" >
+  <div v-if="showOtpDialog" 
+   aria-modal="true" 
+   ref="otpDialogContent"
+   tabindex="2" 
+   @keydown.tab="trapFocus"
+   class="fixed h-screen w-screen inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
     <div
       title="Verify Your Identity"
       class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg rounded-lg bg-white"
@@ -23,7 +28,7 @@
         <div class="mb-6">
           <label class="block mb-1 text-gray-800 " for="mobile-otp">Mobile OTP</label>
           <TextInput
-            id="mobile-otp"
+            id="mobile-otp" 
             v-model="mobileOtp"
             type="text"
             placeholder="Enter Mobile OTP"
@@ -32,6 +37,7 @@
           />
         </div>
         <Button
+          id="send-otp" 
           type="button"
           class="block w-fit p-2 ml-auto mb-4 rounded-lg border border-gray-500 cursor-pointer select-none active:ring-2 ring-gray-800"
           @click="sendOtp"
@@ -39,7 +45,8 @@
         >
           Resend me OTPs
         </Button>
-        <Button
+        <Button 
+          id="submit-otp" 
           type="submit"
           variant="solid"
           class="w-full flex"
@@ -71,8 +78,42 @@ const errors = ref({
 })
 const loading = ref(false);
 
+const otpDialogContent = ref(null);
+
+// focus trap prevent focus on other elements than otpDialog 
+const trapFocus = (event) => {
+  if (event.key !== 'Tab') return;
+
+  const dialog = otpDialogContent.value;
+  if (!dialog) return;
+
+  const focusableElements = dialog.querySelectorAll(
+    "#email-otp, #mobile-otp, #send-otp, #submit-otp"
+  );
+
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const firstFocusable = focusableElements[0];
+  const lastFocusable = focusableElements[focusableElements.length - 1];
+
+  if (event.shiftKey) {
+    if (document.activeElement === firstFocusable || document.activeElement === dialog) {
+      lastFocusable.focus();
+      event.preventDefault();
+    }
+  } else {
+    if (document.activeElement === lastFocusable || document.activeElement === dialog) {
+      firstFocusable.focus();
+      event.preventDefault();
+    }
+  }
+};
 onMounted(() => {
-  should_user_redirect();
+if(window.self === window.top)
+    should_user_redirect();
 });
 
 async function getUnlockedStatus() {
@@ -155,9 +196,9 @@ const should_user_redirect = async() =>{
       window.location.href = "/edit-distributor-profile";
       return;
     }
+    getUnlockedStatus();
   }catch(error){
     console.error("Error checking if user is a distributor:", error);
-  }finally{
     getUnlockedStatus();
   }
 }

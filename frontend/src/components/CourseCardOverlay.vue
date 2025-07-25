@@ -1,6 +1,5 @@
 <template>
 	<div class="border-2 rounded-md min-w-80">
-		<DocumentDownloadModal :show="showDocumentDownloadModal" :course="course.data.name" :showDownloadForm="showDownloadForm" :showFormModal="showFormModal" @close="showDocumentDownloadModal = false" />
 		<iframe
 			v-if="course.data.video_link"
 			:src="video_link"
@@ -152,13 +151,12 @@ import { formatAmount } from '@/utils/'
 import { capture } from '@/telemetry'
 import { useRouter } from 'vue-router'
 import CertificationLinks from '@/components/CertificationLinks.vue'
-import DocumentDownloadModal from '@/components/custom/DocumentDownloadModal.vue'
 import { ref } from 'vue'
+import { setCourseCompletion } from "../stores/course_completion.js";
 
 const router = useRouter()
 const user = inject('$user')
 const readOnlyMode = window.read_only_mode
-const showDocumentDownloadModal = ref(false)
 const showDownloadForm = ref(false)
 const showFormModal = ref(false)
 
@@ -220,6 +218,7 @@ const is_instructor = () => {
 }
 
 const canGetCertificate = computed(() => {
+	console.log(props.course.data)
 	if (
 		props.course.data?.enable_certification &&
 		props.course.data?.membership?.progress == 100
@@ -263,11 +262,15 @@ async function handleGetDocuments() {
 			showDownloadForm.value = false
 			showFormModal.value = true
 		}
-		showDocumentDownloadModal.value = true
+		
 	} catch (e) {
 		showDownloadForm.value = false
 		showFormModal.value = true
-		showDocumentDownloadModal.value = true
+	}finally{
+		setCourseCompletion({
+			courseName: props.course.data.name,
+			showDocument: true
+		})
 	}
 }
 </script>

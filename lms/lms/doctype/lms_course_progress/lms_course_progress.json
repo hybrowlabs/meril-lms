@@ -16,7 +16,8 @@
   "section_break_progress",
   "is_complete",
   "progress",
-  "completed_on"
+  "completed_on",
+  "completed_videos"
  ],
  "fields": [
   {
@@ -104,11 +105,17 @@
    "fieldname": "completed_on",
    "fieldtype": "Datetime",
    "label": "Completed On"
+  },
+  {
+   "description": " JSON list of completed video URLs for this lesson/us",
+   "fieldname": "completed_videos",
+   "fieldtype": "Small Text",
+   "label": "Completed Videos"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-01-17 15:54:34.040621",
+ "modified": "2025-07-21 20:10:13.215621",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Course Progress",
@@ -137,6 +144,7 @@
    "share": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

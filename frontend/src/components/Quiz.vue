@@ -636,17 +636,19 @@ const getInstructions = (question) => {
 	else return __('Type your answer')
 }
 
-const markLessonProgress = () => {
+const markLessonProgress = async() => {
+	const data = "quize completed";
+	window.parent.postMessage(data, window.location.origin); 
 	let pathname = window.location.pathname.split('/')
 	if (pathname[2] != 'courses') return
 	let lessonIndex = pathname.pop().split('-')
 
 	if (lessonIndex.length == 2) {
-		call('lms.lms.api.mark_lesson_progress', {
+		await call('lms.lms.api.mark_lesson_progress', {
 			course: pathname[3],
 			chapter_number: lessonIndex[0],
 			lesson_number: lessonIndex[1],
-		})
+		});
 	}
 }
 

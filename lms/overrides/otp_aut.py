@@ -19,10 +19,10 @@ def send_mobile_notification(mobile_no, message):
     """
 
     print("send mobile otp function called")
-    api_key = 'RHPQkxJSCEE'
-    service_type = 'TEMPLATE_BASED'
-    sender_id = 'MerilD'
-    sms_end_point = 'https://smsapi.24x7sms.com/api_2.0/SendSMS.aspx'
+    api_key = frappe.conf.get('sms_api_key')
+    service_type = frappe.conf.get('sms_service_type')
+    sender_id = frappe.conf.get('sms_sender_id')
+    sms_end_point = frappe.conf.get('sms_end_point')
 
     if not mobile_no or not message:
         return {'response': 'Mobile number and message cannot be empty.'}
@@ -152,7 +152,7 @@ def verify_email_otp(otp=None, otp1=None):
         return {"status": "error", "message": "OTP expired or invalid"}
 
 
-@frappe.whitelist(allow_guest=False)
+# @frappe.whitelist(allow_guest=False)
 def send_email_otp():
     try:
         user = frappe.session.user
