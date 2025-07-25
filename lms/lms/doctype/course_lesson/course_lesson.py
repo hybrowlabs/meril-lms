@@ -67,6 +67,7 @@ def save_progress(lesson, course, completed_videos=None):
 	quiz_completed = get_quiz_progress(lesson)
 	assignment_completed = get_assignment_progress(lesson)
 
+
 	# --- Video completion logic ---
 	video_urls = [normalize_url(url) for url in get_lesson_video_urls(lesson)]
 	all_videos_completed = True
@@ -94,6 +95,7 @@ def save_progress(lesson, course, completed_videos=None):
 			"lesson": lesson,
 			"member": frappe.session.user,
 			"enrollment": membership
+
 		})
 		print("already check")
 		if quiz_completed and assignment_completed and (not video_urls or all_videos_completed):

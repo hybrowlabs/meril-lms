@@ -11,6 +11,15 @@ import frappe
 from frappe.utils.password import update_password
 import json
 
+def get_default_sender():
+	"""Get the default outgoing email account"""
+	try:
+		default_email_account = frappe.get_doc("Email Account", {"default_outgoing": 1})
+		return default_email_account.email_id
+	except:
+		# Fallback to system default if no default outgoing email account is found
+		return frappe.db.get_single_value("System Settings", "auto_email_id") or "noreply@example.com"
+
 def validate_username_duplicates(doc, method):
 	while not doc.username or doc.username_exists():
 		doc.username = append_number_if_name_exists(
@@ -66,7 +75,7 @@ def create_user_from_employee(self, method=None):
 				# Update self in the database
 				frappe.sendmail(
 					recipients=[self.company_email],	
-					sender='support@grawish.com',
+					sender=get_default_sender(),
 					subject='Test Email',	
 					message=f'<p>Hello {self.first_name} from meril lms for your email {self.company_email} your password is : {new_password} </p>'
 				)
@@ -124,7 +133,7 @@ def create_user_from_distributor(self, method=None):
 
                 frappe.sendmail(
                     recipients=[email],
-                    sender='support@grawish.com',
+                    sender=get_default_sender(),
                     subject='Your Merlin LMS Account',
                     message=f'<p>Hello {email},<br>Your password is: <b>{new_password}</b><br>Regards,<br>Merlin LMS</p>'
                 )
@@ -140,7 +149,8 @@ def create_user_from_distributor(self, method=None):
                     
                     frappe.sendmail(
                         recipients=admins,
-                        sender='support@merilinlms.com',
+
+                        sender=get_default_sender(),
                         subject=subject,
                         message=message
                     )
@@ -259,7 +269,9 @@ def on_login(login_manager):
 				
 				frappe.sendmail(
 					recipients=admins,
-					sender=frappe.db.get_single_value("System Settings", "mail_login_sender") or 'support@meril.com',
+
+					sender=get_default_sender(),
+
 					subject=subject,
 					message=message
 				)
@@ -293,10 +305,9 @@ def send_daily_login_reminders():
 			AND d.user_id IS NOT NULL 
 			AND d.user_id != ''
 			AND d.credentials_sent_date IS NOT NULL
-			AND DATEDIFF(NOW(), d.credentials_sent_date) >= 0
+			AND DATEDIFF(NOW(), d.credentials_sent_date) >= 1
 		ORDER BY d.credentials_sent_date ASC
 	""", as_dict=True)
-	
 	
 	if not distributors_needing_reminders:
 		frappe.logger().info("No distributors need login reminders today")
@@ -340,6 +351,9 @@ def send_daily_login_reminders():
 			# Send email to the distributor
 			frappe.sendmail(
 				recipients=[distributor.distributor_email_address],
+
+				sender=get_default_sender(),
+
 				subject=subject,
 				message=message_content
 			)
@@ -358,7 +372,7 @@ def send_daily_login_reminders():
 				if admins:
 					frappe.sendmail(
 						recipients=admins,
-						sender='support@grawish.com',
+						sender=get_default_sender(),
 						subject=admin_subject,
 						message=admin_message
 					)
@@ -511,7 +525,7 @@ def send_daily_course_reminders():
 			# Send email to the user
 			frappe.sendmail(
 				recipients=[enrollment.user_email],
-				sender='support@grawish.com',
+				sender=get_default_sender(),
 				subject=subject,
 				message=message_content
 			)
@@ -531,7 +545,7 @@ def send_daily_course_reminders():
 				if admins:
 					frappe.sendmail(
 						recipients=admins,
-						sender='support@grawish.com',
+						sender=get_default_sender(),
 						subject=admin_subject,
 						message=admin_message
 					)
@@ -772,7 +786,7 @@ def send_manual_login_reminder(distributor_id):
 		# Send email to the distributor
 		frappe.sendmail(
 			recipients=[distributor.distributor_email_address],
-			sender='support@grawish.com',
+			sender=get_default_sender(),
 			subject=subject,
 			message=message_content
 		)
@@ -858,7 +872,7 @@ def send_manual_course_reminder(enrollment_id):
 		# Send email to the user
 		frappe.sendmail(
 			recipients=[user.email],
-			sender='support@grawish.com',
+			sender=get_default_sender(),
 			subject=subject,
 			message=message_content
 		)
