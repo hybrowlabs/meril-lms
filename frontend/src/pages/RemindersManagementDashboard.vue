@@ -29,7 +29,7 @@
 						<div>
 							<p class="text-sm text-gray-600">{{ __('Total Enrolled Users') }}</p>
 							<p class="text-2xl font-semibold text-gray-900">
-								{{ kpiData.total_enrolled_users || 0 }}
+								{{ (kpiData && kpiData.total_enrolled_users) || 0 }}
 							</p>
 						</div>
 						<Users class="h-8 w-8 text-blue-600" />
@@ -42,10 +42,10 @@
 						<div>
 							<p class="text-sm text-gray-600">{{ __('Completed Courses') }}</p>
 							<p class="text-2xl font-semibold text-green-600">
-								{{ kpiData.completed_courses || 0 }}
+								{{ (kpiData && kpiData.completed_courses) || 0 }}
 							</p>
 							<p class="text-xs text-gray-500">
-								{{ Math.round((kpiData.completed_courses / kpiData.total_enrolled_users) * 100) || 0 }}% completion rate
+								{{ Math.round(((kpiData && kpiData.completed_courses) || 0) / ((kpiData && kpiData.total_enrolled_users) || 1) * 100) || 0 }}% completion rate
 							</p>
 						</div>
 						<CheckCircle class="h-8 w-8 text-green-600" />
@@ -58,10 +58,10 @@
 						<div>
 							<p class="text-sm text-gray-600">{{ __('Pending Completions') }}</p>
 							<p class="text-2xl font-semibold text-red-600">
-								{{ kpiData.pending_completions || 0 }}
+								{{ (kpiData && kpiData.pending_completions) || 0 }}
 							</p>
 							<p class="text-xs text-gray-500">
-								{{ kpiData.avg_reminders_sent || 0 }} avg reminders sent
+								{{ (kpiData && kpiData.avg_reminders_sent) || 0 }} avg reminders sent
 							</p>
 						</div>
 						<AlertTriangle class="h-8 w-8 text-red-600" />
@@ -74,10 +74,10 @@
 						<div>
 							<p class="text-sm text-gray-600">{{ __('Course Reminders') }}</p>
 							<p class="text-2xl font-semibold text-purple-600">
-								{{ kpiData.total_course_reminders_sent || 0 }}
+								{{ (kpiData && kpiData.total_course_reminders_sent) || 0 }}
 							</p>
 							<p class="text-xs text-gray-500">
-								{{ kpiData.reminders_sent_today || 0 }} sent today
+								{{ (kpiData && kpiData.reminders_sent_today) || 0 }} sent today
 							</p>
 						</div>
 						<Mail class="h-8 w-8 text-purple-600" />
@@ -118,15 +118,15 @@
 					<div class="space-y-4">
 						<div class="flex justify-between items-center">
 							<span class="text-gray-600">{{ __('Completion Rate') }}</span>
-							<span class="text-lg font-semibold text-green-600">{{ kpiData.completion_rate || 0 }}%</span>
+							<span class="text-lg font-semibold text-green-600">{{ (kpiData && kpiData.completion_rate) || 0 }}%</span>
 						</div>
 						<div class="flex justify-between items-center">
 							<span class="text-gray-600">{{ __('Avg Time to Complete') }}</span>
-							<span class="text-lg font-semibold text-blue-600">{{ kpiData.avg_time_to_complete || 0 }} days</span>
+							<span class="text-lg font-semibold text-blue-600">{{ (kpiData && kpiData.avg_time_to_complete) || 0 }} days</span>
 						</div>
 						<div class="flex justify-between items-center">
 							<span class="text-gray-600">{{ __('Most Active Course') }}</span>
-							<span class="text-lg font-semibold text-purple-600">{{ kpiData.most_active_course || 'N/A' }}</span>
+							<span class="text-lg font-semibold text-purple-600">{{ (kpiData && kpiData.most_active_course) || 'N/A' }}</span>
 						</div>
 					</div>
 				</div>
@@ -343,11 +343,11 @@
 						<div class="grid grid-cols-2 gap-4">
 							<div class="bg-gray-50 p-4 rounded-lg">
 								<p class="text-sm text-gray-600">{{ __('Total Sent') }}</p>
-								<p class="text-2xl font-semibold text-purple-600">{{ kpiData.total_course_reminders_sent || 0 }}</p>
+								<p class="text-2xl font-semibold text-purple-600">{{ (kpiData && kpiData.total_course_reminders_sent) || 0 }}</p>
 							</div>
 							<div class="bg-gray-50 p-4 rounded-lg">
 								<p class="text-sm text-gray-600">{{ __('Sent Today') }}</p>
-								<p class="text-2xl font-semibold text-blue-600">{{ kpiData.reminders_sent_today || 0 }}</p>
+								<p class="text-2xl font-semibold text-blue-600">{{ (kpiData && kpiData.reminders_sent_today) || 0 }}</p>
 							</div>
 						</div>
 
@@ -456,6 +456,7 @@ onUnmounted(() => {
 const loadData = async () => {
 	loading.value = true
 	console.log('Starting data load...')
+	console.log('Current user session:', user.name, user.enabled)
 	
 	try {
 		// Load data with individual error handling to prevent one failure from stopping others
@@ -477,6 +478,14 @@ const loadData = async () => {
 			}
 		})
 		
+		// Log final state for debugging
+		console.log('Final data state:', {
+			kpiData: kpiData.value,
+			usersCount: users.value.length,
+			recentCompletionsCount: recentCompletions.value.length,
+			reminderBreakdownCount: reminderBreakdown.value.length
+		})
+		
 		// If critical data (users) failed to load, try again after a short delay
 		if (users.value.length === 0 && results[1].status === 'rejected') {
 			console.log('Retrying user data load...')
@@ -493,11 +502,36 @@ const loadData = async () => {
 
 const loadKPIData = async () => {
 	try {
+		console.log('Loading KPI data...')
 		const data = await call('lms.lms.api.get_course_completion_stats')
+		console.log('KPI data received:', data)
 		kpiData.value = data || {}
+		
+		// Validate the received data and log any issues
+		if (!data || Object.keys(data).length === 0) {
+			console.warn('No KPI data received or empty object returned')
+		} else {
+			console.log('KPI Data loaded successfully:', {
+				total_enrolled_users: data.total_enrolled_users,
+				completed_courses: data.completed_courses,
+				pending_completions: data.pending_completions,
+				total_course_reminders_sent: data.total_course_reminders_sent
+			})
+		}
 	} catch (error) {
 		console.error('Failed to load KPI data:', error)
-		kpiData.value = {}
+		// Set default values to ensure UI doesn't break
+		kpiData.value = {
+			total_enrolled_users: 0,
+			completed_courses: 0,
+			pending_completions: 0,
+			total_course_reminders_sent: 0,
+			reminders_sent_today: 0,
+			completion_rate: 0,
+			avg_time_to_complete: 0,
+			most_active_course: 'N/A',
+			avg_reminders_sent: 0
+		}
 	}
 }
 
