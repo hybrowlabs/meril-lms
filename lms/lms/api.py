@@ -2103,7 +2103,7 @@ def get_distributors_with_login_status():
 		distributors_data = frappe.db.sql("""
 			SELECT 
 				d.name,
-				d.atendee_name,
+				d.attendee_name,
 				d.distributor_company_name,
 				d.distributor_email_address,
 				d.user_id,

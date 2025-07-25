@@ -144,11 +144,12 @@ def create_user_from_distributor(self, method=None):
                     pluck="email")
                 
                 if admins:
-                    subject = f"🎯 New Distributor Created: {self.atendee_name}"
-                    message = f"<p>New distributor <b>{self.atendee_name}</b> from <b>{self.distributor_company_name}</b> has been created and credentials sent.</p><p>📧 Email: {email}</p><p>📅 Credentials sent: {frappe.utils.format_datetime(frappe.utils.now_datetime())}</p><p>🔔 Daily login reminders will start tomorrow if no login occurs.</p>"
+                    subject = f"🎯 New Distributor Created: {self.attendee_name}"
+                    message = f"<p>New distributor <b>{self.attendee_name}</b> from <b>{self.distributor_company_name}</b> has been created and credentials sent.</p><p>📧 Email: {email}</p><p>📅 Credentials sent: {frappe.utils.format_datetime(frappe.utils.now_datetime())}</p><p>🔔 Daily login reminders will start tomorrow if no login occurs.</p>"
                     
                     frappe.sendmail(
                         recipients=admins,
+
                         sender=get_default_sender(),
                         subject=subject,
                         message=message
@@ -263,17 +264,21 @@ def on_login(login_manager):
 				pluck="email")
 			
 			if admins:
-				subject = f"✅ Distributor {distributor_doc.atendee_name} logged in for the first time"
-				message = f"<p>Great news! Distributor <b>{distributor_doc.atendee_name}</b> from <b>{distributor_doc.distributor_company_name}</b> has successfully logged in for the first time.</p><p>📅 First Login: {frappe.utils.format_datetime(now)}</p><p>🎯 No more reminders needed for this distributor.</p>"
+				subject = f"✅ Distributor {distributor_doc.attendee_name} logged in for the first time"
+				message = f"<p>Great news! Distributor <b>{distributor_doc.attendee_name}</b> from <b>{distributor_doc.distributor_company_name}</b> has successfully logged in for the first time.</p><p>📅 First Login: {frappe.utils.format_datetime(now)}</p><p>🎯 No more reminders needed for this distributor.</p>"
 				
 				frappe.sendmail(
 					recipients=admins,
+
 					sender=get_default_sender(),
+
 					subject=subject,
 					message=message
 				)
 			
 		frappe.db.commit()
+			
+	frappe.local.response["redirect_to"] = "/lms"
 
 
 @frappe.whitelist()
@@ -287,7 +292,7 @@ def send_daily_login_reminders():
 	distributors_needing_reminders = frappe.db.sql("""
 		SELECT 
 			d.name as distributor_id,
-			d.atendee_name,
+			d.attendee_name,
 			d.distributor_company_name,
 			d.distributor_email_address,
 			d.user_id,
@@ -336,7 +341,7 @@ def send_daily_login_reminders():
 			subject = f"{subject_prefix}: Please login to Meril Learning Portal"
 			
 			message_content = get_login_reminder_message(
-				distributor.atendee_name,
+				distributor.attendee_name,
 				distributor.distributor_company_name,
 				days_since,
 				new_count,
@@ -346,18 +351,19 @@ def send_daily_login_reminders():
 			# Send email to the distributor
 			frappe.sendmail(
 				recipients=[distributor.distributor_email_address],
+
 				sender=get_default_sender(),
+
 				subject=subject,
 				message=message_content
 			)
-			
 			# Update reminder count in distributor record
 			frappe.db.set_value("Distributor", distributor.distributor_id, "login_reminder_count", new_count)
 			
 			# If it's been more than 30 days, also notify admins
 			if days_since >= 30:
-				admin_subject = f"⚠️ Distributor {distributor.atendee_name} hasn't logged in for {days_since} days"
-				admin_message = f"<p>Distributor <b>{distributor.atendee_name}</b> from <b>{distributor.distributor_company_name}</b> has not logged in for <b>{days_since} days</b>.</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or account review.</p>"
+				admin_subject = f"⚠️ Distributor {distributor.attendee_name} hasn't logged in for {days_since} days"
+				admin_message = f"<p>Distributor <b>{distributor.attendee_name}</b> from <b>{distributor.distributor_company_name}</b> has not logged in for <b>{days_since} days</b>.</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or account review.</p>"
 				
 				admins = frappe.get_all("User", 
 					filters={"role_profile_name": "System Manager", "enabled": 1}, 
@@ -372,10 +378,10 @@ def send_daily_login_reminders():
 					)
 			
 			reminders_sent += 1
-			frappe.logger().info(f"Login reminder sent to {distributor.atendee_name} (Day {days_since}, Reminder #{new_count})")
+			frappe.logger().info(f"Login reminder sent to {distributor.attendee_name} (Day {days_since}, Reminder #{new_count})")
 			
 		except Exception as e:
-			frappe.log_error(f"Failed to send login reminder to {distributor.atendee_name}: {str(e)}", "Login Reminder Error")
+			frappe.log_error(f"Failed to send login reminder to {distributor.attendee_name}: {str(e)}", "Login Reminder Error")
 			continue
 	
 	# Commit all changes
@@ -645,7 +651,7 @@ def get_distributor_profile(user_id=None):
 		"distributor_email_address",
 		"distributor_company_address",
 		"distributor_contact_number",
-		"atendee_name",
+		"attendee_name",
 		"designation"
 	]
 	distributor = frappe.db.get_value("Distributor", {"user_id": user_name }, fields, as_dict=True)
@@ -687,7 +693,7 @@ def update_distributor_profile(data):
         filter_data = [
             "division", "meril_company_name", "bu__fd_head", "rsm__state_head", "region",
             "state", "city", "account__distributor_code", "distributor_company_name",
-            "distributor_email_address", "distributor_company_address", "distributor_contact_number", "atendee_name", "designation"
+            "distributor_email_address", "distributor_company_address", "distributor_contact_number", "attendee_name", "designation"
         ]
         filtered_data = {}
         print("data", data)
@@ -763,7 +769,7 @@ def send_manual_login_reminder(distributor_id):
 		subject = f"{subject_prefix}: Please login to Meril Learning Portal"
 		
 		message_content = get_login_reminder_message(
-			distributor.atendee_name,
+			distributor.attendee_name,
 			distributor.distributor_company_name,
 			days_since,
 			new_count,
@@ -791,7 +797,7 @@ def send_manual_login_reminder(distributor_id):
 		
 		return {
 			"status": "success", 
-			"message": f"Manual reminder sent to {distributor.atendee_name}",
+			"message": f"Manual reminder sent to {distributor.attendee_name}",
 			"reminder_count": new_count
 		}
 		

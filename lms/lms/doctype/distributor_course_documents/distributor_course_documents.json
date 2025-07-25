@@ -1,0 +1,86 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-19 18:48:05.749173",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "distributor",
+  "course",
+  "has_submitted_documents",
+  "column_break_iqxo",
+  "entered_name",
+  "signature_style",
+  "completion_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Distributor",
+   "options": "Distributor",
+   "reqd": 1
+  },
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Course",
+   "options": "LMS Course",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_iqxo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entered_name",
+   "fieldtype": "Data",
+   "label": "Entered Name"
+  },
+  {
+   "fieldname": "signature_style",
+   "fieldtype": "Link",
+   "label": "Signature Style",
+   "options": "Signature Type"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_submitted_documents",
+   "fieldtype": "Check",
+   "label": "has submitted documents"
+  },
+  {
+   "fieldname": "completion_date",
+   "fieldtype": "Date",
+   "label": "Completion Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-07-24 18:27:29.259140",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Distributor Course Documents",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

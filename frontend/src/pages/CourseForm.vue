@@ -137,7 +137,27 @@
 							</div>
 						</div>
 					</div>
-
+					
+					<div class="px-10 pb-5 mb-5 space-y-5 border-b">
+						<div class="text-lg font-semibold">
+							{{ __('Assigned Course To') }}
+						</div>
+						<div>
+						<!-- INSERT_YOUR_CODE -->
+						<FormControl
+							type="select"
+							v-model="course.custom_assigned_to_role"
+							:label="__('Role')"
+							:options="[
+								{ label: __('All'), value: 'All' },
+								{ label: __('Employee'), value: 'Employee' },
+								{ label: __('Distributor'), value: 'Distributor' }
+							]"
+							:placeholder="__('Select a role')"
+						/>
+						
+						</div>
+					</div>
 					<div class="px-10 pb-5 mb-5 space-y-5 border-b">
 						<div class="text-lg font-semibold">
 							{{ __('Settings') }}
@@ -364,6 +384,7 @@ const course = reactive({
 	course_price: '',
 	currency: '',
 	evaluator: '',
+	custom_assigned_to_role: ''
 })
 
 const meta = reactive({
