@@ -1164,7 +1164,7 @@ def mark_lesson_progress(course, chapter_number, lesson_number):
 	lesson_name = frappe.get_value(
 		"Lesson Reference", {"parent": chapter_name, "idx": lesson_number}, "lesson"
 	)
-	save_progress(lesson_name, course)
+	save_progress(lesson_name, course, completed_videos=None)
 
 
 @frappe.whitelist()
@@ -1690,29 +1690,38 @@ def get_course_completion_analytics(course_name=None):
 		"completion_trend": completion_trend
 	}
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_course_completion_stats():
 	"""
 	Get course completion statistics for the dashboard
 	"""
 	try:
-		# Total enrolled users
-		total_enrolled = frappe.db.count("LMS Enrollment", filters={"docstatus": ("!=", 2)})
+		# Simplify queries to match the working user function pattern
 		
-		# Completed courses count
-		completed_courses = frappe.db.count("LMS Enrollment", filters={
-			"completed_on": ("is", "set"),
-			"docstatus": ("!=", 2)
-		})
+		# Total enrolled users - simple count without complex joins
+		total_enrolled = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabLMS Enrollment` e
+			WHERE e.docstatus != 2
+		""")[0][0] or 0
+		
+		# Completed courses count - simple query
+		completed_courses = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabLMS Enrollment` e
+			WHERE e.completed_on IS NOT NULL
+			AND e.docstatus != 2
+		""")[0][0] or 0
 		
 		# Pending completions
 		pending_completions = total_enrolled - completed_courses
 		
-		# Total course reminders sent
+		# Total course reminders sent - simple sum
 		total_reminders = frappe.db.sql("""
 			SELECT COALESCE(SUM(course_reminder_count), 0) as total
-			FROM `tabLMS Enrollment`
-			WHERE course_reminder_count IS NOT NULL
+			FROM `tabLMS Enrollment` e
+			WHERE e.course_reminder_count IS NOT NULL
+			AND e.docstatus != 2
 		""")[0][0] or 0
 		
 		# Reminders sent today
@@ -1729,33 +1738,35 @@ def get_course_completion_stats():
 		if total_enrolled > 0:
 			completion_rate = round((completed_courses / total_enrolled) * 100, 1)
 		
-		# Average time to complete (in days)
+		# Average time to complete (in days) - simplified
 		avg_time_query = frappe.db.sql("""
 			SELECT AVG(DATEDIFF(completed_on, creation)) as avg_days
-			FROM `tabLMS Enrollment`
-			WHERE completed_on IS NOT NULL
+			FROM `tabLMS Enrollment` e
+			WHERE e.completed_on IS NOT NULL
+			AND e.docstatus != 2
 		""")
 		avg_time_to_complete = round(avg_time_query[0][0] or 0, 1)
 		
-		# Most active course
+		# Most active course - simplified
 		most_active_query = frappe.db.sql("""
 			SELECT c.title, COUNT(e.name) as enrollment_count
 			FROM `tabLMS Course` c
 			JOIN `tabLMS Enrollment` e ON c.name = e.course
 			WHERE e.docstatus != 2
-			GROUP BY c.name
+			GROUP BY c.name, c.title
 			ORDER BY enrollment_count DESC
 			LIMIT 1
 		""", as_dict=True)
 		most_active_course = most_active_query[0].title if most_active_query else "N/A"
 		
-		# Average reminders sent
+		# Average reminders sent for users with pending completions - simplified
 		avg_reminders_query = frappe.db.sql("""
 			SELECT AVG(course_reminder_count) as avg_reminders
-			FROM `tabLMS Enrollment`
-			WHERE completion_date IS NULL
-			AND course_reminder_count IS NOT NULL
-			AND course_reminder_count > 0
+			FROM `tabLMS Enrollment` e
+			WHERE e.completed_on IS NULL
+			AND e.course_reminder_count IS NOT NULL
+			AND e.course_reminder_count > 0
+			AND e.docstatus != 2
 		""")
 		avg_reminders_sent = round(avg_reminders_query[0][0] or 0, 1)
 		
@@ -1773,10 +1784,20 @@ def get_course_completion_stats():
 		
 	except Exception as e:
 		frappe.log_error(f"Error getting course completion stats: {str(e)}", "Course Stats Error")
-		return {}
+		return {
+			"total_enrolled_users": 0,
+			"completed_courses": 0,
+			"pending_completions": 0,
+			"total_course_reminders_sent": 0,
+			"reminders_sent_today": 0,
+			"completion_rate": 0,
+			"avg_time_to_complete": 0,
+			"most_active_course": "N/A",
+			"avg_reminders_sent": 0
+		}
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_users_with_course_completion_status():
 	"""
 	Get all users with their course completion status for the dashboard table
@@ -1811,7 +1832,7 @@ def get_users_with_course_completion_status():
 		return []
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_recent_course_completions():
 	"""
 	Get recent course completions for the dashboard
@@ -1841,7 +1862,7 @@ def get_recent_course_completions():
 		return []
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_course_reminder_breakdown():
 	"""
 	Get breakdown of course reminders by count
@@ -2094,7 +2115,7 @@ def get_distributor_login_stats():
 
 
 # Fixed function with correct indentation
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_distributors_with_login_status():
 	"""
 	Legacy function for distributor login status - kept for backward compatibility
@@ -2103,7 +2124,7 @@ def get_distributors_with_login_status():
 		distributors_data = frappe.db.sql("""
 			SELECT 
 				d.name,
-				d.attendee_name,
+				d.atendee_name,
 				d.distributor_company_name,
 				d.distributor_email_address,
 				d.user_id,
@@ -2124,7 +2145,7 @@ def get_distributors_with_login_status():
 		return []
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_recent_distributor_logins():
 	"""
 	Legacy function for recent distributor logins - kept for backward compatibility
