@@ -296,7 +296,7 @@ def save_user_course_document_with_file(
 
 
 
-@frappe.whitelist(allow_guest=False)
+@frappe.whitelist(allow_guest=True)
 def generate_dynamic_docx(name=None):
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
