@@ -405,32 +405,56 @@ const downloadFileFromApi = async (apiUrl, fileName) => {
 // Download document using direct URL for Distributor documents, otherwise use backend call
 const downloadDocument = async (document_name) => {
   try {
-    // If course_documents_record_id.value is provided, construct the direct download URL
-    if (course_documents_record_id.value) {
-      
-      if (document_name === "Meril Distributor Compliance Policy") {
-        // Use the new helper function for API download
-        await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_nonendo_file', document_name);
-        return;
-      }
-      if (document_name === "Meril Distributor Compliance Policy for Endo") 
-      {
-        await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_endo_file', document_name);
-        return;
-      }
-      const baseUrl = window.location.origin;
-      const params = new URLSearchParams({
-        doctype: 'Distributor Course Documents',
-        name: course_documents_record_id.value,
-        format: document_name,
-        no_letterhead: '1',
-        letterhead: 'No Letterhead',
-        settings: '{}',
-        _lang: 'en'
-      });
-      const url = `${baseUrl}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
-      directDownload(url, document_name);
+    // Handle special file downloads first
+    if (document_name === "Meril Distributor Compliance Policy") {
+      await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_nonendo_file', document_name);
       return;
+    }
+    if (document_name === "Meril Distributor Compliance Policy for Endo") {
+      await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_endo_file', document_name);
+      return;
+    }
+
+    // Get the correct doctype and document info for print formats
+    if (course_documents_record_id.value) {
+      try {
+        const printFormatInfo = await call('lms.overrides.documents.get_distributor_print_format_info', { document_name });
+        
+        if (!printFormatInfo.success) {
+          toast.error(printFormatInfo.message || 'Error getting print format info');
+          return;
+        }
+
+        const baseUrl = window.location.origin;
+        let doctype, docname;
+        
+        if (printFormatInfo.doctype === 'Distributor') {
+          // For print formats that use Distributor doctype
+          doctype = 'Distributor';
+          docname = printFormatInfo.docname;
+        } else {
+          // For print formats that use Distributor Course Documents doctype
+          doctype = 'Distributor Course Documents';
+          docname = course_documents_record_id.value;
+        }
+
+        const params = new URLSearchParams({
+          doctype: doctype,
+          name: docname,
+          format: document_name,
+          no_letterhead: '1',
+          letterhead: 'No Letterhead',
+          settings: '{}',
+          _lang: 'en'
+        });
+        const url = `${baseUrl}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
+        directDownload(url, document_name);
+        return;
+      } catch (e) {
+        console.error('Error getting print format info:', e);
+        toast.error('Error downloading document');
+        return;
+      }
     }
 
     // Otherwise, fallback to backend call (for Employee or Course Completion Certificate, etc.)

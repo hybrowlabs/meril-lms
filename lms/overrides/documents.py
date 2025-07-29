@@ -474,6 +474,59 @@ def download_user_print_format(name):
 
 
 @frappe.whitelist(allow_guest=False)
+def get_distributor_print_format_info(document_name):
+    """
+    Returns the correct doctype and document name for distributor print formats.
+    Some print formats are for 'Distributor' doctype, others for 'Distributor Course Documents'.
+    """
+    user = frappe.session.user
+    
+    # Print formats that use 'Distributor' doctype
+    distributor_doctype_formats = [
+        "Distributor Completion Certificate",
+        "Distributor Self Declaration", 
+        "Meril Distributor Compliance Policy"
+    ]
+    
+    # Print formats that use 'Distributor Course Documents' doctype
+    course_documents_doctype_formats = [
+        "Meril Distributor Compliance Code of Conduct",
+        "Distributor Declaration - Ethical Practices & Compliance"
+    ]
+    
+    try:
+        if document_name in distributor_doctype_formats:
+            # Use Distributor doctype and distributor ID
+            distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+            return {
+                "success": True,
+                "doctype": "Distributor",
+                "docname": distributor_doc.name,
+                "print_format": document_name
+            }
+        elif document_name in course_documents_doctype_formats:
+            # Use Distributor Course Documents doctype - the frontend will provide the record ID
+            return {
+                "success": True,
+                "doctype": "Distributor Course Documents",
+                "docname": None,  # Frontend will provide this
+                "print_format": document_name
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Unknown document format: {document_name}"
+            }
+            
+    except Exception as e:
+        frappe.log_error(f"Error in get_distributor_print_format_info: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error getting print format info: {str(e)}"
+        }
+
+
+@frappe.whitelist(allow_guest=False)
 def get_public_signature_font_styles():
     """
     Returns a list of available signature font styles (Signature Type doctype)
