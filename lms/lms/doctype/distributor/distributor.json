@@ -114,7 +114,8 @@
   {
    "fieldname": "distributor_company_address",
    "fieldtype": "Data",
-   "label": "Distributor Company Address"
+   "label": "Distributor Company Address",
+   "reqd": 1
   },
   {
    "fieldname": "country",
@@ -135,7 +136,8 @@
   {
    "fieldname": "designation",
    "fieldtype": "Data",
-   "label": "Designation"
+   "label": "Designation",
+   "reqd": 1
   },
   {
    "fieldname": "first_login_date",
@@ -174,13 +176,14 @@
   {
    "fieldname": "attendee_name",
    "fieldtype": "Data",
-   "label": "Attendee Name"
+   "label": "Attendee Name",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-21 13:10:48.731613",
+ "modified": "2025-07-25 13:30:13.643846",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",

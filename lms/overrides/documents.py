@@ -89,7 +89,8 @@ def has_user_submited_document(course=None):
             return {
                 "submited": bool(exists),
                 "documents_list": documents_list,
-                "course_documents_record_id": exists
+                "course_documents_record_id": exists,
+                "role_is": "Distributor"
             }
 
         # Employee logic
@@ -103,7 +104,8 @@ def has_user_submited_document(course=None):
             documents_list = ["Employee Self Declaration", "Course Completion Certificate"]
             return {
                 "submited": True,
-                "documents_list": documents_list
+                "documents_list": documents_list,
+                "role_is": "Employee"
             }
 
         # Other users (students, etc.)

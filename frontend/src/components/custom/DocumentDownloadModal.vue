@@ -156,6 +156,7 @@ const loadingUploadForm = ref(false);
 const errorMessage = ref('')
 const course_documents_record_id = ref('');
 
+const role_is = ref("");
 const fontStyles = ref([]);
 
 // Fetch list of signature types where font files are not private
@@ -244,6 +245,7 @@ try {
       showUploadForm.value = false
       documentsList.value = res.documents_list
       course_documents_record_id.value = res.course_documents_record_id
+      role_is.value = res.role_is
       console.log('Document already submitted for this course')
     } else {
       showDownloadForm.value = false
@@ -406,7 +408,7 @@ const downloadFileFromApi = async (apiUrl, fileName) => {
 const downloadDocument = async (document_name) => {
   try {
     // If course_documents_record_id.value is provided, construct the direct download URL
-    if (course_documents_record_id.value) {
+    if (role_is.value === "Distributor") {
       
       if (document_name === "Meril Distributor Compliance Policy") {
         // Use the new helper function for API download
@@ -432,7 +434,22 @@ const downloadDocument = async (document_name) => {
       directDownload(url, document_name);
       return;
     }
-
+    else if(role_is.value === "Employee"){
+      const baseUrl = window.location.origin;
+      const params = new URLSearchParams({
+        doctype: 'Employee',
+        name: course_documents_record_id.value,
+        format: document_name,
+        no_letterhead: '1',
+        letterhead: 'No Letterhead',
+        settings: '{}',
+        _lang: 'en'
+      });
+      const url = `${baseUrl}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
+      directDownload(url, document_name);
+      return;
+      return;
+    }
     // Otherwise, fallback to backend call (for Employee or Course Completion Certificate, etc.)
     try {
       const response = await fetch('/api/method/lms.overrides.documents.download_user_print_format', {
