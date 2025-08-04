@@ -77,7 +77,7 @@ def create_user_from_employee(self, method=None):
 					recipients=[self.company_email],	
 					sender=get_default_sender(),
 					subject='Test Email',	
-					message=f'<p>Hello {self.first_name} from meril lms for your email {self.company_email} your password is : {new_password} </p>'
+					message=f'<p>Hello {self.first_name},<br><br>Your account for LMS has been created.<br><br>Email: {self.company_email}<br>Password: {new_password}<br><br>Please <a href="{frappe.utils.get_url("/login")}">click here to login</a>.<br><br>Thank you!</p>'
 				)
 
 				# self.db_set("user_id", self.user_id)
@@ -135,7 +135,7 @@ def create_user_from_distributor(self, method=None):
                     recipients=[email],
                     sender=get_default_sender(),
                     subject='Your Merlin LMS Account',
-                    message=f'<p>Hello {email},<br>Your password is: <b>{new_password}</b><br>Regards,<br>Merlin LMS</p>'
+                    message=f'<p>Hello {email},<br>Your password is: <b>{new_password}</b><br>You can log in at: <a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a><br>Regards,<br>Merlin LMS</p>'
                 )
                 
                 # Send email notification to admins about new distributor creation
