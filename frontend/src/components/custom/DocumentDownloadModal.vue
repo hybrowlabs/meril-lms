@@ -155,6 +155,7 @@ const documentsList = ref([])
 const loadingUploadForm = ref(false);
 const errorMessage = ref('')
 const course_documents_record_id = ref('');
+const doctype = ref('');
 
 const role_is = ref("");
 const fontStyles = ref([]);
@@ -245,6 +246,7 @@ try {
       showUploadForm.value = false
       documentsList.value = res.documents_list
       course_documents_record_id.value = res.course_documents_record_id
+      doctype.value = res.doctype
       role_is.value = res.role_is
       console.log('Document already submitted for this course')
     } else {
@@ -330,9 +332,7 @@ const fileToBase64 = (file) => {
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        // Get the base64 string without the data URL prefix
         const base64 = reader.result.split(',')[1]
-        // Clean the base64 string
         const cleanBase64 = base64.replace(/[^A-Za-z0-9+/=]/g, '')
         resolve(cleanBase64)
       } catch (error) {
@@ -345,19 +345,13 @@ const fileToBase64 = (file) => {
 }
 
 const directDownload = async(url, file_name)=>{
+  console.log("directDownload", url, file_name)
    const link = document.createElement('a');
       link.href = url;
       link.download = file_name + '.pdf';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-}
-
-const openInNewTab = (url) => {
-  const newTab = window.open(url, '_blank');
-  if (!newTab) {
-    toast.error('Please allow popups for this site to download the document.');
-  }
 }
 
 // Helper function to download a file from an API endpoint and save it as a file
@@ -404,10 +398,8 @@ const downloadFileFromApi = async (apiUrl, fileName) => {
   }
 }
 
-// Download document using direct URL for Distributor documents, otherwise use backend call
 const downloadDocument = async (document_name) => {
   try {
-    // Handle special file downloads first
     if (document_name === "Meril Distributor Compliance Policy") {
       await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_nonendo_file', document_name);
       return;
@@ -417,102 +409,22 @@ const downloadDocument = async (document_name) => {
       return;
     }
 
-    // Get the correct doctype and document info for print formats
     if (course_documents_record_id.value) {
-      try {
-        const printFormatInfo = await call('lms.overrides.documents.get_distributor_print_format_info', { document_name });
-        
-        if (!printFormatInfo.success) {
-          toast.error(printFormatInfo.message || 'Error getting print format info');
-          return;
-        }
-
         const baseUrl = window.location.origin;
-        let doctype, docname;
-        
-        if (printFormatInfo.doctype === 'Distributor') {
-          // For print formats that use Distributor doctype
-          doctype = 'Distributor';
-          docname = printFormatInfo.docname;
-        } else {
-          // For print formats that use Distributor Course Documents doctype
-          doctype = 'Distributor Course Documents';
-          docname = course_documents_record_id.value;
-        }
-
         const params = new URLSearchParams({
-          doctype: doctype,
-          name: docname,
-          format: document_name,
-          no_letterhead: '1',
-          letterhead: 'No Letterhead',
-          settings: '{}',
-          _lang: 'en'
-        });
+            doctype: doctype.value,
+            name: course_documents_record_id.value,
+            format: document_name,
+            no_letterhead: '1',
+            letterhead: 'No Letterhead',
+            settings: '{}',
+            _lang: 'en'
+          });
         const url = `${baseUrl}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
         directDownload(url, document_name);
-        return;
-      } catch (e) {
-        console.error('Error getting print format info:', e);
-        toast.error('Error downloading document');
-        return;
-      }
-    }
-
-    // Otherwise, fallback to backend call (for Employee or Course Completion Certificate, etc.)
-    try {
-      const response = await fetch('/api/method/lms.overrides.documents.download_user_print_format', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/pdf'
-        },
-        body: JSON.stringify({ name: document_name })
-      });
-      if (!response.ok) throw new Error('Network response was not ok');
-      // Try to parse as JSON first (for custom backend response)
-      let isJson = false;
-      let data;
-      try {
-        data = await response.clone().json();
-        isJson = true;
-      } catch (e) {
-        // Not JSON, fallback to blob
-      }
-      if (isJson && data && data.filecontent && data.filename) {
-        // filecontent is base64-encoded PDF
-        const byteCharacters = atob(data.filecontent);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.download = data.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        // Fallback: treat as PDF blob
-        const blob = await response.blob();
-        let filename = 'document.pdf';
-        const disposition = response.headers.get('content-disposition');
-        if (disposition) {
-          const match = disposition.match(/filename="?([^\"]+)"?/);
-          if (match) filename = match[1];
-        }
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (e) {
-      toast.error('Failed to download document');
-      console.error("Error in downloadDocument", e);
+    }else{
+      toast.error("Course document record id not found")
+      console.error("Course document record id not found")
     }
   } catch (e) {
     toast.error('Failed to download document');

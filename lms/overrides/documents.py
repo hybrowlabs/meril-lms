@@ -90,6 +90,7 @@ def has_user_submited_document(course=None):
                 "submited": bool(exists),
                 "documents_list": documents_list,
                 "course_documents_record_id": exists,
+                "doctype": "Distributor Course Documents",
                 "role_is": "Distributor"
             }
 
@@ -99,12 +100,32 @@ def has_user_submited_document(course=None):
             # Check if a submitted document exists for this employee and course
             exists = frappe.db.exists(
                 "Employee Course Documents",
-                {"employee": employee_doc.name, "course": course, "submited_document": 1}
+                {"employee": employee_doc.name, "course": course}
             )
-            documents_list = ["Employee Self Declaration", "Course Completion Certificate"]
+            # If 'Employee Course Documents' does not exist, create it.
+
+            documents_list = ["Employee Declaration Form", "Employee Completion Certificate"]
+
+            if not exists:
+                employee_course_doc = frappe.get_doc({
+                    "doctype": "Employee Course Documents",
+                    "employee": employee_doc.name,
+                    "course": course,
+                })
+                employee_course_doc.insert(ignore_permissions=True)
+                return {
+                    "submited": True,
+                    "documents_list": documents_list,
+                    "course_documents_record_id": employee_course_doc.name,
+                    "doctype": "Employee Course Documents",
+                    "role_is": "Employee"
+                }
+
             return {
                 "submited": True,
                 "documents_list": documents_list,
+                "course_documents_record_id": exists,
+                "doctype": "Employee Course Documents",
                 "role_is": "Employee"
             }
 
@@ -118,7 +139,8 @@ def has_user_submited_document(course=None):
             documents_list = ["Course Completion Certificate"]
             return {
                 "submited": True,
-                "documents_list": documents_list
+                "documents_list": documents_list,
+                "doctype": "User Course Documents"
             }
 
     except Exception as e:
@@ -212,7 +234,7 @@ def save_user_course_document_with_file(
                 "doctype": "Distributor Course Documents",
                 "distributor": distributor_doc.name,
                 "course": course,
-                "completion_date": frappe.utils.nowdate(),
+                "submission_datetime": frappe.utils.now_datetime(),
                 "signature_style": signature_type,
                 "entered_name": name,
                 "has_submitted_documents": 0
@@ -464,67 +486,43 @@ def download_user_print_format_logic(document, user=None):
 
 
 @frappe.whitelist(allow_guest=False)
-def download_user_print_format(name):
-    """
-    Whitelisted endpoint to download a user's print format as PDF.
-    Calls the internal logic and sets the Frappe response.
-    """
-    result = download_user_print_format_logic(name)
-    frappe.local.response.filename = result["filename"]
-    frappe.local.response.filecontent = result["filecontent"]
-    frappe.local.response.type = result["type"]
-
-
-@frappe.whitelist(allow_guest=False)
-def get_distributor_print_format_info(document_name):
+def get_distributor_print_format_info(course):
     """
     Returns the correct doctype and document name for distributor print formats.
     Some print formats are for 'Distributor' doctype, others for 'Distributor Course Documents'.
     """
     user = frappe.session.user
-    
-    # Print formats that use 'Distributor' doctype
-    distributor_doctype_formats = [
-        "Distributor Completion Certificate",
-        "Distributor Self Declaration", 
-        "Meril Distributor Compliance Policy"
-    ]
-    
-    # Print formats that use 'Distributor Course Documents' doctype
-    course_documents_doctype_formats = [
-        "Meril Distributor Compliance Code of Conduct",
-        "Distributor Declaration - Ethical Practices & Compliance"
-    ]
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
     
     try:
-        if document_name in distributor_doctype_formats:
-            # Use Distributor doctype and distributor ID
-            distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+        if "Distributor" in roles:
+            distributor_name = frappe.get_value("Distributor", {"user_id": user}, "name")
+            document_id = frappe.get_doc("Distributor Course Documents", {"distributor": distributor_name, "course": course})
             return {
                 "success": True,
-                "doctype": "Distributor",
-                "docname": distributor_doc.name,
-                "print_format": document_name
+               "document_id" : document_id ,
+               "doctype": "Distributor Course Documents"
             }
-        elif document_name in course_documents_doctype_formats:
-            # Use Distributor Course Documents doctype - the frontend will provide the record ID
+        elif "Employee" in roles:
+            employee_name = frappe.get_value("Employee", {"user_id": user}, "name")
+            document_id = frappe.get_doc("Employee Course Documents", {"employee": employee_name, "course": course})
             return {
                 "success": True,
-                "doctype": "Distributor Course Documents",
-                "docname": None,  # Frontend will provide this
-                "print_format": document_name
+                "document_id" : document_id,
+                "doctype": "Employee Course Documents"
             }
         else:
             return {
                 "success": False,
-                "message": f"Unknown document format: {document_name}"
+                "message": f"Unknown document id for course: {course}"
             }
             
     except Exception as e:
         frappe.log_error(f"Error in get_distributor_print_format_info: {str(e)}")
         return {
             "success": False,
-            "message": f"Error getting print format info: {str(e)}"
+            "message": f"Error getting document info: {str(e)}"
         }
 
 

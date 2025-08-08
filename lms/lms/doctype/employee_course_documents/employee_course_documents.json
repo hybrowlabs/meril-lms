@@ -5,18 +5,41 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_dwbh"
+  "course",
+  "employee",
+  "course_progress",
+  "singature_style"
  ],
  "fields": [
   {
-   "fieldname": "section_break_dwbh",
-   "fieldtype": "Section Break"
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "course_progress",
+   "fieldtype": "Link",
+   "label": "Course Progress",
+   "options": "LMS Course Progress"
+  },
+  {
+   "fieldname": "singature_style",
+   "fieldtype": "Link",
+   "label": "Singature style",
+   "options": "Signature Type"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-25 14:04:43.963682",
+ "modified": "2025-08-06 14:25:57.509420",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Course Documents",

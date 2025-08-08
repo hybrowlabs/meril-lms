@@ -1,5 +1,4 @@
 {
- "app": "lms",
  "charts": [
   {
    "chart_name": "New Signups",
@@ -146,7 +145,7 @@
    "type": "Link"
   }
  ],
- "modified": "2024-11-21 12:16:25.886431",
+ "modified": "2025-08-08 13:10:07.623916",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS",
@@ -213,6 +212,5 @@
    "type": "DocType"
   }
  ],
- "title": "LMS",
- "type": "Workspace"
+ "title": "LMS"
 }
