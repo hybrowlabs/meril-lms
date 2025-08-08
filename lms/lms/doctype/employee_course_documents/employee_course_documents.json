@@ -8,7 +8,8 @@
   "course",
   "employee",
   "course_progress",
-  "singature_style"
+  "singature_style",
+  "submission_datetime"
  ],
  "fields": [
   {
@@ -34,12 +35,17 @@
    "fieldtype": "Link",
    "label": "Singature style",
    "options": "Signature Type"
+  },
+  {
+   "fieldname": "submission_datetime",
+   "fieldtype": "Datetime",
+   "label": "Submission datetime"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-08-06 14:25:57.509420",
+ "modified": "2025-08-08 18:08:29.297062",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Course Documents",

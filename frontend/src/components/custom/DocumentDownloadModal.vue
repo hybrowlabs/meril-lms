@@ -4,7 +4,7 @@
       <div class="fixed inset-0 z-50 bg-black bg-opacity-50">
         <div class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg rounded-lg bg-white p-6 relative">
           <button
-        class="absolute top-3 right-6 focus:ring-2 hover:ring-3 hover:ring-gray-400 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+        class="block ml-auto focus:ring-2 hover:ring-3 hover:ring-gray-400 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
          @click="closeDialog"
         aria-label="Close"
       >
@@ -20,7 +20,7 @@
     <div class="fixed inset-0 z-50 bg-black bg-opacity-50">
         <div class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 shadow-lg rounded-lg bg-white p-6 relative">
           <button
-          class="absolute top-3 right-6 focus:ring-2 hover:ring-3 hover:ring-gray-400 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+          class="block ml-auto focus:ring-2 hover:ring-3 hover:ring-gray-400 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
          @click="closeDialog"
         aria-label="Close"
       >
@@ -37,7 +37,7 @@
     >
       <!-- Close Icon -->
       <button
-      class="absolute top-3 right-6 focus:ring-2 hover:ring-3 hover:ring-gray-400 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+      class="block ml-auto focus:ring-2 hover:ring-3 hover:ring-gray-400 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
          @click="closeDialog"
         aria-label="Close"
       >
@@ -60,7 +60,7 @@
     >
       <!-- Close Icon -->
       <button
-      class="absolute top-4 right-6 focus:ring-2 hover:ring-3 px-2 rounded-sm hover:ring-gray-900 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+      class="block ml-auto focus:ring-2 hover:ring-3 px-2 rounded-sm hover:ring-gray-900 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
          @click="closeDialog"
         aria-label="Close"
       >

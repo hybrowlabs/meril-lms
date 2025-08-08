@@ -8,14 +8,6 @@
         <p class="alert alert-warning d-none" id="non-distributor-profile-info">You are not logged in as a distributor. Please log in to edit your profile.</p>
     <form id="edit-distributor-profile-form">  
         <div class="row">
-            <div class="form-group col-md-6">
-                <label for="input-division">Division</label>
-                <input type="text" class="form-control" id="input-division" name="division" value="{{ frappe.session.user_doc.division or '' }}">
-            </div>
-            <div class="form-group col-md-6">
-                <label for="input-meril_company_name">Meril Company Name</label>
-                <input type="text" class="form-control" id="input-meril_company_name" name="meril_company_name" value="{{ frappe.session.user_doc.meril_company_name or '' }}">
-            </div>
             <div class="form-group col-12">
                 <label>Meril Company Table</label>
                 <div id="meril-company-table-container">
@@ -143,8 +135,6 @@
     
     function get_form_data(){
         const data = {};
-        data.division = $('#input-division').val();
-        data.meril_company_name = $('#input-meril_company_name').val();
         data.bu__fd_head = $('#input-bu_fd_head').val();
         data.rsm__state_head = $('#input-rsm_state_head').val();
         data.region = $('#input-region').val();
@@ -196,8 +186,6 @@
     }
 
     function fill_distributor_profile(data) {
-        $('#input-division').val(data.division || '');
-        $('#input-meril_company_name').val(data.meril_company_name || '');
         $('#input-bu_fd_head').val(data.bu__fd_head || '');
         $('#input-rsm_state_head').val(data.rsm_state_head || '');
         $('#input-region').val(data.region || '');

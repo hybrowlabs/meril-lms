@@ -640,8 +640,6 @@ def get_distributor_profile(user_id=None):
 	
 	fields = [ 
 		"name",
-		
-		
 		"bu__fd_head",
 		"rsm__state_head",
 		"region",
@@ -691,7 +689,7 @@ def update_distributor_profile(data):
         return
     else:
         filter_data = [
-            "division", "meril_company_name", "bu__fd_head", "rsm__state_head", "region",
+             "bu__fd_head", "rsm__state_head", "region",
             "state", "city", "account__distributor_code", "distributor_company_name",
             "distributor_email_address", "distributor_company_address", "distributor_contact_number", "attendee_name", "designation"
         ]

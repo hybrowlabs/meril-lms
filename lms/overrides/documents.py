@@ -391,7 +391,7 @@ def generate_dynamic_docx(name=None):
         doc.add_paragraph(f"Title: {designation}")
         doc.add_paragraph(f"Email Id : {email}")
         doc.add_paragraph(f"Contact number : {contact_number}")
-        doc.add_paragraph("Sign and Seal : ")
+        doc.add_paragraph("Sign and Seal : {name}")
 
         # Save to in-memory buffer
         buffer = io.BytesIO()
