@@ -56,11 +56,13 @@
 						type="number"
 						v-model="quiz.max_attempts"
 						:label="__('Maximum Attempts')"
+						:min="0"
 					/>
 					<FormControl
 						type="number"
 						v-model="quiz.duration"
 						:label="__('Duration (in minutes)')"
+						:min="0"
 					/>
 					<FormControl
 						v-model="quiz.total_marks"
@@ -68,8 +70,14 @@
 						disabled
 					/>
 					<FormControl
-						v-model="quiz.passing_percentage"
+						type="number"
+						v-model.number="quiz.passing_percentage"
 						:label="__('Passing Percentage')"
+						:min="0"
+						:max="100"
+						:step="1"
+						:required="true"
+						@blur="quiz.passing_percentage = Math.min(100, Math.max(0, Number(quiz.passing_percentage) || 0))"
 					/>
 				</div>
 
@@ -253,6 +261,9 @@ onMounted(() => {
 		!user.data?.is_instructor
 	) {
 		router.push({ name: 'Courses' })
+	}
+	if (props.quizID === 'new') {
+		quiz.passing_percentage = 80
 	}
 	if (props.quizID !== 'new') {
 		quizDetails.reload()

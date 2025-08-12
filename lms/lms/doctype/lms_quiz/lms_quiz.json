@@ -92,6 +92,7 @@
    "label": "Show Submission History"
   },
   {
+   "default": "80",
    "fieldname": "passing_percentage",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -132,8 +133,10 @@
   },
   {
    "fieldname": "duration",
-   "fieldtype": "Data",
-   "label": "Duration (in minutes)"
+   "fieldtype": "Int",
+   "label": "Duration (in minutes)",
+   "non_negative": 1,
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
@@ -144,7 +147,7 @@
    "link_fieldname": "quiz"
   }
  ],
- "modified": "2025-04-07 15:03:48.525458",
+ "modified": "2025-08-11 15:55:54.380450",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Quiz",
