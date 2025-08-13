@@ -68,8 +68,7 @@ def has_user_submited_document(course=None):
             documents_list = [
                 "Distributor Completion Certificate",
                 "Distributor Self Declaration",
-                "Meril Distributor Compliance Code of Conduct",
-                "Distributor Declaration - Ethical Practices & Compliance"
+                "Meril Distributor Compliance Code of Conduct"
             ]
 
             # Add Endo/Non-Endo compliance policy documents based on company names
@@ -391,7 +390,7 @@ def generate_dynamic_docx(name=None):
         doc.add_paragraph(f"Title: {designation}")
         doc.add_paragraph(f"Email Id : {email}")
         doc.add_paragraph(f"Contact number : {contact_number}")
-        doc.add_paragraph("Sign and Seal : {name}")
+        doc.add_paragraph(f"Sign and Seal : {name}")
 
         # Save to in-memory buffer
         buffer = io.BytesIO()
