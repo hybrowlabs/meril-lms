@@ -1,6 +1,11 @@
 {
- "charts": [],
- "content": "[{\"id\":\"sVuVW3TSc5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Distributor Table</b></span>\",\"col\":12}},{\"id\":\"KNm2koww0q\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Distributor Report\",\"col\":12}},{\"id\":\"5cDdkVvluz\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Employee Table</b></span>\",\"col\":12}},{\"id\":\"X41xyoC9VE\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Employee Report\",\"col\":12}}]",
+ "charts": [
+  {
+   "chart_name": "Distributor documents submission chart",
+   "label": "documents submissions"
+  }
+ ],
+ "content": "[{\"id\":\"2gWoSDKnny\",\"type\":\"chart\",\"data\":{\"chart_name\":\"documents submissions\",\"col\":6}},{\"id\":\"sVuVW3TSc5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Distributor Table</b></span>\",\"col\":12}},{\"id\":\"KNm2koww0q\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Distributor Report\",\"col\":12}},{\"id\":\"5cDdkVvluz\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Employee Table</b></span>\",\"col\":12}},{\"id\":\"X41xyoC9VE\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Employee Report\",\"col\":12}}]",
  "creation": "2025-08-07 11:20:25.991780",
  "custom_blocks": [
   {
@@ -22,7 +27,7 @@
  "is_hidden": 0,
  "label": "Admin Dashboard",
  "links": [],
- "modified": "2025-08-08 13:40:31.646587",
+ "modified": "2025-08-14 13:18:14.851035",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Admin Dashboard",

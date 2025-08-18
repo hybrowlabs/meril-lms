@@ -80,6 +80,8 @@
             placeholder="Name"
             class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
             required
+            readonly
+            disabled
           />
      
         <label for="date">Date</label>
@@ -88,9 +90,10 @@
             id="date"
             v-model="date"
             :value="date || new Date().toISOString().split('T')[0]"
-            disabled
             class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
             required
+            readonly
+            disabled
           />
       </div>
       <Button theme="gray" variant="solid" class="mb-4" type="submit">Download DOCX</Button>
@@ -109,6 +112,8 @@
             }))"
             required
             :option-style="option => option.font_file ? { fontFamily: `'${option.label}', sans-serif` } : {}"
+            readonly
+            disabled
           />
           </div>
       <div class="mb-4">
@@ -129,6 +134,86 @@
       </form>
     </div>
   </div>
+
+  <div v-if="declarationForm" class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+    <div
+      class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-lg rounded-lg bg-white p-6 relative"
+    >
+      <!-- Close Icon -->
+      <button
+      class="block ml-auto focus:ring-2 hover:ring-3 px-2 rounded-sm hover:ring-gray-900 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+         @click="closeDialog"
+        aria-label="Close"
+      >
+        ×
+      </button>
+      <h3 class="text-center font-semibold">Meril Distributor- Compliance Policy Adoption Form</h3>
+      <div class="overflow-y-auto h-60 pb-4">
+        <p class="text-sm mt-4">
+          {{ current_date }}
+        </p>
+        <p class="text-sm text-justify mt-4">We {{ distributor.distributor_company_name }}, being the Distributor of Meril {{ distributor?.meril_company_table[0]?.meril_company_name }} do hereby certify that we have willingly adopted attached Meril
+      Distributor Compliance Policy as our own Compliance Policy with effect from
+      {{ current_date }} and declare to abide by the same.</p>
+      <p class="text-sm text-justify mt-4">All employees, partners, directors, proprietor of our organization are expected to
+        observe and adhere to this Policy.</p>
+        <p class="text-sm text-justify mt-4">Nomination of Compliance Officer:</p>
+        <p class="text-sm text-justify mt-4">{{ name }} is nominated as Compliance Officer of our organization with effect
+          from {{ current_date }}</p>
+          
+          <p class="text-sm text-justify mt-4">Authorized representative of {{ distributor.distributor_company_name }}</p>
+          <p class="text-sm text-justify mt-2">Name: {{ distributor.attendee_name }}</p>
+          <p class="text-sm text-justify mt-2">Title: {{ distributor.designation }}</p>
+          <p class="text-sm text-justify mt-2">Email Id : {{ distributor.distributor_email_address }}</p>
+          <p class="text-sm text-justify mt-2">Contact number : {{ distributor.distributor_contact_number }}</p>
+          <p class="text-sm text-justify mt-2">Sign and Seal {{ name }}</p>
+        
+        </div>
+        
+        <form @submit="handleCertify" class="flex flex-col gap-y-2">
+        <TextInput
+            type="text"
+            placeholder="Signature"
+            v-model="name"
+            class="w-full rounded-lg border focus:outline-none focus:ring-2 border-none p-0"
+            required
+            ></TextInput>
+            <div class="flex gap-x-2">
+            <select
+              v-model="signatureType"
+              @change="signatureType = $event.target.value"
+              :style="{ fontFamily: signatureType || 'sans-serif', lineHeight: 1.9, padding: '0px 5px' }"
+              class="block w-full px-3 overflow-auto py-2 border border-gray-300 rounded text-sm bg-white text-gray-900 focus:outline-none focus:ring-0 focus:border-gray-300"
+              required
+            >
+              <option
+                v-for="fontStyle in fontStyles"
+                :key="fontStyle.value"
+                :value="fontStyle.value"
+                :style="{ fontFamily: fontStyle.value }"
+              >
+                {{ signatureText }}
+              </option>
+          </select>
+          <TextInput
+            type="date"
+            id="date"
+            v-model="date"
+            :value="date || new Date().toISOString().split('T')[0]"
+            disabled
+            class="w-full rounded-lg border p-0 border-none focus:outline-none focus:ring-2"
+            required
+          />
+        </div>
+          <Button theme="gray" variant="solid" class="w-full mt-4" type="submit" :disabled="loadingUploadForm">
+        <div class="flex items-center justify-center w-full">
+        <Spinner v-if="loadingUploadForm" class="w-4 mr-2" />  
+        <span>{{ loadingUploadForm ? "" : "I Certify"}}</span>
+        </div>
+      </Button>
+    </form>
+    </div>
+  </div>
 </div>
 </template>
 
@@ -140,15 +225,28 @@ import { useRoute } from 'vue-router'
 import { resetCourseCompletion, state } from "../../stores/course_completion.js";
 
 const emit = defineEmits(['close']);
-
+const current_date = (() => {
+  const date = new Date();
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = date.toLocaleString('default', { month: 'long' });
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
+})();
 // Second modal state and logic
-const showUploadForm = ref(true)
+const showUploadForm = ref(false)
 const loadingScreen = ref(false);
 const showDownloadForm = ref(false)
 const signatureType = ref('')
 const showError = ref(false)
+const distributor = ref(null);
+const declarationForm = ref(true);
 
 const name = ref('')
+const signatureText = computed(() => {
+  const trimmedName = name.value.trim();
+  return trimmedName !== "" ? trimmedName : "Signature";
+});
+
 const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
 const documentsList = ref([])
@@ -160,12 +258,46 @@ const doctype = ref('');
 const role_is = ref("");
 const fontStyles = ref([]);
 
+
+const handleCertify = (event) => {
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
+  declarationForm.value = false;
+  showUploadForm.value = true;
+
+}
 // Fetch list of signature types where font files are not private
 async function fetchSignatureTypesWithPublicFonts() {
   try {
     // Use the whitelisted backend function to fetch public signature font styles
     const res = await call("lms.overrides.documents.get_public_signature_font_styles");
-    console.log("res", res)
+    console.log("res", res);
+    // Dynamically generate @font-face CSS rules for each font style returned from backend
+    if (Array.isArray(res)) {
+      // Remove any previously injected font-face styles to avoid duplicates
+      const prevStyle = document.getElementById('dynamic-font-face-styles');
+      if (prevStyle) prevStyle.remove();
+
+      let css = '';
+      res.forEach(font => {
+        if (font.font_file && font.value) {
+          css += `
+            @font-face {
+              font-family: '${font.value}';
+              src: url('${font.font_file}');
+              font-display: swap;
+            }
+          `;
+        }
+      });
+      if (css) {
+        const style = document.createElement('style');
+        style.id = 'dynamic-font-face-styles';
+        style.innerHTML = css;
+        document.head.appendChild(style);
+      }
+    }
     return res || [];
   } catch (e) {
     toast.error("Failed to fetch signature types");
@@ -173,10 +305,18 @@ async function fetchSignatureTypesWithPublicFonts() {
   }
 }
 
+async function get_distributor(){
+  const res = await call("lms.overrides.documents.get_distributor");
+  
+  console.log("distributor", res);
+  distributor.value = res;
+}
+
 onMounted(async () => {
   console.log("mounted");
   fontStyles.value = await fetchSignatureTypesWithPublicFonts();
   console.log(fontStyles.value)
+  get_distributor();
 });
 
 const handleDownload = async() => {
@@ -237,6 +377,7 @@ try {
     console.log("res",res)
     if(res.error){
       showError.value = true
+      showUploadForm.value = false
       errorMessage.value = res.error
       toast.error(res.error)
       return
@@ -244,6 +385,7 @@ try {
     if (res.submited === true) {
       showDownloadForm.value = true
       showUploadForm.value = false
+      declarationForm.value = false
       documentsList.value = res.documents_list
       course_documents_record_id.value = res.course_documents_record_id
       doctype.value = res.doctype
@@ -251,7 +393,8 @@ try {
       console.log('Document already submitted for this course')
     } else {
       showDownloadForm.value = false
-      showUploadForm.value = true
+      showUploadForm.value = false
+      declarationForm.value = true
     }
 
     if(showError.value){
@@ -261,6 +404,7 @@ try {
     // handle error
     showDownloadForm.value = false
     showUploadForm.value = false
+    declarationForm.value = false
     showError.value = true
     toast.error(e?.exception || 'Error checking document submission')
   } finally {

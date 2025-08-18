@@ -18,16 +18,17 @@ def get_distributor_dashboard_info():
             d.distributor_name                   AS `distributor_name`,
             d.distributor_contact_number         AS `distributor_contact_number`,
             d.distributor_email_address          AS `distributor_email_address`,
-            d.account__distributor_code           AS `account_distributor_code`,
+            d.account__distributor_code          AS `account_distributor_code`,
             d.distributor_company_address        AS `distributor_company_address`,
             d.country                            AS `country`,
             d.distributor_company_name           AS `distributor_company_name`,
             dd.has_submitted_documents           AS `submitted_documents`,
-            dd.modified                          AS `submission_datetime`,
+            dd.submission_datetime               AS `submission_datetime`,
             le.course                            AS `course_name`,
             le.progress                          AS `progress`,
             le.completed_on                      AS `completed_on`,
-            le.completion_status                 AS `completion_status`
+            le.completion_status                 AS `completion_status`,
+            le.course_reminder_count             AS `course_reminder_count`
         FROM `tabDistributor` AS d
         LEFT JOIN `tabLMS Enrollment` AS le
             ON le.member = d.user_id 

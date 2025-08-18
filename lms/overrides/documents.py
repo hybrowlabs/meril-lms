@@ -15,6 +15,7 @@ import unicodedata
 from frappe.utils import now_datetime
 
 
+
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
     user = frappe.session.user
@@ -646,3 +647,22 @@ def downlaod_endo_file():
     frappe.local.response["http_status_code"] = 403
     frappe.local.response["message"] = "Distributor can not access this resource"
     return
+
+
+@frappe.whitelist(allow_guest=False)
+def get_distributor():
+    user = frappe.session.user
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+    if "Distributor" in roles:
+        distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
+        if distributor_doc:
+            return distributor_doc
+        else:
+            frappe.local.response["http_status_code"] = 404
+            frappe.local.response["message"] = "Distributor record not found"
+            return
+    else:
+        frappe.local.response["http_status_code"] = 403
+        frappe.local.response["message"] = "User is not a Distributor"
+        return
