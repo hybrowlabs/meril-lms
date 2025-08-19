@@ -82,6 +82,7 @@
             required
             readonly
             disabled
+            minlength="3"
           />
      
         <label for="date">Date</label>
@@ -135,9 +136,9 @@
     </div>
   </div>
 
-  <div v-if="declarationForm" class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+  <div v-if="showDeclarationForm" class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
     <div
-      class="min-[500px]:w-100 w-full max-w-md max-h-[80vh] overflow-y-auto shadow-lg rounded-lg bg-white p-6 relative"
+      class="min-[500px]:w-100 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-lg rounded-lg bg-white p-6 relative"
     >
       <!-- Close Icon -->
       <button
@@ -147,27 +148,69 @@
       >
         ×
       </button>
-      <h3 class="text-center font-semibold">Meril Distributor- Compliance Policy Adoption Form</h3>
-      <div class="overflow-y-auto h-60 pb-4">
-        <p class="text-sm mt-4">
-          {{ current_date }}
-        </p>
-        <p class="text-sm text-justify mt-4">We {{ distributor.distributor_company_name }}, being the Distributor of Meril {{ distributor?.meril_company_table[0]?.meril_company_name }} do hereby certify that we have willingly adopted attached Meril
-      Distributor Compliance Policy as our own Compliance Policy with effect from
-      {{ current_date }} and declare to abide by the same.</p>
-      <p class="text-sm text-justify mt-4">All employees, partners, directors, proprietor of our organization are expected to
-        observe and adhere to this Policy.</p>
-        <p class="text-sm text-justify mt-4">Nomination of Compliance Officer:</p>
-        <p class="text-sm text-justify mt-4">{{ name }} is nominated as Compliance Officer of our organization with effect
-          from {{ current_date }}</p>
-          
-          <p class="text-sm text-justify mt-4">Authorized representative of {{ distributor.distributor_company_name }}</p>
-          <p class="text-sm text-justify mt-2">Name: {{ distributor.attendee_name }}</p>
-          <p class="text-sm text-justify mt-2">Title: {{ distributor.designation }}</p>
-          <p class="text-sm text-justify mt-2">Email Id : {{ distributor.distributor_email_address }}</p>
-          <p class="text-sm text-justify mt-2">Contact number : {{ distributor.distributor_contact_number }}</p>
-          <p class="text-sm text-justify mt-2">Sign and Seal {{ name }}</p>
-        
+      <div v-if="role_is=='Distributor'">
+          <h3 class="text-center font-semibold mx-auto max-w-80">Meril Distributor- Compliance Policy Adoption Form</h3>
+          <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
+              <p class="text-sm mt-4">
+                {{ current_date }}
+              </p>
+              <p class="text-sm text-justify mt-2">We {{ declaratinoInfo.distributor_company_name }}, being the Distributor of Meril {{ distributor?.meril_company_table[0]?.meril_company_name }} do hereby certify that we have willingly adopted attached Meril
+            Distributor Compliance Policy as our own Compliance Policy with effect from
+            {{ current_date }} and declare to abide by the same.</p>
+            <p class="text-sm text-justify mt-2">All employees, partners, directors, proprietor of our organization are expected to
+              observe and adhere to this Policy.</p>
+              <p class="text-sm text-justify mt-2 underline font-semibold">Nomination of Compliance Officer:</p>
+              <p class="text-sm text-justify mt-2">{{ name?name:"<signature>" }} is nominated as Compliance Officer of our organization with effect
+                from {{ current_date }}</p>
+                
+                <p class="text-sm text-justify mt-6">Authorized representative of {{ declaratinoInfo.distributor_company_name }}</p>
+                <p class="text-sm text-justify mt-6">Name : {{ declaratinoInfo.attendee_name }}</p>
+                <p class="text-sm text-justify mt-2">Title : {{ declaratinoInfo.designation }}</p>
+                <p class="text-sm text-justify mt-2">Email Id : {{ declaratinoInfo.distributor_email_address }}</p>
+                <p class="text-sm text-justify mt-2">Contact number : {{ declaratinoInfo.distributor_contact_number }}</p>
+                <p class="text-sm text-justify mt-2">Sign and Seal : {{ name?name:"<signature>" }}</p>
+             </div>
+        </div>
+        <div v-else-if="role_is=='Employee'">
+          <h3 class="text-center font-semibold mx-auto max-w-80">Employee Declaration - Ethical Practices &amp; Compliance</h3>
+          <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
+              <p class="text-sm text-justify mt-2">I hereby declare that I have undergone and understood training provided on Ethical
+Practices and compliance . As a responsible employee of Meril, I acknowledge and
+accept the duty to comply with the procedural frameworks developed and adopted by
+the Meril’s Management from time to time.</p>
+            <p class="text-sm text-justify mt-2">I have been thoroughly informed on the various Code of Conduct that govern the
+ethical operation of Meril’s business, which I agree to follow diligently. I have read
+understood and consent to abide by the following Codes of Conduct on a consensus-
+ad-idem basis :</p>
+              <ol class="list-decimal pl-6 text-sm mt-2">
+                <li>Anti Bribery and Anti Corruption Policy</li>
+                <li>Export Controls and Trade Sanctions Policy</li>
+                <li>HCP &amp; HCO Compliance framework</li>
+                <li>National Pharmaceutical Pricing Authority norms for capping of
+maximum retail price &amp; maximum trade margin across all trade
+channels</li>
+                <li>FCPA (Foreign Corrupt Practices Act)</li>
+              </ol>
+              <p class="text-sm text-justify mt-2">I hereby confirm that I shall adhere in all respects to the ethics and standards of conduct
+outlined in the above Codes of Conduct. I understand that any violation or even potential
+violation of the these Codes of Conduct / Policies may result in disciplinary action,
+including termination of my employment.</p>
+                <p class="text-sm text-justify mt-2">I certify that I am not currently in violation of any of the afore mentioned Codes of
+                  Conduct.</p>
+                <p class="text-sm text-justify mt-2">Furthermore, I declare that I have no direct or indirect familial, financial, or other
+relationships with any distributor or nominated representative of the distributor. Should I
+become aware of any such relationship in the future, I commit to disclosing it to Meril
+within thirty (30) days from the date of awareness.</p>
+                  <p class="text-sm text-justify mt-2">I also declare that I will not engage in any financial transactions with any distributor or
+nominated representative of the distributor. I acknowledge that Meril Group shall bear no
+responsibility or liability for any such transactions.</p>
+             
+                <p class="text-sm text-justify mt-6">Signature : {{ name?name:"<signature>" }}</p>
+                <p class="text-sm text-justify mt-2">Employee Name : {{ declaratinoInfo.employee_name }}</p>
+                <p class="text-sm text-justify mt-2">Employee ID : {{ declaratinoInfo.custom_employee_id }}</p>
+                <p class="text-sm text-justify mt-2">Company Name : {{ declaratinoInfo.company }}</p>
+                <p class="text-sm text-justify mt-2">Date : {{ date }}</p>
+             </div>
         </div>
         
         <form @submit="handleCertify" class="flex flex-col gap-y-2">
@@ -177,6 +220,7 @@
             v-model="name"
             class="w-full rounded-lg border focus:outline-none focus:ring-2 border-none p-0"
             required
+            minlength="3"
             ></TextInput>
             <div class="flex gap-x-2">
             <select
@@ -238,8 +282,8 @@ const loadingScreen = ref(false);
 const showDownloadForm = ref(false)
 const signatureType = ref('')
 const showError = ref(false)
-const distributor = ref(null);
-const declarationForm = ref(true);
+const declaratinoInfo = ref(null);
+const showDeclarationForm = ref(true);
 
 const name = ref('')
 const signatureText = computed(() => {
@@ -255,17 +299,52 @@ const errorMessage = ref('')
 const course_documents_record_id = ref('');
 const doctype = ref('');
 
-const role_is = ref("");
+const role_is = ref(null);
 const fontStyles = ref([]);
 
 
-const handleCertify = (event) => {
+const handleCertify = async (event) => {
   if (event && typeof event.preventDefault === "function") {
     event.preventDefault();
   }
-  declarationForm.value = false;
-  showUploadForm.value = true;
 
+  // If Employee, take signature via API then show download form
+  if (role_is.value === 'Employee') {
+    if (!name.value || name.value.trim().length < 3) {
+      toast.error("Please enter signature (minimum 3 characters)");
+      return;
+    }
+    if (!signatureType.value) {
+      toast.error("Please select a signature type");
+      return;
+    }
+    try {
+      loadingUploadForm.value = true;
+      const res = await call('lms.overrides.documents.get_employee_signature', {
+        signature: name.value,
+        signature_font_type: signatureType.value,
+        course: courseName.value
+      });
+      if (res?.success) {
+        toast.success('Signature submitted successfully');
+        await checkDocumentSubmission();
+        showDeclarationForm.value = false;
+        showUploadForm.value = false;
+        showDownloadForm.value = true;
+      } else {
+        toast.error(res?.message || 'Failed to submit signature');
+      }
+    } catch (e) {
+      toast.error(e?.message || 'Failed to submit signature');
+    } finally {
+      loadingUploadForm.value = false;
+    }
+    return;
+  }
+
+  // Default (Distributor): move to upload form
+  showDeclarationForm.value = false;
+  showUploadForm.value = true;
 }
 // Fetch list of signature types where font files are not private
 async function fetchSignatureTypesWithPublicFonts() {
@@ -305,23 +384,27 @@ async function fetchSignatureTypesWithPublicFonts() {
   }
 }
 
-async function get_distributor(){
-  const res = await call("lms.overrides.documents.get_distributor");
+async function get_declaration_info(){
+  try{
+  const res = await call("lms.overrides.documents.get_declaration_info");
   
-  console.log("distributor", res);
-  distributor.value = res;
+  console.log("declaraion info", res);
+  declaratinoInfo.value = res;
+  }catch(err){
+    console.error("Error getting declaration", e)
+    toast.error("Error in  getting declaration")
+  }
 }
 
 onMounted(async () => {
   console.log("mounted");
   fontStyles.value = await fetchSignatureTypesWithPublicFonts();
   console.log(fontStyles.value)
-  get_distributor();
 });
 
 const handleDownload = async() => {
-  if(name.value === '' || date.value === '') {
-    toast.error("Please enter name and date")
+  if(name.value === '' || name.value.trim().length < 3 || date.value === '') {
+    toast.error("Please enter name (minimum 3 characters) and date")
     return
   }
   try{
@@ -347,6 +430,10 @@ const handleDownload = async() => {
 
 const closeDialog = ()=>{
   resetCourseCompletion();
+  name.value = "";
+  showError.value = false;
+  showDownloadForm.value = false;
+  showDeclarationForm.value = false;
 }
 
 const onFileChange = (e) => {
@@ -373,28 +460,32 @@ watch( () => state.showDocument , (newVal) => {
 const checkDocumentSubmission = async () => {
 try {
     loadingScreen.value = true
+    showDeclarationForm.value = false
     const res = await call('lms.overrides.documents.has_user_submited_document', { course: courseName.value })
     console.log("res",res)
     if(res.error){
       showError.value = true
       showUploadForm.value = false
       errorMessage.value = res.error
+      showDeclarationForm.value = false
       toast.error(res.error)
       return
     }
     if (res.submited === true) {
       showDownloadForm.value = true
       showUploadForm.value = false
-      declarationForm.value = false
+      showDeclarationForm.value = false
       documentsList.value = res.documents_list
       course_documents_record_id.value = res.course_documents_record_id
       doctype.value = res.doctype
       role_is.value = res.role_is
       console.log('Document already submitted for this course')
     } else {
+      get_declaration_info();
+      role_is.value = res.role_is
       showDownloadForm.value = false
       showUploadForm.value = false
-      declarationForm.value = true
+      showDeclarationForm.value = true
     }
 
     if(showError.value){
@@ -404,7 +495,7 @@ try {
     // handle error
     showDownloadForm.value = false
     showUploadForm.value = false
-    declarationForm.value = false
+    showDeclarationForm.value = false
     showError.value = true
     toast.error(e?.exception || 'Error checking document submission')
   } finally {
@@ -416,8 +507,8 @@ const uploadDocument = async () => {
   console.log("uploadDocument")
   loadingUploadForm.value = true
 
-  if(!name.value || name.value.trim() == ""){
-    toast.error("please enter name");
+  if(!name.value || name.value.trim().length < 3){
+    toast.error("Please enter name (minimum 3 characters)");
     loadingUploadForm.value = false
     return;
   }

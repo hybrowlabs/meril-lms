@@ -7,8 +7,9 @@
  "field_order": [
   "course",
   "employee",
-  "course_progress",
+  "column_break_ymyl",
   "singature_style",
+  "signature",
   "submission_datetime"
  ],
  "fields": [
@@ -25,12 +26,6 @@
    "options": "Employee"
   },
   {
-   "fieldname": "course_progress",
-   "fieldtype": "Link",
-   "label": "Course Progress",
-   "options": "LMS Course Progress"
-  },
-  {
    "fieldname": "singature_style",
    "fieldtype": "Link",
    "label": "Singature style",
@@ -40,12 +35,21 @@
    "fieldname": "submission_datetime",
    "fieldtype": "Datetime",
    "label": "Submission datetime"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Data",
+   "label": "Signature"
+  },
+  {
+   "fieldname": "column_break_ymyl",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-08-08 18:08:29.297062",
+ "modified": "2025-08-19 12:22:04.910595",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Course Documents",

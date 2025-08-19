@@ -142,20 +142,25 @@
 						<div class="text-lg font-semibold">
 							{{ __('Assigned Course To') }}
 						</div>
-						<div>
-						<!-- INSERT_YOUR_CODE -->
-						<FormControl
-							type="select"
-							v-model="course.custom_assigned_to_role"
-							:label="__('Role')"
-							:options="[
-								{ label: __('All'), value: 'All' },
-								{ label: __('Employee'), value: 'Employee' },
-								{ label: __('Distributor'), value: 'Distributor' }
-							]"
-							:placeholder="__('Select a role')"
-						/>
-						
+						<div class="grid grid-cols-2 gap-5">
+							<!-- Role -->
+							<FormControl
+								type="select"
+								v-model="course.custom_assigned_to_role"
+								:label="__('Role')"
+								:options="[
+									{ label: __('All'), value: 'All' },
+									{ label: __('Employee'), value: 'Employee' },
+									{ label: __('Distributor'), value: 'Distributor' }
+								]"
+								:placeholder="__('Select a role')"
+							/>
+							<!-- Country -->
+							<Link
+								doctype="Country"
+								v-model="course.custom_country"
+								:label="__('Country')"
+							/>
 						</div>
 					</div>
 					<div class="px-10 pb-5 mb-5 space-y-5 border-b">
@@ -384,7 +389,8 @@ const course = reactive({
 	course_price: '',
 	currency: '',
 	evaluator: '',
-	custom_assigned_to_role: ''
+	custom_assigned_to_role: '',
+	custom_country: ''
 })
 
 const meta = reactive({
@@ -426,6 +432,8 @@ onBeforeUnmount(() => {
 	window.removeEventListener('keydown', keyboardShortcut)
 	stopRecording()
 })
+
+// Country select now uses Link control which fetches options server-side
 
 const courseCreationResource = createResource({
 	url: 'frappe.client.insert',

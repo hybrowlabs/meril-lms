@@ -28,7 +28,7 @@ def get_distributor_dashboard_info():
             le.progress                          AS `progress`,
             le.completed_on                      AS `completed_on`,
             le.completion_status                 AS `completion_status`,
-            le.course_reminder_count             AS `course_reminder_count`
+           CAST(le.course_reminder_count AS CHAR)          AS `course_reminder_count`
         FROM `tabDistributor` AS d
         LEFT JOIN `tabLMS Enrollment` AS le
             ON le.member = d.user_id 
@@ -57,6 +57,7 @@ def get_employee_dashboard_info():
             e.company_email                    AS `company_email`,
             e.country                          AS `country`,
             le.course                          AS `course_name`,
+        CAST(le.course_reminder_count AS CHAR) AS `course_reminder_count`,
             le.progress                        AS `progress`,
             le.completed_on                    AS `completed_on`,
             le.completion_status               AS `completion_status`

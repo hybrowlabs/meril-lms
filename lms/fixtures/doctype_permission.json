@@ -50,16 +50,37 @@
     "parenttype": "DocType Permission",
     "perm_level": "Custom Query",
     "role": "Distributor",
-    "script": "conditions = \"custom_assigned_to_role = 'Distributor'\""
+    "script": "conditions = \"custom_assigned_to_role IN ('Distributor', 'All')\""
    }
   ],
-  "description": "Distributor can only access courses with assign_to_rol = Distributor",
+  "description": "Distributor can only access courses if it as assigned to him or all user",
   "docstatus": 0,
   "doctype": "DocType Permission",
-  "modified": "2025-07-03 14:06:53.711181",
+  "modified": "2025-08-18 17:54:39.550704",
   "name": "LMS Course Distributor Access",
   "ref_doctype": "LMS Course",
   "testing": 1,
   "title": "LMS Course Distributor Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Employee Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Employee",
+    "script": "conditions = \"custom_assigned_to_role IN ('Employee', 'All')\""
+   }
+  ],
+  "description": "Employee can access course if it is assigned to him or all users",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-08-18 17:56:25.308608",
+  "name": "LMS Course Employee Access",
+  "ref_doctype": "LMS Course",
+  "testing": 0,
+  "title": "LMS Course Employee Access"
  }
 ]
