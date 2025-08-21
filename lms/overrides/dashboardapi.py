@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=False)
 def get_distributor_dashboard_info():
     """
     Returns all distributors' info using a direct SQL query with LEFT JOIN to include
@@ -11,8 +11,12 @@ def get_distributor_dashboard_info():
     Field names are checked against the related DocTypes for accuracy.
     LMS Enrollment fields: progress, completed_on, completion_status, member.
     """
+    if frappe.session.user != "Administrator":
+        raise frappe.PermissionError
+
     query = """
         SELECT
+            d.name                               AS `distributo_docid`,
             d.attendee_name                      AS `attendee_name`,
             d.designation                        AS `designation`,
             d.distributor_name                   AS `distributor_name`,
@@ -24,11 +28,12 @@ def get_distributor_dashboard_info():
             d.distributor_company_name           AS `distributor_company_name`,
             dd.has_submitted_documents           AS `submitted_documents`,
             dd.submission_datetime               AS `submission_datetime`,
+            dd.name                              AS `docuemnts_id`,
             le.course                            AS `course_name`,
             le.progress                          AS `progress`,
             le.completed_on                      AS `completed_on`,
             le.completion_status                 AS `completion_status`,
-           CAST(le.course_reminder_count AS CHAR)          AS `course_reminder_count`
+           IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`
         FROM `tabDistributor` AS d
         LEFT JOIN `tabLMS Enrollment` AS le
             ON le.member = d.user_id 
@@ -39,7 +44,7 @@ def get_distributor_dashboard_info():
     return data
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=False)
 def get_employee_dashboard_info():
     """
     Returns all employees' info using a direct SQL query with LEFT JOIN to include
@@ -48,19 +53,25 @@ def get_employee_dashboard_info():
 
     LMS Enrollment fields: progress, completed_on, completion_status, member.
     """
+    
+    if frappe.session.user != "Administrator":
+        raise frappe.PermissionError
+
     query = """
         SELECT
+            e.name                             As `employee_docid`,
             e.employee_name                    AS `employee_name`,
             e.designation                      AS `designation`,
             e.employee_number                  AS `employee_number`,
             e.company                          AS `company`,
             e.company_email                    AS `company_email`,
             e.country                          AS `country`,
+            ed.name                            AS `docuemnts_id`,
             le.course                          AS `course_name`,
-        CAST(le.course_reminder_count AS CHAR) AS `course_reminder_count`,
+        IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`,
             le.progress                        AS `progress`,
             le.completed_on                    AS `completed_on`,
-            le.completion_status               AS `completion_status`
+            IFNULL(le.completion_status, 'Pending') AS `completion_status`
         FROM `tabEmployee` AS e
         LEFT JOIN `tabLMS Enrollment` AS le
             ON le.member = e.user_id

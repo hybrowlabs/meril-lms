@@ -145,6 +145,7 @@ fixtures = ["Custom Field", "Function", "Industry", "LMS Category", "Role", "Use
 #
 override_whitelisted_methods = {
 	# "frappe.desk.search.get_names_for_mentions": "lms.lms.utils.get_names_for_mentions",
+	 "frappe.utils.print_format.download_pdf": "lms.lms.api.distributor_download_pdf"
 }
 #
 # each overriding function accepts a `data` argument;

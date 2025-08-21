@@ -14,7 +14,7 @@
   "description": "Restrict access to LMS Courses to users whose country matches the course's country.",
   "docstatus": 0,
   "doctype": "DocType Permission",
-  "modified": "2025-07-03 14:12:06.312215",
+  "modified": "2025-08-21 10:55:13.826234",
   "name": "LMS Course Country Permission",
   "ref_doctype": "LMS Course",
   "testing": 1,

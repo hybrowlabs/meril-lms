@@ -182,8 +182,13 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2025-07-25 13:30:13.643846",
+ "links": [
+  {
+   "link_doctype": "Distributor Course Documents",
+   "link_fieldname": "distributor"
+  }
+ ],
+ "modified": "2025-08-20 12:09:04.620413",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",

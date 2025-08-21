@@ -27,7 +27,31 @@ from frappe.integrations.frappe_providers.frappecloud_billing import (
 	is_fc_site,
 	current_site_info,
 )
+from frappe.utils.print_format import download_pdf
+from frappe.exceptions import PermissionError
 
+@frappe.whitelist()
+def distributor_download_pdf(doctype, name, format=None, no_letterhead=0, letterhead=None, settings=None):
+	user = frappe.session.user
+
+	roles = frappe.get_roles(user)
+
+	if ("System Manager" in roles) or ("Administrator" in roles):
+		return download_pdf(doctype, name, format, no_letterhead=no_letterhead, letterhead=letterhead)
+
+	# Only check linked permission for specific doctypes
+	if doctype == "Employee Course Documents":
+		employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+		linked_employee = frappe.db.get_value(doctype, name, "employee")
+		if not (employee and linked_employee == employee):
+			raise PermissionError(_("You are not allowed to download this PDF"))
+	elif doctype == "Distributor Course Documents":
+		distributor = frappe.db.get_value("Distributor", {"user_id": user}, "name")
+		linked_distributor = frappe.db.get_value(doctype, name, "distributor")
+		if not (distributor and linked_distributor == distributor):
+			raise PermissionError(_("You are not allowed to download this PDF"))
+
+	return download_pdf(doctype, name, format, no_letterhead=no_letterhead, letterhead=letterhead)
 
 @frappe.whitelist()
 def autosave_section(section, code):

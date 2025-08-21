@@ -283,7 +283,7 @@ def save_user_course_document_with_file(
             content=file_content,
             dt="Distributor Course Documents",
             dn=doc.name,
-            is_private=is_private
+            is_private=1
         )
 
         # Update document fields
@@ -362,7 +362,7 @@ def generate_dynamic_docx(name=None):
         para.alignment = 1
         doc.add_paragraph()
         heading = doc.add_heading("", level=1)
-        run = heading.add_run("Meril Distributor- Compliance Policy Adoption Form")
+        run = heading.add_run("Meril Distributor - Compliance Policy Adoption Form")
         run.font.underline = True
         run.font.color.rgb = RGBColor(0, 0, 0)
         heading.alignment = 1
@@ -394,7 +394,7 @@ def generate_dynamic_docx(name=None):
 
         # Save file to Frappe File
         file_doc = save_file(
-            fname=f"{user}_compliance_policy_adoption_form.docx",
+            fname=f"Meril_Distributor_Compliance_Policy_Adoption_Form.docx",
             content=buffer.getvalue(),
             dt=None,
             dn=None,
