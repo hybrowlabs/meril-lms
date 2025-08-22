@@ -11,7 +11,7 @@
  "is_standard": "Yes",
  "json": "{}",
  "letterhead": null,
- "modified": "2025-08-19 13:51:31.394253",
+ "modified": "2025-08-22 12:01:15.504052",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor Report",
@@ -21,6 +21,10 @@
  "ref_doctype": "Distributor",
  "report_name": "Distributor Report",
  "report_type": "Query Report",
- "roles": [],
+ "roles": [
+  {
+   "role": "Supervisor"
+  }
+ ],
  "timeout": 0
 }

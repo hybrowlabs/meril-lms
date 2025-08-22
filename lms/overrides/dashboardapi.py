@@ -11,8 +11,7 @@ def get_distributor_dashboard_info():
     Field names are checked against the related DocTypes for accuracy.
     LMS Enrollment fields: progress, completed_on, completion_status, member.
     """
-    if frappe.session.user != "Administrator":
-        raise frappe.PermissionError
+    frappe.only_for("Supervisor")
 
     query = """
         SELECT
@@ -54,8 +53,7 @@ def get_employee_dashboard_info():
     LMS Enrollment fields: progress, completed_on, completion_status, member.
     """
     
-    if frappe.session.user != "Administrator":
-        raise frappe.PermissionError
+    frappe.only_for("Supervisor")
 
     query = """
         SELECT
