@@ -60,7 +60,7 @@ def get_employee_dashboard_info():
             e.name                             As `employee_docid`,
             e.employee_name                    AS `employee_name`,
             e.designation                      AS `designation`,
-            e.employee_number                  AS `employee_number`,
+            e.cell_number                    AS `employee_number`,
             e.company                          AS `company`,
             e.company_email                    AS `company_email`,
             e.country                          AS `country`,
