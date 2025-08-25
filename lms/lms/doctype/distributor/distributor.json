@@ -38,8 +38,7 @@
    "fieldname": "account__distributor_code",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Account / Distributor Code",
-   "reqd": 1
+   "label": "Account / Distributor Code"
   },
   {
    "fieldname": "distributor_email_address",
@@ -136,8 +135,7 @@
   {
    "fieldname": "designation",
    "fieldtype": "Data",
-   "label": "Designation",
-   "reqd": 1
+   "label": "Designation"
   },
   {
    "fieldname": "first_login_date",
@@ -176,8 +174,7 @@
   {
    "fieldname": "attendee_name",
    "fieldtype": "Data",
-   "label": "Attendee Name",
-   "reqd": 1
+   "label": "Attendee Name"
   }
  ],
  "grid_page_length": 50,
@@ -188,7 +185,7 @@
    "link_fieldname": "distributor"
   }
  ],
- "modified": "2025-08-20 12:09:04.620413",
+ "modified": "2025-08-25 16:10:36.753517",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",
