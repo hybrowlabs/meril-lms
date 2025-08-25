@@ -10,7 +10,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letterhead": null,
- "modified": "2025-08-22 12:01:01.146688",
+ "modified": "2025-08-25 10:57:04.678939",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Report",
@@ -22,9 +22,6 @@
  "report_type": "Query Report",
  "roles": [
   {
-   "role": "Employee"
-  },
-  {
    "role": "HR User"
   },
   {
@@ -32,6 +29,9 @@
   },
   {
    "role": "Supervisor"
+  },
+  {
+   "role": "Employee"
   }
  ],
  "timeout": 0

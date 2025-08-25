@@ -36,7 +36,7 @@ def distributor_download_pdf(doctype, name, format=None, no_letterhead=0, letter
 
 	roles = frappe.get_roles(user)
 
-	if ("System Manager" in roles) or ("Administrator" in roles):
+	if ("System Manager" in roles) or ("Administrator" in roles) or ("Supervisor" in roles):
 		return download_pdf(doctype, name, format, no_letterhead=no_letterhead, letterhead=letterhead)
 
 	# Only check linked permission for specific doctypes

@@ -67,15 +67,23 @@ def send_mobile_notification(mobile_no, message):
 @frappe.whitelist(allow_guest=False)
 def verify_email_otp(otp=None, otp1=None):
     user = frappe.session.user
-    if user == "Guest":
-        return {"status": "error", "message": "Please log in to verify OTP"}
 
+    user_doc = frappe.get_doc("User", user)
+
+    roles = [d.role for d in user_doc.get("roles", [])]
     email = frappe.db.get_value("User", user, "email")
     mobile = frappe.db.get_value("User", user, "mobile_no")
 
+    if "Distributor" in roles:
+        email = frappe.get_value("Distributor", {"user_id": user}, "distributor_email_address")
+        mobile = frappe.get_value("Distributor", {"user_id": user}, "distributor_contact_number")
+    elif "Employee" in roles:
+        email = frappe.get_value("Employee", {"user_id": user}, "company_email") 
+        mobile = frappe.get_value("Employee", {"user_id": user}, "employee_number") 
+
     if not email or (not otp and not otp1):
         return {"status": "error", "message": "Missing email or OTP"}
-    
+
     if not mobile or (not otp and not otp1):
         return {"status": "error", "message": "Missing email or OTP"}
 
@@ -156,14 +164,26 @@ def verify_email_otp(otp=None, otp1=None):
 def send_email_otp():
     try:
         user = frappe.session.user
-        if user == "Guest":
-            return {"status": "error", "message": "Please log in to send OTP"}
+        user_doc = frappe.get_doc("User", user)
 
+        roles = [d.role for d in user_doc.get("roles", [])]
         email = frappe.db.get_value("User", user, "email")
         mobile = frappe.db.get_value("User", user, "mobile_no")
 
+        if "Distributor" in roles:
+            email = frappe.get_value("Distributor", {"user_id": user}, "distributor_email_address") 
+            mobile = frappe.get_value("Distributor", {"user_id": user}, "distributor_contact_number") 
+            print("distritbutor", email, mobile)
+        elif "Employee" in roles:
+            email = frappe.get_value("Employee", {"user_id": user}, "company_email") 
+            mobile = frappe.get_value("Employee", {"user_id": user}, "employee_number") 
+            print("employee", email, mobile)
+        print(email, mobile)
         if not email:
             return {"status": "error", "message": "User email not found"}
+
+        if not mobile:
+            return {"status": "error", "message": "User mobile not found"}
 
         now = now_datetime()
 
@@ -409,12 +429,11 @@ def send_email_otp():
 @frappe.whitelist(allow_guest=False)
 def get_user_status():
     user = frappe.session.user
-    if user == "Guest":
-        return {"status": "error", "message": "Please log in to check status"}
 
     user_doc = frappe.get_doc("User", user)
     roles = [role.role for role in user_doc.roles]
-    if "System Manager" in roles or "Administrator" in roles:
+
+    if "System Manager" in roles or "Administrator" in roles or "Supervisor" in roles:
         return {"status": "unlocked", "message": "User is unlocked."}
 
     email = frappe.db.get_value("User", user, "email")
