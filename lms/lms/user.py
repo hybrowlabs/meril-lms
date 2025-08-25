@@ -64,7 +64,7 @@ def create_user_from_employee(self, method=None):
 						"user_type": "Website User",						
 						"new_password": new_password,
 						"user_category": "Employee",
-						"mobile_no": self.employee_number,
+						"mobile_no": self.cell_number,
 						"send_welcome_email": 0,
 					}
 					).insert(ignore_permissions=True).email

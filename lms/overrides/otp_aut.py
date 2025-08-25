@@ -79,7 +79,7 @@ def verify_email_otp(otp=None, otp1=None):
         mobile = frappe.get_value("Distributor", {"user_id": user}, "distributor_contact_number")
     elif "Employee" in roles:
         email = frappe.get_value("Employee", {"user_id": user}, "company_email") 
-        mobile = frappe.get_value("Employee", {"user_id": user}, "employee_number") 
+        mobile = frappe.get_value("Employee", {"user_id": user}, "cell_number") 
 
     if not email or (not otp and not otp1):
         return {"status": "error", "message": "Missing email or OTP"}
@@ -176,7 +176,7 @@ def send_email_otp():
             print("distritbutor", email, mobile)
         elif "Employee" in roles:
             email = frappe.get_value("Employee", {"user_id": user}, "company_email") 
-            mobile = frappe.get_value("Employee", {"user_id": user}, "employee_number") 
+            mobile = frappe.get_value("Employee", {"user_id": user}, "cell_number") 
             print("employee", email, mobile)
         print(email, mobile)
         if not email:
