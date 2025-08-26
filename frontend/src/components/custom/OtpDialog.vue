@@ -145,7 +145,7 @@ async function sendOtp() {
     loading.value = true;
     const res = await call("lms.overrides.otp_aut.send_email_otp");
     if (res.status === "success" || res.status === "resent" || res.status === "new") {
-      toast.success("OTP sent successfully!");
+      toast.success(res.message || "OTP sent successfully!");
 
     } else if (res.status === "error") {
       toast.error(res.message || "Failed to send OTP. Please try again.");

@@ -199,6 +199,12 @@ def send_email_otp():
         email_otp = str(random.randint(100000, 999999))
         mobile_otp = str(random.randint(100000, 999999))
 
+        # Always initialize these before use
+        email_sent = False
+        mobile_sent = False
+        email_error = None
+        mobile_error = None
+
         if latest_doc:
             otp_info = latest_doc[0]
             email_expired = otp_info.email_otp_expiry_datetime and now > otp_info.email_otp_expiry_datetime
@@ -224,19 +230,38 @@ def send_email_otp():
                     })
                     new_doc.insert(ignore_permissions=True)
 
-                    frappe.sendmail(
-                        recipients=[email],
-                        subject="Your Email OTP Code (Resent)",
-                        message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
-                        now=True
-                    )
-                    # Send mobile OTP via SMS instead of email
-                    send_mobile_notification(
-                        mobile_no=mobile,
-                        message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
-                    )
+                    # Try sending email OTP
+                    try:
+                        frappe.sendmail(
+                            recipients=[email],
+                            subject="Your Email OTP Code (Resent)",
+                            message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
+                            now=True
+                        )
+                        email_sent = True
+                    except Exception as e:
+                        email_error = str(e)
+                        frappe.log_error(frappe.get_traceback(), "Error sending email OTP (resent)")
 
-                    return {"status": "resent", "message": "Previous OTPs resent in a new record"}
+                    # Try sending mobile OTP via SMS
+                    try:
+                        send_mobile_notification(
+                            mobile_no=mobile,
+                            message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
+                        )
+                        mobile_sent = True
+                    except Exception as e:
+                        mobile_error = str(e)
+                        frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (resent)")
+
+                    if email_sent and mobile_sent:
+                        return {"status": "resent", "message": "Previous OTPs resent in a new record"}
+                    elif not email_sent and mobile_sent:
+                        return {"status": "resent", "message": "Mobile OTP sent, but failed to send email OTP", "email_error": email_error}
+                    elif email_sent and not mobile_sent:
+                        return {"status": "resent", "message": "Email OTP sent, but failed to send mobile OTP", "mobile_error": mobile_error}
+                    else:
+                        return {"status": "error", "message": "Failed to send both OTPs", "email_error": email_error, "mobile_error": mobile_error}
                 except Exception as e:
                     frappe.log_error(frappe.get_traceback(), "Error resending OTPs")
                     return {"status": "error", "message": f"Failed to resend OTPs: {str(e)}"}
@@ -257,19 +282,42 @@ def send_email_otp():
 
             new_doc.insert(ignore_permissions=True)
 
-            frappe.sendmail(
-                recipients=[email],
-                subject="Your Email OTP Code",
-                message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
-                now=True
-            )
-            # Send mobile OTP via SMS notification instead of email
-            send_mobile_notification(
-                mobile_no=mobile,
-                message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
-            )
+            # Reset context for new send
+            email_sent = False
+            mobile_sent = False
+            email_error = None
+            mobile_error = None
 
-            return {"status": "new", "message": "New OTPs sent"}
+            try:
+                frappe.sendmail(
+                    recipients=[email],
+                    subject="Your Email OTP Code",
+                    message=f"Your Email OTP is <b>{email_otp}</b>. It will expire in 15 minutes.",
+                    now=True
+                )
+                email_sent = True
+            except Exception as e:
+                email_error = str(e)
+                frappe.log_error(frappe.get_traceback(), "Error sending email OTP (new)")
+
+            try:
+                send_mobile_notification(
+                    mobile_no=mobile,
+                    message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
+                )
+                mobile_sent = True
+            except Exception as e:
+                mobile_error = str(e)
+                frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (new)")
+
+            if email_sent and mobile_sent:
+                return {"status": "new", "message": "New OTPs sent"}
+            elif not email_sent and mobile_sent:
+                return {"status": "new", "message": "Mobile OTP sent, but failed to send email OTP", "email_error": email_error}
+            elif email_sent and not mobile_sent:
+                return {"status": "new", "message": "Email OTP sent, but failed to send mobile OTP", "mobile_error": mobile_error}
+            else:
+                return {"status": "error", "message": "Failed to send both OTPs", "email_error": email_error, "mobile_error": mobile_error}
         except Exception as e:
             frappe.log_error(frappe.get_traceback(), "Error sending new OTPs")
             return {"status": "error", "message": f"Failed to send OTPs: {str(e)}"}
