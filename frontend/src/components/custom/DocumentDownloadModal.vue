@@ -60,78 +60,76 @@
     >
       <!-- Close Icon -->
       <button
-      class="block ml-auto focus:ring-2 hover:ring-3 px-2 rounded-sm hover:ring-gray-900 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
-         @click="closeDialog"
+        class="block ml-auto focus:ring-2 hover:ring-3 px-2 rounded-sm hover:ring-gray-900 focus:ring-gray-400 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none transition"
+        @click="closeDialog"
         aria-label="Close"
       >
         ×
       </button>
-      <h3 class="text-lg font-medium mb-4">Please Enter Name and Date for Compliance Policy Adoption Form</h3>
-      <div v-if="showDownloadForm" class="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
-        <strong>✓ Document Submitted</strong> - You have already submitted a document for this course.
+      <h3 class="text-lg font-semibold mb-4 uppercase text-gray-900">Instructions:</h3>
+      <ol class="list-decimal list-inside text-gray-700 mb-4 space-y-1">
+        <li>
+          Please <span class="font-semibold text-gray-900">download</span> the <span class="font-semibold">Meril Distributor - Compliance Policy Adoption Form</span> (DOCX file).
+        </li>
+        <li>
+          Insert your company's letterhead at the top of the document.
+        </li>
+        <li>
+          Then upload the completed document.
+        </li>
+      </ol>
+      <div v-if="showDownloadForm" class="mb-4 p-3 bg-gray-50 border border-gray-400 text-gray-800 rounded flex items-center gap-2">
+        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-white font-bold mr-2">✓</span>
+        <span>
+          <strong>Document Submitted</strong> - You have already submitted a document for this course.
+        </span>
       </div>
-      <form @submit.prevent="handleDownload">
-      <div class="mb-4">
-        <label for="name">Name</label>
-        <TextInput
-            id="name"
-            v-model="name"  
-            type="text"
-            placeholder="Name"
-            class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
-            required
-            readonly
-            disabled
-            minlength="3"
-          />
-     
-        <label for="date">Date</label>
-        <TextInput
-            type="date"
-            id="date"
-            v-model="date"
-            :value="date || new Date().toISOString().split('T')[0]"
-            class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
-            required
-            readonly
-            disabled
-          />
-      </div>
-      <Button theme="gray" variant="solid" class="mb-4" type="submit">Download DOCX</Button>
-    </form>
-    <form @submit.prevent="uploadDocument">
+      <form @submit.prevent="handleDownload" class="mb-4">
+        <button
+          type="submit"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-300
+          text-gray-900 font-semibold shadow transition-colors duration-150 focus:outline-none focus:ring-2 
+          focus:ring-offset-2 focus:ring-gray-600 active:ring-2 active:ring-black"
+        >
+          <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+          </svg>
+          Download DOCX
+        </button>
+      </form>
+      <form @submit.prevent="uploadDocument">
         <div class="mb-4">
-          <label for="signatureType">Signature Type</label>
-          <Select
-            id="signatureType"
-            v-model="signatureType"
-            class="w-full rounded-lg border p-2 focus:outline-none focus:ring-2"
-            :options="fontStyles.map(font => ({
-              label: font.label,
-              value: font.value,
-              font_file: font.font_file // Pass font_file for later use
-            }))"
-            required
-            :option-style="option => option.font_file ? { fontFamily: `'${option.label}', sans-serif` } : {}"
-            readonly
-            disabled
-          />
+          <label
+            for="upload-file"
+            class="block mb-2 text-sm font-medium text-gray-700"
+          >
+            Upload Document
+          </label>
+          <div class="relative flex items-center">
+            <input
+              id="upload-file"
+              type="file"
+              @change="onFileChange"
+              class="block w-full border border-gray-500 text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-900 hover:file:bg-gray-100 transition pr-10"
+              required
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+            />
+            <span class="absolute right-3 pointer-events-none flex items-center">
+              <!-- Upload Icon beside "Choose file" text -->
+              <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"/>
+              </svg>
+            </span>
           </div>
-      <div class="mb-4">
-       <input
-         type="file"
-         @change="onFileChange"
-         class="w-full"
-         required
-         accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-       />
-      </div>
-      <Button theme="gray" variant="solid" class="w-full" type="submit" :disabled="loadingUploadForm">
-        <div class="flex items-center justify-center w-full">
-        <Spinner v-if="loadingUploadForm" class="w-4 mr-2" />  
-        <span>{{ loadingUploadForm ? "Uploading Document" : "Submit"}}</span>
         </div>
-      </Button>
+        <button
+          type="submit"
+          :disabled="loadingUploadForm"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-gray-900 hover:bg-gray-700 text-white font-semibold shadow transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <Spinner v-if="loadingUploadForm" class="w-4 h-4 mr-2" />
+          <span>{{ loadingUploadForm ? "Uploading Document" : "Submit" }}</span>
+        </button>
       </form>
     </div>
   </div>
@@ -168,7 +166,11 @@
                 <p class="text-sm text-justify mt-2">Title : {{ declaratinoInfo.designation }}</p>
                 <p class="text-sm text-justify mt-2">Email Id : {{ declaratinoInfo.distributor_email_address }}</p>
                 <p class="text-sm text-justify mt-2">Contact number : {{ declaratinoInfo.distributor_contact_number }}</p>
-                <p class="text-sm text-justify mt-2">Sign and Seal : {{ name?name:"<signature>" }}</p>
+                <p
+                  class="text-sm text-justify mt-2"
+                >
+                  Sign and Seal : <span :style="signatureType ? { fontFamily: signatureType } : {}">{{ name ? name : "<signature>" }}</span>
+                </p>
              </div>
         </div>
         <div v-else-if="role_is=='Employee'">
@@ -205,7 +207,11 @@ within thirty (30) days from the date of awareness.</p>
 nominated representative of the distributor. I acknowledge that Meril Group shall bear no
 responsibility or liability for any such transactions.</p>
              
-                <p class="text-sm text-justify mt-6">Signature : {{ name?name:"<signature>" }}</p>
+                <p
+                  class="text-sm text-justify mt-6"
+                >
+                  Signature : <span :style="signatureType ? { fontFamily: signatureType } : {}">{{ name ? name : "<signature>" }}</span>
+                </p>
                 <p class="text-sm text-justify mt-2">Employee Name : {{ declaratinoInfo.employee_name }}</p>
                 <p class="text-sm text-justify mt-2">Employee ID : {{ declaratinoInfo.custom_employee_id }}</p>
                 <p class="text-sm text-justify mt-2">Company Name : {{ declaratinoInfo.company }}</p>
@@ -408,8 +414,10 @@ const handleDownload = async() => {
     return
   }
   try{
+    // Pass signature_type in the API call
     const res = await call("lms.overrides.documents.generate_dynamic_docx", {
-        name: name.value
+        name: name.value,
+        font_path: fontStyles.value.find(f => f.value === signatureType.value)?.font_file
       });
     console.log("res", res)
     if(res?.success && res.file_url){

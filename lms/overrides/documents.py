@@ -5,15 +5,14 @@ from frappe.utils import now_datetime, validate_email_address, get_datetime
 import base64
 import unicodedata
 from frappe.utils.file_manager import save_file
-from docx import Document
 from frappe.utils import get_fullname
 import io
+from docx import Document
+from docx.shared import RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import RGBColor
-import base64
-import unicodedata
-from frappe.utils import now_datetime
-
+from PIL import Image, ImageDraw, ImageFont, ImageChops
+import requests
+from frappe.utils.file_manager import get_file_path
 
 
 @frappe.whitelist(allow_guest=False)
@@ -312,10 +311,90 @@ def save_user_course_document_with_file(
             "message": f"Error saving document: {str(e)}"
         }
 
+def trim_img_whitespace(img):
+    """Crop extra white/transparent space around text."""
+    # Use a white background for RGB, transparent for RGBA
+    if img.mode == "RGBA":
+        bg = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    else:
+        bg = Image.new(img.mode, img.size, (255, 255, 255))
+    diff = ImageChops.difference(img, bg)
+    bbox = diff.getbbox()
+    if bbox:
+        return img.crop(bbox)
+    return img
 
+def get_signature_image(
+    text="Signature",
+    font_path=None,
+    font_size=25,      
+    fixed_height=25,    
+    dpi=300,            
+):
+
+    if not font_path:
+        font_path = "/assets/lms/fonts/signature/BantengStory.otf"
+
+    font_path = font_path.lstrip("/")
+    base_url = frappe.utils.get_url()
+    font_url = f"{base_url}/{font_path}"
+
+    try:
+        response = requests.get(font_url)
+        response.raise_for_status()
+        font_bytes = io.BytesIO(response.content)
+        # PIL expects font size in points, but at 300dpi, 12pt = 50px
+        # 1pt = 1/72 inch, so at 300dpi: px = pt * 300 / 72
+        pil_font_size = int(font_size * dpi / 72)
+        font = ImageFont.truetype(font_bytes, pil_font_size)
+    except Exception as e:
+        print(f"Font '{font_url}' could not be loaded: {e}. Using default.")
+        font = ImageFont.load_default()
+        pil_font_size = font_size
+
+    # Get font metrics (ascent + descent)
+    ascent, descent = font.getmetrics()
+
+    # Measure text
+    dummy_img = Image.new("RGB", (1, 1))
+    draw = ImageDraw.Draw(dummy_img)
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+
+    text_w = text_bbox[2] - text_bbox[0]
+    text_h = ascent + descent  # more accurate than bbox for full font height
+
+    # Add padding
+    pad = int(pil_font_size * 0.2)  # Padding relative to font size
+    img_w = text_w + pad * 2
+    img_h = text_h + pad * 2
+
+    # Create image
+    img = Image.new("RGBA", (img_w, img_h), (255, 255, 255, 0))
+    d = ImageDraw.Draw(img)
+
+    # Draw text so that full ascent+descent fits
+    text_x = pad
+    text_y = pad
+    d.text((text_x, text_y), text, font=font, fill=(0, 0, 0, 255))
+
+    img = trim_img_whitespace(img)
+
+    # Always set image to fixed height, width adjusts to keep aspect ratio
+    if img.height != fixed_height:
+        aspect_ratio = img.width / img.height
+        new_width = int(fixed_height * aspect_ratio)
+        img = img.resize((new_width, fixed_height), Image.LANCZOS)
+
+    # Save to memory with high DPI for better quality in docx
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format="PNG", dpi=(dpi, dpi))
+    img_bytes.seek(0)
+    return img_bytes
 
 @frappe.whitelist(allow_guest=True)
-def generate_dynamic_docx(name=None):
+def generate_dynamic_docx(name=None, font_path = None):
+    from docx.shared import Inches, Pt
+
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
 
@@ -323,6 +402,11 @@ def generate_dynamic_docx(name=None):
         return {
             "success": False,
             "message": "No distributor name provided"
+        }
+    if font_path is None:
+        return {
+            "success": False,
+            "message": "No Signature Style Selected"
         }
 
     roles = [role.role for role in user_doc.roles]
@@ -361,6 +445,7 @@ def generate_dynamic_docx(name=None):
         para = doc.add_paragraph("On letter head of distributor", style='Normal')
         para.alignment = 1
         doc.add_paragraph()
+        doc.add_paragraph()
         heading = doc.add_heading("", level=1)
         run = heading.add_run("Meril Distributor - Compliance Policy Adoption Form")
         run.font.underline = True
@@ -385,7 +470,18 @@ def generate_dynamic_docx(name=None):
         doc.add_paragraph(f"Title: {designation}")
         doc.add_paragraph(f"Email Id : {email}")
         doc.add_paragraph(f"Contact number : {contact_number}")
-        doc.add_paragraph(f"Sign and Seal : {name}")
+        p = doc.add_paragraph("Sign and Seal :   ")
+        run = p.add_run()
+
+        signature_img_bytes = get_signature_image(
+            text=name,
+            font_path=font_path,
+            font_size=80,     
+            fixed_height=80,  
+            dpi=300            
+        )
+    
+        run.add_picture(signature_img_bytes, height=Pt(15)) 
 
         # Save to in-memory buffer
         buffer = io.BytesIO()
@@ -550,7 +646,6 @@ def get_public_signature_font_styles():
 
 @frappe.whitelist(allow_guest=False)
 def downlaod_nonendo_file():
-    from frappe.utils.file_manager import get_file_path
     user = frappe.session.user
 
     # Check if user has Distributor role
@@ -597,7 +692,6 @@ def downlaod_nonendo_file():
 
 @frappe.whitelist(allow_guest=False)
 def downlaod_endo_file():
-    from frappe.utils.file_manager import get_file_path
     user = frappe.session.user
 
     # Check if user has Distributor role
