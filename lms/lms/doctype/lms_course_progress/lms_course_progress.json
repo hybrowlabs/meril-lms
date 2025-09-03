@@ -17,7 +17,8 @@
   "is_complete",
   "progress",
   "completed_on",
-  "completed_videos"
+  "completed_videos",
+  "current_videos_progress"
  ],
  "fields": [
   {
@@ -111,12 +112,17 @@
    "fieldname": "completed_videos",
    "fieldtype": "Small Text",
    "label": "Completed Videos"
+  },
+  {
+   "fieldname": "current_videos_progress",
+   "fieldtype": "JSON",
+   "label": "current videos progress"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-21 20:10:13.215621",
- "modified_by": "Administrator",
+ "modified": "2025-09-03 12:59:33.165755",
+ "modified_by": "priyanshbisht5@gmail.com",
  "module": "LMS",
  "name": "LMS Course Progress",
  "owner": "Administrator",

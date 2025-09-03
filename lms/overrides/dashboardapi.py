@@ -24,6 +24,7 @@ def get_distributor_dashboard_info():
             d.account__distributor_code          AS `account_distributor_code`,
             d.distributor_company_address        AS `distributor_company_address`,
             d.country                            AS `country`,
+            IFNULL(CAST(d.login_reminder_count AS CHAR), '0') AS `login_remainer_count`,
             d.distributor_company_name           AS `distributor_company_name`,
             dd.has_submitted_documents           AS `submitted_documents`,
             dd.submission_datetime               AS `submission_datetime`,

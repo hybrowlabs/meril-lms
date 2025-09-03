@@ -243,13 +243,15 @@ def send_email_otp():
                         email_error = str(e)
                         frappe.log_error(frappe.get_traceback(), "Error sending email OTP (resent)")
 
-                    # Try sending mobile OTP via SMS
+                    # Try sending mobile OTP via SMS and respect API result
                     try:
-                        send_mobile_notification(
+                        sms_result = send_mobile_notification(
                             mobile_no=mobile,
                             message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
                         )
-                        mobile_sent = True
+                        mobile_sent = bool(sms_result and sms_result.get('status') == 'success')
+                        if not mobile_sent:
+                            mobile_error = (sms_result or {}).get('response') or 'SMS gateway reported failure'
                     except Exception as e:
                         mobile_error = str(e)
                         frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (resent)")
@@ -301,11 +303,13 @@ def send_email_otp():
                 frappe.log_error(frappe.get_traceback(), "Error sending email OTP (new)")
 
             try:
-                send_mobile_notification(
+                sms_result = send_mobile_notification(
                     mobile_no=mobile,
                     message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
                 )
-                mobile_sent = True
+                mobile_sent = bool(sms_result and sms_result.get('status') == 'success')
+                if not mobile_sent:
+                    mobile_error = (sms_result or {}).get('response') or 'SMS gateway reported failure'
             except Exception as e:
                 mobile_error = str(e)
                 frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (new)")
