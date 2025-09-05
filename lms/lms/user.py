@@ -636,8 +636,19 @@ def get_distributor_profile(user_id=None):
 	user_name = frappe.session.user
 	user_doc = frappe.get_doc("User", {"name": frappe.session.user})
 	roles = [role.role for role in user_doc.roles]
+
+	if "Distributor" not in roles:
+		frappe.local.response["home_page"] = "/lms"
+		frappe.throw("User is not a distributor")
+
+	
 	can_edit_own_profile = "Can Edit Own Profile" in roles
 	
+	if not can_edit_own_profile:
+		frappe.local.response["home_page"] = "/lms"
+		frappe.local.response["message"] = "You have already updated your profile."
+		return None
+		
 	fields = [ 
 		"name",
 		"bu__fd_head",
@@ -650,7 +661,10 @@ def get_distributor_profile(user_id=None):
 		"distributor_company_address",
 		"distributor_contact_number",
 		"attendee_name",
-		"designation"
+		"designation",
+		"country",
+		"distributor_name",
+		"distributor_company_name"
 	]
 	distributor = frappe.db.get_value("Distributor", {"user_id": user_name }, fields, as_dict=True)
 	
@@ -670,15 +684,36 @@ def get_distributor_profile(user_id=None):
 		return None
 	else:
 		frappe.local.response["home_page"] = "/edit-distributor-profile"
+
+	# Also set department name and company names for options for Meril company table
+
+	# Get department names (from Department doctype)
+	department_names = frappe.get_all("Department", filters={}, pluck="department_name")
+
+	# Get Meril company names (from Meril Company doctype, or fallback to Company if not present)
+	meril_company_names = []
+	if frappe.db.has_table("Meril Company"):
+		meril_company_names = frappe.get_all("Meril Company", filters={}, pluck="company_name")
+	else:
+		meril_company_names = frappe.get_all("Company", filters={}, pluck="company_name")
+
+	distributor["department_names"] = department_names
+	distributor["divisions"] = meril_company_names
 	return distributor
 
 @frappe.whitelist(allow_guest=False)
 def update_distributor_profile(data):
+
+	
     data = json.loads(data)
     user_id = frappe.session.user
     user_doc = frappe.get_doc("User", user_id)
     roles = [role.role for role in user_doc.roles]
     can_edit_own_profile = "Can Edit Own Profile" in roles
+
+    if "Distributor" not in roles:
+        frappe.local.response["redirect"] = "/lms"
+        return
 
     distributor = frappe.get_doc("Distributor", {"user_id": user_id})
     if "Distributor" in roles and not can_edit_own_profile :
@@ -691,10 +726,9 @@ def update_distributor_profile(data):
         filter_data = [
              "bu__fd_head", "rsm__state_head", "region",
             "state", "city", "account__distributor_code", "distributor_company_name",
-            "distributor_email_address", "distributor_company_address", "distributor_contact_number", "attendee_name", "designation"
+            "distributor_email_address", "distributor_company_address", "distributor_contact_number", "attendee_name", "designation", "distributor_name", "country"
         ]
         filtered_data = {}
-        print("data", data)
         for key, value in data.items():
             if key in filter_data:
                 filtered_data[key] = value
