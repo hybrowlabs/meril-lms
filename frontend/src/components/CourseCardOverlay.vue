@@ -105,13 +105,6 @@
 						{{ course.data.lessons }} {{ __('Lessons') }}
 					</span>
 				</div>
-				<div class="flex items-center text-ink-gray-9">
-					<Users class="h-4 w-4 stroke-1.5" />
-					<span class="ml-2">
-						{{ formatAmount(course.data.enrollments) }}
-						{{ __('Enrolled Students') }}
-					</span>
-				</div>
 				<div
 					v-if="parseInt(course.data.rating) > 0"
 					class="flex items-center text-ink-gray-9"
