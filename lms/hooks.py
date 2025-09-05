@@ -254,6 +254,7 @@ signup_form_template = "lms.plugins.show_custom_signup"
 
 # Login hook for tracking distributor activity
 on_login = "lms.lms.user.on_login"
+auth_hooks =  [ "lms.lms.user.user_after_login" ]
 
 add_to_apps_screen = [
 	{

@@ -228,6 +228,14 @@ def set_country_from_ip(login_manager=None, user=None):
 	frappe.db.set_value("User", user, "country", get_country_code())
 	return
 
+# direct distributor redirect to /edit-distributor-profile page if he have "Can Edit Own Profile" role.
+def user_after_login():
+	user = frappe.session.user
+	
+	roles = frappe.get_roles(user)
+	if "Distributor" in roles and "Can Edit Own Profile" in roles:
+			frappe.local.response["home_page"] = "/edit-distributor-profile"
+
 
 def on_login(login_manager):
 	user_id = login_manager.user
