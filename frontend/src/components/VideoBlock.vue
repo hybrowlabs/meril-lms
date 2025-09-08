@@ -702,9 +702,25 @@ const rewindVideo = () => {
 const onSeeking = () => {
 	// Video is seeking - set flag to prevent conflicts
 	isSeeking.value = true
+	isUserSeeking.value = true
+
+	// Prevent seeking video more than current max watched time
+	if (videoRef.value && typeof maxSeekTime.value === 'number') {
+		if (videoRef.value.currentTime > maxSeekTime.value) {
+			videoRef.value.currentTime = maxSeekTime.value
+			currentTime.value = maxSeekTime.value
+		}
+	}
 }
 
 const onSeeked = () => {
+	// Prevent seeking beyond max watched time
+	if (videoRef.value && typeof maxSeekTime.value === 'number') {
+		if (videoRef.value.currentTime > maxSeekTime.value) {
+			videoRef.value.currentTime = maxSeekTime.value
+			currentTime.value = maxSeekTime.value
+		}
+	}
 	// Video has finished seeking - reset flag after a short delay
 	setTimeout(() => {
 		isSeeking.value = false
@@ -1064,6 +1080,14 @@ const getQuizMarkerStyle = (time) => {
 </script>
 
 <style scoped>
+
+/* remove browser native video controllers */
+video::-webkit-media-controls { display:none !important; }
+video::-webkit-media-controls-enclosure { display:none !important; }
+video::-webkit-media-controls-panel { display:none !important; }
+video::-moz-media-controls { display:none !important; }
+
+
 .video-block {
 	width: 100%;
 	margin: 0 auto;
