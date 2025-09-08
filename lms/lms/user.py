@@ -232,8 +232,11 @@ def set_country_from_ip(login_manager=None, user=None):
 def user_after_login():
 	user = frappe.session.user
 	
+	is_distributor = frappe.db.exists("Distributor", {"user_id": user})
 	roles = frappe.get_roles(user)
-	if "Distributor" in roles and "Can Edit Own Profile" in roles:
+	print(roles)
+	if is_distributor and "Distributor" in roles and "Can Edit Own Profile" in roles:
+			print("condition called")
 			frappe.local.response["home_page"] = "/edit-distributor-profile"
 
 
