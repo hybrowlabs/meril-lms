@@ -126,16 +126,15 @@ async function getUnlockedStatus() {
     showOtpDialog.value = true;
     if (res.status === "locked") {
       sendOtp();
-      console.log("User is locked, showing OTP dialog.");
       return;
     }
     if (res.status === "error") {
       sendOtp();
-      console.error("Error fetching user status:", res.message);
+      // console.error("Error fetching user status:", res.message);
       toast.error(res.message || "Failed to fetch user status. Please refresh the page again.");
     }
   } catch (error) {
-    console.error("Error fetching user status:", error);
+    // console.error("Error fetching user status:", error);
     toast.error("Failed to fetch user status. Please try again after few seconds.");
   }
 }
@@ -151,7 +150,7 @@ async function sendOtp() {
       toast.error(res.message || "Failed to send OTP. Please try again.");
     }
   } catch (error) {
-    console.error("Error sending OTP:", error);
+    // console.error("Error sending OTP:", error);
     toast.error("Failed to send OTP. Please try again later.");
   }finally{
     loading.value = false;
@@ -182,7 +181,7 @@ async function submitOtp() {
       toast.error(res.message || "Failed to verify OTP. Please try again.");
     }
   } catch (error) {
-    console.error("Error verifying OTP:", error);
+    // console.error("Error verifying OTP:", error);
     toast.error("Failed to verify OTP. Please try again later.");
   }finally{
     loading.value = false;
@@ -198,7 +197,7 @@ const should_user_redirect = async() =>{
     }
     getUnlockedStatus();
   }catch(error){
-    console.error("Error checking if user is a distributor:", error);
+    // console.error("Error checking if user is a distributor:", error);
     getUnlockedStatus();
   }
 }

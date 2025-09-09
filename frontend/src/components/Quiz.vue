@@ -1,5 +1,5 @@
 <template>
-	<div v-if="quiz.data">
+	<div v-if="quiz.data && !isDistributor">
 		<div
 			class="bg-surface-blue-2 space-y-1 py-2 px-2 mb-4 rounded-md text-sm text-ink-blue-3 leading-5"
 		>
@@ -327,6 +327,19 @@ let questions = reactive([])
 const possibleAnswer = ref(null)
 const timer = ref(0)
 let timerInterval = null
+const isDistributor = ref(true);
+
+watch(
+	() => user?.data,
+	(newVal) => {
+		if (newVal && Array.isArray(newVal.roles)) {
+			isDistributor.value = newVal.roles.includes('Distributor') && !newVal.roles.includes('Administrator');
+		}
+	},
+	{ immediate: true }
+)
+
+
 
 const props = defineProps({
 	quizName: {

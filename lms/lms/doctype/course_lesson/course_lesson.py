@@ -63,8 +63,12 @@ def save_progress(lesson, course, completed_videos=None):
 			"enrollment": membership
 		}
 	)
-
-	quiz_completed = get_quiz_progress(lesson)
+	# If user has 'Distributor' role but not 'Administrator', treat quiz as completed
+	roles = frappe.get_roles(frappe.session.user)
+	if "Distributor" in roles and "Administrator" not in roles:
+		quiz_completed = True
+	else:
+		quiz_completed = get_quiz_progress(lesson)
 	assignment_completed = get_assignment_progress(lesson)
 
 

@@ -395,20 +395,12 @@ function handleVideoCompleted(e) {
 }
 
 function onVideoCompleted(fileUrl) {
-  console.log("onVideoCompleted called with fileUrl:", fileUrl)
   const before = completedVideos.value.size
   completedVideos.value.add(fileUrl)
-  console.log(
-    "completed video (array):",
-    Array.from(completedVideos.value),
-    [...videoFiles.value],
-    before
-  )
   if (
     completedVideos.value.size === videoFiles.value.length &&
     before !== completedVideos.value.size
   ) {
-    console.log("passed condition")
     if (markProgressTimeout) clearTimeout(markProgressTimeout)
     markProgressTimeout = setTimeout(() => {
       markProgress()
@@ -552,12 +544,9 @@ const renderEditor = (holder, content) => {
 
 // --- Override markProgress ---
 const markProgress = () => {
-  console.log("correct lessonname begin send", lesson.data?.name)
-  console.log("markProgress called")
   if (user.data && lesson.data && !lesson.data.progress) {
     // If there are videos, only mark complete if all are done
     if (videoFiles.value.length > 0) {
-		console.log("markProgress: completedVideosArray:", Array.from(completedVideos.value), "videoFiles:", [...videoFiles.value])
       if (completedVideos.value.size < videoFiles.value.length) return
 	  console.log("progress ", completedVideos.value)
       progress.submit({ completed_videos: JSON.stringify(Array.from(completedVideos.value)) })
@@ -571,7 +560,6 @@ const markProgress = () => {
 const progress = createResource({
 	url: 'lms.lms.doctype.course_lesson.course_lesson.save_progress',
 	makeParams(values) {
-		console.log("lesson data in progress", lesson.data, "makeParams values", values)
 		return {
 			...(values || {}), // Ensure completed_videos and any other params are included
 			lesson: lesson.data.name,
@@ -582,7 +570,6 @@ const progress = createResource({
 		console.log("progress onSuccess, data:", data)
 		lessonProgress.value = data
 		if(parseInt(data)==100){
-			console.log("setCourse completion called")
 			setCourseCompletion({
 				courseName: props.courseName,
 				showDocument: true
@@ -636,7 +623,6 @@ watch(
 watch(
   () => lesson.data,
   (data) => {
-    console.log('Lesson loaded (watcher):', data)
     if (data) {
       setupLesson(data)
     }
