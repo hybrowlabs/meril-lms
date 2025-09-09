@@ -18,7 +18,7 @@
 		<div
 			v-if="!showQuiz"
 			ref="videoContainer"
-			class="video-block relative group"
+			class="video-block relative group flex"
 		>
 			<video
 				@timeupdate="updateTime"
@@ -32,7 +32,7 @@
 				@error="onVideoError"
 				@waiting="onVideoWaiting"
 				oncontextmenu="return false"
-				class="rounded-md border border-gray-100 cursor-pointer"
+				class="rounded-md border border-gray-100 cursor-pointer my-0 border-none"
 				ref="videoRef"
 				preload="metadata"
 			>
