@@ -90,7 +90,6 @@ import {
 	createListResource,
 	FormControl,
 	Select,
-	TabButtons,
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
@@ -98,6 +97,7 @@ import { Plus } from 'lucide-vue-next'
 import { sessionStore } from '@/stores/session'
 import BatchCard from '@/components/BatchCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import TabButtons from '@/components/TabButtons.vue'
 
 const user = inject('$user')
 const dayjs = inject('$dayjs')

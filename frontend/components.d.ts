@@ -95,6 +95,7 @@ declare module 'vue' {
     SidebarLink: typeof import('./src/components/SidebarLink.vue')['default']
     StudentHeatmap: typeof import('./src/components/StudentHeatmap.vue')['default']
     StudentModal: typeof import('./src/components/Modals/StudentModal.vue')['default']
+    TabButtons: typeof import('./src/components/TabButtons.vue')['default']
     Tags: typeof import('./src/components/Tags.vue')['default']
     UnsplashImageBrowser: typeof import('./src/components/UnsplashImageBrowser.vue')['default']
     UpcomingEvaluations: typeof import('./src/components/UpcomingEvaluations.vue')['default']

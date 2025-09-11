@@ -88,7 +88,6 @@ import {
 	createListResource,
 	FormControl,
 	Select,
-	TabButtons,
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
@@ -97,6 +96,7 @@ import { sessionStore } from '@/stores/session'
 import { canCreateCourse } from '@/utils'
 import CourseCard from '@/components/CourseCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import TabButtons from '@/components/TabButtons.vue'
 import router from '../router'
 
 const user = inject('$user')
