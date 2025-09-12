@@ -408,33 +408,6 @@ onMounted(async () => {
   console.log(fontStyles.value)
 });
 
-const handleDownload = async() => {
-  if(name.value === '' || name.value.trim().length < 3 || date.value === '') {
-    toast.error("Please enter name (minimum 3 characters) and date")
-    return
-  }
-  try{
-    // Pass signature_type in the API call
-    const res = await call("lms.overrides.documents.generate_dynamic_docx", {
-        name: name.value,
-        font_path: fontStyles.value.find(f => f.value === signatureType.value)?.font_file
-      });
-    console.log("res", res)
-    if(res?.success && res.file_url){
-      const a = document.createElement('a');
-      a.href = res.file_url;
-      a.download = res.file_name || `${name.value}_Compliance_Policy_Adoption_Form.docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else {
-      toast.error(res?.error || "Error generating document")
-    }
-  }catch(e) {
-    console.error("Error in handleDownload", e)
-    toast.error("Error in downloading document")
-  }
-}
 
 const closeDialog = ()=>{
   resetCourseCompletion();
@@ -512,7 +485,6 @@ try {
 }
 
 const uploadDocument = async () => {
-  console.log("uploadDocument")
   loadingUploadForm.value = true
 
   if(!name.value || name.value.trim().length < 3){
@@ -588,90 +560,98 @@ const fileToBase64 = (file) => {
 }
 
 const directDownload = async(url, file_name)=>{
-  console.log("directDownload", url, file_name)
    const link = document.createElement('a');
       link.href = url;
-      link.download = file_name + '.pdf';
+      link.download = file_name;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 }
 
-// Helper function to download a file from an API endpoint and save it as a file
-const downloadFileFromApi = async (apiUrl, fileName) => {
-  console.log("apis called")
-  try {
-    let csrfToken = null;
-   if(window?.csrf_token)
-      csrfToken = window.csrf_token;
-      const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Accept': 'application/pdf',
-        'X-Frappe-CSRF-Token': csrfToken
-      }
+
+const handleDownload = async() => {
+  if(name.value === '' || name.value.trim().length < 3 || date.value === '') {
+    toast.error("Please enter name (minimum 3 characters) and date")
+    return
+  }
+  try{
+    // Pass signature_type in the API call
+    const res = await call("lms.overrides.documents.generate_dynamic_docx", {
+      name: name.value,
+      font_path: fontStyles.value.find(f => f.value === signatureType.value)?.font_file
     });
-    console.log('response', response)
-    if (!response.ok) {
-      consol.log("falied")
-      toast.error("Failed to download the document.");
-      return;
+    console.log("res", res)
+    if (res?.success && res.file_content) {
+      toast.success("Downloading Started...");
+
+      // Check if running inside React Native WebView
+      const isReactNativeWebView = !!window.ReactNativeWebView;
+
+      if (isReactNativeWebView) {                                                                                                                                                                                                                                                                                                                                                              
+        // Send file data to React Native via postMessage
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: "DOWNLOAD_FILE",
+            base64: res.file_content,
+            fileName: res.file_name || `${name.value}_Compliance_Policy_Adoption_Form.docx`,
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          })
+        );
+      } else {
+        const url = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + res.file_content
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res.file_name || `${name.value}_Compliance_Policy_Adoption_Form.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+    } else {
+      toast.error(res?.error || "Error generating document")
     }
-    // Try to parse as JSON first (for error message)
-    let isJson = false;
-    let data;
-    try {
-      data = await response.clone().json();
-      isJson = true;
-    } catch (e) {
-      // Not JSON, fallback to blob
-    }
-    if (isJson && data && data.message) {
-      toast.error(data.message || "You are not allowed to download this file.");
-      return;
-    }
-    // Otherwise, treat as PDF blob
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    directDownload(url, fileName);
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    toast.error("Error downloading the document.");
+  }catch(e) {
+    console.error("Error in handleDownload", e)
+    toast.error("Error in downloading document")
   }
 }
 
 const downloadDocument = async (document_name) => {
-  try {
-    if (document_name === "Meril Distributor Compliance Policy") {
-      await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_nonendo_file', document_name);
-      return;
-    }
-    if (document_name === "Meril Distributor Compliance Policy for Endo") {
-      await downloadFileFromApi('/api/method/lms.overrides.documents.downlaod_endo_file', document_name);
-      return;
-    }
 
-    if (course_documents_record_id.value) {
-        const baseUrl = window.location.origin;
-        const params = new URLSearchParams({
-            doctype: doctype.value,
-            name: course_documents_record_id.value,
-            format: document_name,
-            no_letterhead: '1',
-            letterhead: 'No Letterhead',
-            settings: '{}',
-            _lang: 'en'
-          });
-        const url = `${baseUrl}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
-        directDownload(url, document_name);
-    }else{
-      toast.error("Course document record id not found")
-      console.error("Course document record id not found")
-    }
+  try {
+      const baseUrl = window.location.origin;
+      let url = null;
+
+      if(!course_documents_record_id?.value){
+        toast.error("Course document record id not found")
+        console.error("Course document record id not found")
+        return;
+      }
+
+      const params = new URLSearchParams({
+          doctype: doctype.value,
+          name: course_documents_record_id.value,
+          format: document_name,
+          no_letterhead: '1',
+          letterhead: 'No Letterhead',
+          settings: '{}',
+          _lang: 'en',
+          custom_filename: document_name, // set custom filename
+          custom_type: 'download'         // set custom type
+      });
+
+      url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
+        
+      if (document_name === "Meril Distributor Compliance Policy") 
+          url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_nonendo_file`;
+      
+      if (document_name === "Meril Distributor Compliance Policy for Endo") 
+          url =  `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`;
+
+      directDownload(url, document_name);
   } catch (e) {
-    toast.error('Failed to download document');
-    console.error("Error in downloadDocument", e);
+      toast.error('Failed to download document');
+      console.error("Error in downloadDocument", e);
   }
 }
 

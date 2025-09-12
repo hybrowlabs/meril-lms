@@ -704,7 +704,7 @@ def get_distributor_profile(user_id=None):
 	# Get Meril company names (from Meril Company doctype, or fallback to Company if not present)
 	meril_company_names = []
 	if frappe.db.has_table("Meril Company"):
-		meril_company_names = frappe.get_all("Meril Company", filters={}, pluck="company_name")
+		meril_company_names = frappe.get_all("Department", filters={}, pluck="name")
 	else:
 		meril_company_names = frappe.get_all("Company", filters={}, pluck="company_name")
 

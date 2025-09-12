@@ -190,6 +190,13 @@ def save_user_course_document_with_file(
     if not filename or not base64_file_data:
         return {"success": False, "message": "File data is required"}
 
+    # Check that filename is only .doc, .docx, or .pdf (case-insensitive)
+    allowed_extensions = [".doc", ".docx", ".pdf"]
+    if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
+        return {
+            "success": False,
+            "message": "Only MS Word (.doc, .docx) or PDF (.pdf) files are allowed."
+        }
     # Debug: Log the first few characters of base64 data
     print(f"Base64 data length: {len(base64_file_data)}")
     print(f"Base64 data preview: {base64_file_data[:50]}...")
@@ -471,6 +478,7 @@ def generate_dynamic_docx(name=None, font_path = None):
         doc.add_paragraph(f"Email Id : {email}")
         doc.add_paragraph(f"Contact number : {contact_number}")
         p = doc.add_paragraph("Sign and Seal :   ")
+        
         run = p.add_run()
 
         signature_img_bytes = get_signature_image(
@@ -483,24 +491,20 @@ def generate_dynamic_docx(name=None, font_path = None):
     
         run.add_picture(signature_img_bytes, height=Pt(15)) 
 
-        # Save to in-memory buffer
+        # Save the document to a buffer
         buffer = io.BytesIO()
         doc.save(buffer)
         buffer.seek(0)
+        file_content = buffer.getvalue()
 
-        # Save file to Frappe File
-        file_doc = save_file(
-            fname=f"Meril_Distributor_Compliance_Policy_Adoption_Form.docx",
-            content=buffer.getvalue(),
-            dt=None,
-            dn=None,
-            is_private=1
-        )
+        # Encode the file content in base64
+ 
+        file_content_base64 = base64.b64encode(file_content).decode('utf-8')
 
         return {
             "success": True,
-            "file_url": file_doc.file_url,
-            "file_name": file_doc.file_name
+            "file_content": file_content_base64,
+            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.docx"
         }
     except Exception as e:
         frappe.log_error(f"Error generating dynamic docx: {str(e)}")
@@ -680,8 +684,8 @@ def downlaod_nonendo_file():
             with open(file_path, "rb") as f:
                 file_content = f.read()
 
-            # Set response headers for file download
-            frappe.response["type"] = "binary"
+            # Set response headers for PDF file download
+            frappe.response["type"] = "download"
             frappe.response["filename"] = file_doc.file_name
             frappe.response["filecontent"] = file_content
             return
@@ -727,7 +731,7 @@ def downlaod_endo_file():
                 file_content = f.read()
 
             # Set response headers for file download
-            frappe.response["type"] = "binary"
+            frappe.response["type"] = "download"
             frappe.response["filename"] = file_doc.file_name
             frappe.response["filecontent"] = file_content
             return
