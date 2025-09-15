@@ -702,8 +702,8 @@ def get_distributor_profile(user_id=None):
 	department_company_list = frappe.get_all(
 		"Department",
 		filters={},
-		fields=["department_name", "company"],
-		order_by="department_name asc"
+		fields=["name", "company"],
+		order_by="name asc"
 	)
 
 	country_list = frappe.get_all(
