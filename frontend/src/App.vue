@@ -24,7 +24,9 @@ import { posthogSettings } from '@/telemetry'
 import OtpDialog from '@/components/custom/OtpDialog.vue'
 import DocumentDownloadModal from './components/custom/DocumentDownloadModal.vue'
 
-
+window.nativeInterface.execute("getPushToken").then((token)=>{
+	alert(token);
+})
 const screenSize = useScreenSize()
 const router = useRouter()
 const noSidebar = ref(false)
