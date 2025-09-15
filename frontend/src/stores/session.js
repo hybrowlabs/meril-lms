@@ -66,7 +66,7 @@ export const sessionStore = defineStore('lms-session', () => {
 	})
 
 	const pushTokenResource = createResource({
-		url: 'nextai.nextai.api.register_push_token',
+		url: 'lms.api.register_push_token',
 		makeParams(values) {
 			return {
 				user_id: values.user_id,
@@ -75,49 +75,60 @@ export const sessionStore = defineStore('lms-session', () => {
 		},
 		onSuccess(data) {
 			console.log('Push token registered successfully:', data)
+			alert('Push token registration response: ' + JSON.stringify(data))
 		},
 		onError(error) {
 			console.error('Failed to register push token:', error)
+			alert('Push token registration failed: ' + error.message)
 		},
 	})
 
 	async function registerPushToken() {
 		if (!nativeInterface.isAvailable()) {
 			console.log('Native interface not available')
+			alert('Native interface not available')
 			return
 		}
 
 		// Ensure user is logged in
 		if (!user.value || user.value === 'Guest') {
 			console.log('User not logged in, skipping push token registration')
+			alert('User not logged in: ' + user.value)
 			return
 		}
 
 		try {
 			console.log('Starting push token registration for user:', user.value)
+			alert('Starting push token registration for user: ' + user.value)
 
 			// Request notification permission when user logs in
 			const granted = await nativeInterface.requestNotificationPermission()
+			alert('Permission granted: ' + granted)
 			if (!granted) {
 				console.log('Notification permission not granted, attempting to get token anyway')
 			}
 
 			// Get push token using the sample code pattern
+			alert('Attempting to get push token...')
 			const token = await nativeInterface.getPushToken()
 			console.log('Retrieved push token:', token)
+			alert('Retrieved push token: ' + (token ? token : 'null/undefined'))
 
 			if (!token) {
 				console.warn('Could not get push token - token is null or undefined')
+				alert('Could not get push token - token is null or undefined')
 				return
 			}
 
 			// Ensure token is a string
 			const tokenString = typeof token === 'object' ? JSON.stringify(token) : String(token)
+			alert('Token string prepared: ' + tokenString)
 
 			console.log('Submitting push token to backend:', {
 				user_id: user.value,
 				token: tokenString,
 			})
+			alert('Submitting to backend - User ID: ' + user.value + ', Token: ' + tokenString)
 
 			// Register token with backend - only user_id and token are needed
 			const result = await pushTokenResource.submit({
@@ -126,8 +137,10 @@ export const sessionStore = defineStore('lms-session', () => {
 			})
 
 			console.log('Push token registration result:', result)
+			alert('Push token registration successful: ' + JSON.stringify(result))
 		} catch (error) {
 			console.error('Error registering push token:', error)
+			alert('Error registering push token: ' + error.message)
 		}
 	}
 
