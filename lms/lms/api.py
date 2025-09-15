@@ -2334,3 +2334,136 @@ def recalculate_course_progress_for_all():
 			"success": False,
 			"message": f"Progress recalculation failed: {str(e)}"
 		}
+
+
+@frappe.whitelist()
+def register_push_token(user_id, token, device_id=None):
+	"""Register or update mobile push token for a user"""
+	try:
+		if not user_id or not token:
+			frappe.throw(_("User ID and token are required"))
+
+		# Check if the user is authenticated
+		if frappe.session.user == "Guest":
+			frappe.throw(_("Authentication required"))
+
+		# Verify the user_id matches the logged-in user
+		if user_id != frappe.session.user:
+			frappe.throw(_("You can only register tokens for your own account"))
+
+		# Check if a token already exists for this user and device
+		existing_token = None
+		if device_id:
+			existing_token = frappe.db.get_value(
+				"Mobile Push Token",
+				{
+					"user_id": user_id,
+					"device_id": device_id
+				},
+				"name"
+			)
+
+		if existing_token:
+			# Update existing token
+			doc = frappe.get_doc("Mobile Push Token", existing_token)
+			if doc.token != token:
+				doc.token = token
+				doc.save(ignore_permissions=True)
+				frappe.db.commit()
+				return {
+					"success": True,
+					"message": _("Push token updated successfully"),
+					"action": "updated"
+				}
+			else:
+				return {
+					"success": True,
+					"message": _("Token already registered"),
+					"action": "exists"
+				}
+		else:
+			# Check if this token is already registered for another device/user
+			duplicate_token = frappe.db.get_value(
+				"Mobile Push Token",
+				{"token": token},
+				["name", "user_id", "device_id"],
+				as_dict=True
+			)
+
+			if duplicate_token:
+				# Token exists for another user/device, update it
+				if duplicate_token.user_id != user_id or duplicate_token.device_id != device_id:
+					doc = frappe.get_doc("Mobile Push Token", duplicate_token.name)
+					doc.user_id = user_id
+					doc.device_id = device_id
+					doc.save(ignore_permissions=True)
+					frappe.db.commit()
+					return {
+						"success": True,
+						"message": _("Push token reassigned successfully"),
+						"action": "reassigned"
+					}
+				else:
+					return {
+						"success": True,
+						"message": _("Token already registered"),
+						"action": "exists"
+					}
+
+			# Create new token entry
+			doc = frappe.new_doc("Mobile Push Token")
+			doc.user_id = user_id
+			doc.token = token
+			doc.device_id = device_id
+			doc.insert(ignore_permissions=True)
+			frappe.db.commit()
+
+			return {
+				"success": True,
+				"message": _("Push token registered successfully"),
+				"action": "created",
+				"token_id": doc.name
+			}
+
+	except Exception as e:
+		frappe.log_error(f"Error registering push token: {str(e)}", "Push Token Registration Error")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+
+@frappe.whitelist()
+def unregister_push_token(device_id=None, token=None):
+	"""Unregister a push token"""
+	try:
+		if not device_id and not token:
+			frappe.throw(_("Either device_id or token is required"))
+
+		filters = {"user_id": frappe.session.user}
+		if device_id:
+			filters["device_id"] = device_id
+		if token:
+			filters["token"] = token
+
+		token_doc = frappe.db.get_value("Mobile Push Token", filters, "name")
+
+		if token_doc:
+			frappe.delete_doc("Mobile Push Token", token_doc, ignore_permissions=True)
+			frappe.db.commit()
+			return {
+				"success": True,
+				"message": _("Push token unregistered successfully")
+			}
+		else:
+			return {
+				"success": False,
+				"message": _("Token not found")
+			}
+
+	except Exception as e:
+		frappe.log_error(f"Error unregistering push token: {str(e)}", "Push Token Unregistration Error")
+		return {
+			"success": False,
+			"message": str(e)
+		}

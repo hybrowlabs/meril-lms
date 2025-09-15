@@ -3,6 +3,7 @@ import { createResource } from 'frappe-ui'
 import { usersStore } from './user'
 import router from '@/router'
 import { computed, reactive, ref } from 'vue'
+import { nativeInterface } from '@/utils/nativeInterface'
 
 export const sessionStore = defineStore('lms-session', () => {
 	let { userResource } = usersStore()
@@ -25,10 +26,14 @@ export const sessionStore = defineStore('lms-session', () => {
 		onError() {
 			throw new Error('Invalid email or password')
 		},
-		onSuccess() {
+		async onSuccess() {
 			userResource.reload()
 			user.value = sessionUser()
 			login.reset()
+
+			// Register push token after successful login
+			await registerPushToken()
+
 			router.replace({ path: '/' })
 		},
 	})
@@ -60,6 +65,58 @@ export const sessionStore = defineStore('lms-session', () => {
 		auto: false,
 	})
 
+	const pushTokenResource = createResource({
+		url: 'nextai.nextai.api.register_push_token',
+		makeParams(values) {
+			return {
+				user_id: values.user_id,
+				token: values.token,
+			}
+		},
+		onSuccess(data) {
+			console.log('Push token registered successfully:', data)
+		},
+		onError(error) {
+			console.error('Failed to register push token:', error)
+		},
+	})
+
+	async function registerPushToken() {
+		if (!nativeInterface.isAvailable()) {
+			console.log('Native interface not available')
+			return
+		}
+
+		try {
+			// Request notification permission when user logs in
+			const granted = await nativeInterface.requestNotificationPermission()
+			if (!granted) {
+				console.log('Notification permission not granted, attempting to get token anyway')
+			}
+
+			// Get push token using the sample code pattern
+			const token = await nativeInterface.getPushToken()
+
+			if (!token) {
+				console.warn('Could not get push token')
+				return
+			}
+
+			// Register token with backend - only user_id and token are needed
+			await pushTokenResource.submit({
+				user_id: user.value,
+				token: token,
+			})
+		} catch (error) {
+			console.error('Error registering push token:', error)
+		}
+	}
+
+	// Check and register push token on page load if user is logged in
+	if (isLoggedIn.value) {
+		registerPushToken()
+	}
+
 	return {
 		user,
 		isLoggedIn,
@@ -68,5 +125,7 @@ export const sessionStore = defineStore('lms-session', () => {
 		brand,
 		branding,
 		sidebarSettings,
+		registerPushToken,
+		pushTokenResource,
 	}
 })
