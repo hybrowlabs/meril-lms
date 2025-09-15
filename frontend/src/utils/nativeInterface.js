@@ -24,8 +24,28 @@ export const nativeInterface = {
 		}
 		try {
 			// Using the exact API as provided in the sample code
-			const token = await window.nativeInterface.execute('getPushToken')
-			console.log('Token', token)
+			const response = await window.nativeInterface.execute('getPushToken')
+
+			// Handle the response - it might be a string or already parsed
+			let token = response
+
+			// If response is an object with a token property
+			if (typeof response === 'object' && response !== null && response.token) {
+				token = response.token
+			}
+			// If response is a JSON string, try to parse it
+			else if (typeof response === 'string' && response.startsWith('{')) {
+				try {
+					const parsed = JSON.parse(response)
+					token = parsed.token || parsed
+				} catch (parseError) {
+					// If parsing fails, use the response as is
+					console.log('Could not parse token response, using as string:', response)
+					token = response
+				}
+			}
+
+			console.log('Token received:', token)
 			return token
 		} catch (error) {
 			console.error('Error getting push token:', error)

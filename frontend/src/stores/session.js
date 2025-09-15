@@ -87,7 +87,15 @@ export const sessionStore = defineStore('lms-session', () => {
 			return
 		}
 
+		// Ensure user is logged in
+		if (!user.value || user.value === 'Guest') {
+			console.log('User not logged in, skipping push token registration')
+			return
+		}
+
 		try {
+			console.log('Starting push token registration for user:', user.value)
+
 			// Request notification permission when user logs in
 			const granted = await nativeInterface.requestNotificationPermission()
 			if (!granted) {
@@ -96,17 +104,28 @@ export const sessionStore = defineStore('lms-session', () => {
 
 			// Get push token using the sample code pattern
 			const token = await nativeInterface.getPushToken()
+			console.log('Retrieved push token:', token)
 
 			if (!token) {
-				console.warn('Could not get push token')
+				console.warn('Could not get push token - token is null or undefined')
 				return
 			}
 
-			// Register token with backend - only user_id and token are needed
-			await pushTokenResource.submit({
+			// Ensure token is a string
+			const tokenString = typeof token === 'object' ? JSON.stringify(token) : String(token)
+
+			console.log('Submitting push token to backend:', {
 				user_id: user.value,
-				token: token,
+				token: tokenString,
 			})
+
+			// Register token with backend - only user_id and token are needed
+			const result = await pushTokenResource.submit({
+				user_id: user.value,
+				token: tokenString,
+			})
+
+			console.log('Push token registration result:', result)
 		} catch (error) {
 			console.error('Error registering push token:', error)
 		}
