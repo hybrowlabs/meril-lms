@@ -8,7 +8,7 @@
     <form id="edit-distributor-profile-form">  
         <div class="row">
             <div class="form-group col-12">
-                <label>Meril Company Table</label>
+                <label>Meril Company Table <span class="text-danger">*</span></label>
                 <div id="meril-company-table-container">
                     <table class="table table-bordered" id="meril-company-table">
                         <thead>
@@ -22,6 +22,7 @@
                         </tbody>
                     </table>
                     <button type="button" class="btn btn-sm btn-secondary" onclick="addMerilCompanyRow()">Add Row</button>
+                    <div id="meril-company-table-error" class="text-danger mt-2" style="display:none;">At least one record is required for Meril Company Table.</div>
                 </div>
             </div>
             <div class="form-group col-md-6">
@@ -79,6 +80,13 @@
                 <label for="input-designation">Designation <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="input-designation" name="designation" value="{{ frappe.session.user_doc.designation or '' }}" required>
             </div>
+            <!-- Country Name (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-country">Country <span class="text-danger">*</span></label>
+                <select class="form-control" id="input-country" name="country" required>
+                    <option value="">Select Country</option>
+                </select>
+            </div>
             <div class="form-group col-12">
                 <button type="submit" class="btn btn-primary btn-block w-100 mt-3 mx-auto">Save</button>
             </div>
@@ -87,13 +95,22 @@
     </div>
 
     <script>
-        // Store options for division and company name
-        let divisionOptions = [];
-        let companyNameOptions = [];
+        // Store department-company list for division/company mapping
+        let departmentCompanyList = [];
+        // Store country list from backend
+        let countryList = [];
 
         frappe.ready(function(){
             get_distributor_profile();
         });
+
+        function populateCountryOptions(selectedCountry = "") {
+            let html = '<option value="">Select Country</option>';
+            countryList.forEach(function(country) {
+                html += `<option value="${country}"${selectedCountry && country === selectedCountry ? ' selected' : ''}>${country}</option>`;
+            });
+            $('#input-country').html(html);
+        }
 
         const get_distributor_profile = async () => {
             try{
@@ -106,9 +123,10 @@
                 });
                 $("#distributor-profile-info").removeClass("d-none");
                 if(res?.message) {
-                    // Save options for select fields
-                    divisionOptions = Array.isArray(res.message.department_names) ? res.message.department_names : [];
-                    companyNameOptions = Array.isArray(res.message.divisions) ? res.message.divisions : [];
+                    // Use department_company_list for division/company mapping
+                    departmentCompanyList = Array.isArray(res.message.department_company_list) ? res.message.department_company_list : [];
+                    // Use country_list from backend for country select
+                    countryList = Array.isArray(res.message.country_list) ? res.message.country_list : [];
                     fill_distributor_profile(res.message);
                 }
                 else
@@ -143,7 +161,7 @@
                     window.location.href = res.redirect;
                 }
             } catch (error) {
-                frappe.throw("Error updatring User Prrofile", error);
+                frappe.throw("Error updating User Profile", error);
                 console.log("error ", error);
             }
         }
@@ -162,6 +180,7 @@
             data.distributor_contact_number = $('#input-distributor_contact').val();
             data.attendee_name = $('#input-attendee_name').val();
             data.designation = $('#input-designation').val();
+            data.country = $('#input-country').val();
 
             // Get child table data
             data.meril_company_table = getMerilCompanyTableData();
@@ -173,7 +192,7 @@
             const tableData = [];
             $('#meril-company-table-body tr').each(function() {
                 const division = $(this).find('.division-input').val();
-                const merilCompanyName = $(this).find('.meril-company-input').val();
+                const merilCompanyName = $(this).find('.meril-company-name').val();
                 if (division || merilCompanyName) {
                     tableData.push({
                         division: division,
@@ -184,30 +203,46 @@
             return tableData;
         }
 
-        // Helper to create select options HTML
-        function getOptionsHtml(options, selectedValue) {
+        // Helper to create select options HTML for divisions
+        function getDivisionOptionsHtml(selectedValue) {
             let html = '<option value="">Select</option>';
-            options.forEach(function(opt) {
-                let value = typeof opt === "object" && opt.name ? opt.name : opt;
-                let label = typeof opt === "object" && opt.department_name ? opt.department_name : value;
-                html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${label}</option>`;
+            departmentCompanyList.forEach(function(opt) {
+                let value = opt.department_name || '';
+                html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${value}</option>`;
             });
             return html;
         }
 
-        // Add row with select for division and company name
+        // Get company name for a given division
+        function getCompanyNameForDivision(division) {
+            let found = departmentCompanyList.find(function(opt) {
+                return opt.department_name === division;
+            });
+            return found && found.company ? found.company : '';
+        }
+
+        // Add row with select for division and readonly input for company name
         function addMerilCompanyRow(division = '', meril_company_name = '') {
             const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
-            const divisionSelect = `<select class="form-control division-input">${getOptionsHtml(divisionOptions, division)}</select>`;
-            const companySelect = `<select class="form-control meril-company-input">${getOptionsHtml(companyNameOptions, meril_company_name)}</select>`;
+            const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')">${getDivisionOptionsHtml(division)}</select>`;
+            // If division is set, get company name from mapping, else use passed value
+            let companyName = division ? getCompanyNameForDivision(division) : (meril_company_name || '');
+            const companyInput = `<input type="text" class="form-control meril-company-name" value="${companyName || ''}" readonly tabindex="-1">`;
             const newRow = `
                 <tr id="${rowId}">
                     <td>${divisionSelect}</td>
-                    <td>${companySelect}</td>
+                    <td>${companyInput}</td>
                     <td><button type="button" class="btn btn-sm btn-danger" onclick="removeMerilCompanyRow('${rowId}')">Remove</button></td>
                 </tr>
             `;
             $('#meril-company-table-body').append(newRow);
+        }
+
+        // When division changes, update company name in the same row
+        window.onDivisionChange = function(selectElem, rowId) {
+            const division = $(selectElem).val();
+            const companyName = getCompanyNameForDivision(division);
+            $('#' + rowId).find('.meril-company-name').val(companyName);
         }
 
         function removeMerilCompanyRow(rowId) {
@@ -227,6 +262,8 @@
             $('#input-distributor_contact').val(data.distributor_contact_number || '');
             $('#input-attendee_name').val(data.attendee_name || '');
             $('#input-designation').val(data.designation || '');
+            // Set country select
+            populateCountryOptions(data.country || '');
 
             // Fill child table data
             $('#meril-company-table-body').empty();
@@ -246,7 +283,8 @@
                 { selector: '#input-distributor_address', label: 'Distributor Address' },
                 { selector: '#input-distributor_contact', label: 'Distributor Contact' },
                 { selector: '#input-attendee_name', label: 'Attendee Name' },
-                { selector: '#input-designation', label: 'Designation' }
+                { selector: '#input-designation', label: 'Designation' },
+                { selector: '#input-country', label: 'Country' }
             ];
 
             let missingFields = [];
@@ -259,10 +297,25 @@
                 }
             });
 
-            if (missingFields.length > 0) {
+            // Check for at least one record in Meril Company Table
+            const merilCompanyTableData = getMerilCompanyTableData();
+            if (merilCompanyTableData.length === 0) {
+                $('#meril-company-table-error').show();
+            } else {
+                $('#meril-company-table-error').hide();
+            }
+
+            if (missingFields.length > 0 || merilCompanyTableData.length === 0) {
+                let message = '';
+                if (missingFields.length > 0) {
+                    message += __('Please fill the following mandatory fields:') + '<br><ul><li>' + missingFields.join('</li><li>') + '</li></ul>';
+                }
+                if (merilCompanyTableData.length === 0) {
+                    message += '<div class="mt-2">' + __('At least one record is required for Meril Company Table.') + '</div>';
+                }
                 frappe.msgprint({
                     title: __('Missing Required Fields'),
-                    message: __('Please fill the following mandatory fields:') + '<br><ul><li>' + missingFields.join('</li><li>') + '</li></ul>',
+                    message: message,
                     indicator: 'red'
                 });
                 return false;

@@ -698,18 +698,23 @@ def get_distributor_profile(user_id=None):
 
 	# Also set department name and company names for options for Meril company table
 
-	# Get department names (from Department doctype)
-	department_names = frappe.get_all("Department", filters={}, pluck="department_name")
+	# Get array of dict of department name and its related company name
+	department_company_list = frappe.get_all(
+		"Department",
+		filters={},
+		fields=["department_name", "company"],
+		order_by="department_name asc"
+	)
 
-	# Get Meril company names (from Meril Company doctype, or fallback to Company if not present)
-	meril_company_names = []
-	if frappe.db.has_table("Meril Company"):
-		meril_company_names = frappe.get_all("Department", filters={}, pluck="name")
-	else:
-		meril_company_names = frappe.get_all("Company", filters={}, pluck="company_name")
+	country_list = frappe.get_all(
+		"Country",
+		filters={},
+		fields=["country_name"],
+		order_by="country_name asc"
+	)
+	distributor["country_list"] = [c["country_name"] for c in country_list]
 
-	distributor["department_names"] = department_names
-	distributor["divisions"] = meril_company_names
+	distributor["department_company_list"] = department_company_list
 	return distributor
 
 @frappe.whitelist(allow_guest=False)

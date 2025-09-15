@@ -65,6 +65,7 @@ def get_employee_dashboard_info():
             e.company                          AS `company`,
             e.company_email                    AS `company_email`,
             e.country                          AS `country`,
+            e.custom_employee_id               AS `custom_employee_id`,
             ed.name                            AS `docuemnts_id`,
             le.course                          AS `course_name`,
         IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`,
