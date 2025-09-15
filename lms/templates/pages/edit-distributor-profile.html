@@ -207,7 +207,7 @@
         function getDivisionOptionsHtml(selectedValue) {
             let html = '<option value="">Select</option>';
             departmentCompanyList.forEach(function(opt) {
-                let value = opt.department_name || '';
+                let value = opt.name || '';
                 html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${value}</option>`;
             });
             return html;
@@ -216,7 +216,7 @@
         // Get company name for a given division
         function getCompanyNameForDivision(division) {
             let found = departmentCompanyList.find(function(opt) {
-                return opt.department_name === division;
+                return opt.name === division;
             });
             return found && found.company ? found.company : '';
         }
