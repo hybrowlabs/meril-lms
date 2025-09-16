@@ -2341,7 +2341,10 @@ def register_push_token(user_id, token, device_id=None):
 	"""Register or update mobile push token for a user"""
 	try:
 		# Log the incoming request for debugging
-		frappe.log_error(f"register_push_token called with user_id: {user_id}, token: {token[:50] if token else 'None'}..., device_id: {device_id}", "Push Token Debug")
+		frappe.log_error(
+			f"register_push_token called with user_id: {user_id}, token: {token[:50] if token else 'None'}...",
+			"Push Token Debug",
+		)
 		frappe.log_error(f"Session user: {frappe.session.user}", "Push Token Debug - Session")
 
 		if not user_id or not token:
@@ -2358,17 +2361,12 @@ def register_push_token(user_id, token, device_id=None):
 			frappe.log_error(f"User mismatch - user_id: {user_id}, session: {frappe.session.user}", "Push Token Error")
 			frappe.throw(_("You can only register tokens for your own account"))
 
-		# Check if a token already exists for this user and device
-		existing_token = None
-		if device_id:
-			existing_token = frappe.db.get_value(
-				"Mobile Push Token",
-				{
-					"user_id": user_id,
-					"device_id": device_id
-				},
-				"name"
-			)
+		# Check if a token already exists for this user
+		existing_token = frappe.db.get_value(
+			"Mobile Push Token",
+			{"user_id": user_id},
+			"name",
+		)
 
 		frappe.log_error(f"Existing token check - Found: {existing_token}", "Push Token Debug")
 
@@ -2396,32 +2394,32 @@ def register_push_token(user_id, token, device_id=None):
 					"action": "exists"
 				}
 		else:
-			# Check if this token is already registered for another device/user
+			# Check if this token is already registered for another user
 			duplicate_token = frappe.db.get_value(
 				"Mobile Push Token",
 				{"token": token},
-				["name", "user_id", "device_id"],
-				as_dict=True
+				["name", "user_id"],
+				as_dict=True,
 			)
 
 			if duplicate_token:
-				# Token exists for another user/device, update it
-				if duplicate_token.user_id != user_id or duplicate_token.device_id != device_id:
+				# Token exists for another user, update it
+				if duplicate_token.user_id != user_id:
 					doc = frappe.get_doc("Mobile Push Token", duplicate_token.name)
 					doc.user_id = user_id
-					doc.device_id = device_id
+					doc.token = token
 					doc.save(ignore_permissions=True)
 					frappe.db.commit()
 					return {
 						"success": True,
 						"message": _("Push token reassigned successfully"),
-						"action": "reassigned"
+						"action": "reassigned",
 					}
 				else:
 					return {
 						"success": True,
 						"message": _("Token already registered"),
-						"action": "exists"
+						"action": "exists",
 					}
 
 			# Create new token entry
@@ -2429,7 +2427,6 @@ def register_push_token(user_id, token, device_id=None):
 			doc = frappe.new_doc("Mobile Push Token")
 			doc.user_id = user_id
 			doc.token = token
-			doc.device_id = device_id
 			doc.insert(ignore_permissions=True)
 			frappe.db.commit()
 			frappe.log_error(f"New token created for user {user_id} - Doc Name: {doc.name}, Token: {token[:50]}...", "Push Token Create Success")
@@ -2453,14 +2450,10 @@ def register_push_token(user_id, token, device_id=None):
 def unregister_push_token(device_id=None, token=None):
 	"""Unregister a push token"""
 	try:
-		if not device_id and not token:
-			frappe.throw(_("Either device_id or token is required"))
+		if not token:
+			frappe.throw(_("Token is required"))
 
-		filters = {"user_id": frappe.session.user}
-		if device_id:
-			filters["device_id"] = device_id
-		if token:
-			filters["token"] = token
+		filters = {"user_id": frappe.session.user, "token": token}
 
 		token_doc = frappe.db.get_value("Mobile Push Token", filters, "name")
 

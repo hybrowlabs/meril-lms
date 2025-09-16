@@ -68,14 +68,10 @@ export const sessionStore = defineStore('lms-session', () => {
 	const pushTokenResource = createResource({
 		url: 'lms.lms.api.register_push_token',
 		makeParams(values) {
-			const params = {
+			return {
 				user_id: values.user_id,
 				token: values.token,
 			}
-			if (values.device_id) {
-				params.device_id = values.device_id
-			}
-			return params
 		},
 		onSuccess(data) {
 			console.log('Push token registered successfully:', data)
@@ -112,13 +108,10 @@ export const sessionStore = defineStore('lms-session', () => {
 				console.log('Notification permission not granted, attempting to get token anyway')
 			}
 
-			// Get push token and device identifier from the native layer
+			// Get push token from the native layer
 			alert('Attempting to get push token...')
-			const [token, deviceId] = await Promise.all([
-				nativeInterface.getPushToken(),
-				nativeInterface.getDeviceId(),
-			])
-			console.log('Retrieved push token:', token, 'device:', deviceId)
+			const token = await nativeInterface.getPushToken()
+			console.log('Retrieved push token:', token)
 			alert('Retrieved push token: ' + (token ? token : 'null/undefined'))
 
 			if (!token) {
@@ -134,7 +127,6 @@ export const sessionStore = defineStore('lms-session', () => {
 			console.log('Submitting push token to backend:', {
 				user_id: user.value,
 				token: tokenString,
-				device_id: deviceId,
 			})
 			alert('Submitting to backend - User ID: ' + user.value + ', Token: ' + tokenString)
 
@@ -142,7 +134,6 @@ export const sessionStore = defineStore('lms-session', () => {
 			const result = await pushTokenResource.submit({
 				user_id: user.value,
 				token: tokenString,
-				device_id: deviceId,
 			})
 
 			console.log('Push token registration result:', result)
