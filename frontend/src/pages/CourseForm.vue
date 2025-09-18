@@ -155,11 +155,11 @@
 								]"
 								:placeholder="__('Select a role')"
 							/>
-							<!-- Country -->
-							<Link
+							<!-- Countries -->
+							<MultiSelect
+								v-model="assigned_countries"
 								doctype="Country"
-								v-model="course.custom_country"
-								:label="__('Country')"
+								:label="__('Countries')"
 							/>
 						</div>
 					</div>
@@ -360,6 +360,7 @@ const { brand } = sessionStore()
 const router = useRouter()
 const instructors = ref([])
 const related_courses = ref([])
+const assigned_countries = ref([])
 const app = getCurrentInstance()
 const { updateOnboardingStep } = useOnboarding('learning')
 const { $dialog } = app.appContext.config.globalProperties
@@ -448,6 +449,9 @@ const courseCreationResource = createResource({
 				related_courses: related_courses.value.map((course) => ({
 					course: course,
 				})),
+                custom_assigned_to_countries: assigned_countries.value.map((c) => ({
+                    country: c,
+                })),
 				...values,
 			},
 		}
@@ -469,6 +473,9 @@ const courseEditResource = createResource({
 				related_courses: related_courses.value.map((course) => ({
 					course: course,
 				})),
+                custom_assigned_to_countries: assigned_countries.value.map((c) => ({
+                    country: c,
+                })),
 				...course,
 			},
 		}
@@ -496,6 +503,11 @@ const courseResource = createResource({
 				data.related_courses.forEach((course) => {
 					related_courses.value.push(course.course)
 				})
+            } else if (key == 'custom_assigned_to_countries') {
+                assigned_countries.value = []
+                data.custom_assigned_to_countries.forEach((row) => {
+                    row.country && assigned_countries.value.push(row.country)
+                })
 			} else if (Object.hasOwn(course, key)) course[key] = data[key]
 		})
 		let checkboxes = [
