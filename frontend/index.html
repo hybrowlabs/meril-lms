@@ -20,7 +20,7 @@
 				.then(response => response.json())
 				.then(data => {
 					console.log({data})
-					const chatnextAppBundle = data['chatnext-app.bundle.js']
+					const chatnextAppBundle = data['cn-app.bundle.js']
 					console.log({chatnextAppBundle})
 					const script = document.createElement('script')
 					script.src = chatnextAppBundle
