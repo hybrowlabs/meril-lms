@@ -1,20 +1,44 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-09-19 12:08:11.151672",
+ "creation": "2025-09-19 17:24:58.801469",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "pincode",
   "city",
+  "area",
+  "zone",
+  "district",
   "state",
-  "city_name",
-  "district"
+  "country"
  ],
  "fields": [
   {
-   "fieldname": "city",
+   "fieldname": "pincode",
    "fieldtype": "Data",
-   "label": "City Code"
+   "label": "Pincode"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Link",
+   "label": "City",
+   "options": "City"
+  },
+  {
+   "fieldname": "area",
+   "fieldtype": "Data",
+   "label": "Area"
+  },
+  {
+   "fieldname": "zone",
+   "fieldtype": "Data",
+   "label": "Zone"
+  },
+  {
+   "fieldname": "district",
+   "fieldtype": "Data",
+   "label": "District"
   },
   {
    "fieldname": "state",
@@ -23,24 +47,19 @@
    "options": "State"
   },
   {
-   "fieldname": "city_name",
-   "fieldtype": "Data",
-   "label": "City Name"
-  },
-  {
-   "fieldname": "district",
+   "fieldname": "country",
    "fieldtype": "Link",
-   "label": "District",
-   "options": "District"
+   "label": "Country",
+   "options": "Country"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-19 17:34:31.558506",
+ "modified": "2025-09-19 17:27:48.380730",
  "modified_by": "Administrator",
  "module": "LMS",
- "name": "City",
+ "name": "Pincode",
  "owner": "Administrator",
  "permissions": [
   {

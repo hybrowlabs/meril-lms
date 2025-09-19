@@ -6,25 +6,43 @@
  "engine": "InnoDB",
  "field_order": [
   "state",
-  "country"
+  "country",
+  "state_code",
+  "sap_state_code",
+  "code"
  ],
  "fields": [
   {
    "fieldname": "state",
    "fieldtype": "Data",
-   "label": "State"
+   "label": "State Name"
   },
   {
    "fieldname": "country",
    "fieldtype": "Link",
    "label": "Country",
    "options": "Country"
+  },
+  {
+   "fieldname": "state_code",
+   "fieldtype": "Data",
+   "label": "State Code"
+  },
+  {
+   "fieldname": "sap_state_code",
+   "fieldtype": "Data",
+   "label": "SAP State Code"
+  },
+  {
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "label": "Code"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-19 12:10:37.261427",
+ "modified": "2025-09-19 17:33:03.060562",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "State",
