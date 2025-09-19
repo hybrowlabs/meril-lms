@@ -15,7 +15,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Division",
-   "options": "Department"
+   "options": "Division"
   },
   {
    "fetch_from": "division.company",
@@ -30,7 +30,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-15 12:24:05.176675",
+ "modified": "2025-09-19 11:31:28.512141",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Meril Distributor Division Child",
