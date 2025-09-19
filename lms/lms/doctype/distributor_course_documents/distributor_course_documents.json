@@ -20,7 +20,6 @@
    "in_list_view": 1,
    "label": "Distributor",
    "options": "Distributor",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -29,7 +28,6 @@
    "in_list_view": 1,
    "label": "Course",
    "options": "LMS Course",
-   "read_only": 1,
    "reqd": 1
   },
   {
@@ -39,34 +37,30 @@
   {
    "fieldname": "entered_name",
    "fieldtype": "Data",
-   "label": "Entered Name",
-   "read_only": 1
+   "label": "Entered Name"
   },
   {
    "fieldname": "signature_style",
    "fieldtype": "Link",
    "label": "Signature Style",
-   "options": "Signature Type",
-   "read_only": 1
+   "options": "Signature Type"
   },
   {
    "default": "0",
    "fieldname": "has_submitted_documents",
    "fieldtype": "Check",
-   "label": "has submitted documents",
-   "read_only": 1
+   "label": "has submitted documents"
   },
   {
    "fieldname": "submission_datetime",
    "fieldtype": "Datetime",
-   "label": "Submission Datetime",
-   "read_only": 1
+   "label": "Submission Datetime"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-10 10:35:15.286436",
+ "modified": "2025-09-19 13:34:43.158756",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor Course Documents",

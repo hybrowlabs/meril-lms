@@ -14,13 +14,6 @@
   "name": "Business"
  },
  {
-  "category": "Design",
-  "docstatus": 0,
-  "doctype": "LMS Category",
-  "modified": "2024-09-20 12:59:12.621022",
-  "name": "Design"
- },
- {
   "category": "Personal Development",
   "docstatus": 0,
   "doctype": "LMS Category",
@@ -47,5 +40,12 @@
   "doctype": "LMS Category",
   "modified": "2023-06-15 18:01:41.598282",
   "name": "Framework"
+ },
+ {
+  "category": "Design",
+  "docstatus": 0,
+  "doctype": "LMS Category",
+  "modified": "2024-09-20 12:59:12.621022",
+  "name": "Design"
  }
 ]
