@@ -127,6 +127,7 @@
                     divisionCompanyList = Array.isArray(res.message.division_company_list) ? res.message.division_company_list : [];
                     // Use country_list from backend for country select
                     countryList = Array.isArray(res.message.country_list) ? res.message.country_list : [];
+                    console.log('Full response:', res.message);
                     console.log('Division Company List:', divisionCompanyList);
                     console.log('Meril Company Table Data:', res.message.meril_company_table);
                     fill_distributor_profile(res.message);
@@ -210,11 +211,13 @@
             let html = '<option value="">Select</option>';
             if (divisionCompanyList && divisionCompanyList.length > 0) {
                 divisionCompanyList.forEach(function(opt) {
-                    // Handle both possible field names
-                    let value = opt.name || opt.division || '';
-                    let display = opt.name || opt.division || '';
-                    html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${display}</option>`;
+                    // Division doctype has 'name' field
+                    let value = opt.name || '';
+                    let display = opt.name || '';
+                    html += `<option value="${value}"${selectedValue && value === selectedValue ? ' selected' : ''}>${display}</option>`;
                 });
+            } else {
+                console.log('No divisions available in divisionCompanyList');
             }
             return html;
         }
@@ -226,12 +229,12 @@
                 return '';
             }
             let found = divisionCompanyList.find(function(opt) {
-                // Check both possible field names
-                return (opt.name === division) || (opt.division === division);
+                // Match by name field from Division doctype
+                return opt.name === division;
             });
-            console.log('Found division mapping:', found);
-            // Handle different possible field names for company
-            return found ? (found.company || found.meril_company_name || found.company_name || '') : '';
+            console.log('Looking for division:', division, 'Found:', found);
+            // Return the company field from the division record
+            return found ? (found.company || found.meril_company || '') : '';
         }
 
         // Add row with select for division and readonly input for company name
@@ -284,10 +287,10 @@
             if (data.meril_company_table && Array.isArray(data.meril_company_table)) {
                 console.log('Filling Meril Company Table with:', data.meril_company_table);
                 data.meril_company_table.forEach(function(item) {
-                    // Check both possible field names for division
-                    const divisionValue = item.division || item.division_name || '';
-                    const companyName = item.meril_company_name || item.company || '';
-                    console.log('Adding row with division:', divisionValue, 'company:', companyName);
+                    // Division field is linked to Division doctype
+                    const divisionValue = item.division || '';
+                    const companyName = item.meril_company_name || '';
+                    console.log('Adding row - item:', item, 'division:', divisionValue, 'company:', companyName);
                     addMerilCompanyRow(divisionValue, companyName);
                 });
             } else if (!data.meril_company_table) {
