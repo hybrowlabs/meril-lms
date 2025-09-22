@@ -21,54 +21,54 @@
                         <tbody id="meril-company-table-body">
                         </tbody>
                     </table>
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="addMerilCompanyRow()">Add Row</button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="addMerilCompanyRow()" disabled>Add Row</button>
                     <div id="meril-company-table-error" class="text-danger mt-2" style="display:none;">At least one record is required for Meril Company Table.</div>
                 </div>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-bu_fd_head">BU/FD Head</label>
-                <input type="text" class="form-control" id="input-bu_fd_head" name="bu_fd_head" value="{{ frappe.session.user_doc.bu_fd_head or '' }}">
+                <input type="text" class="form-control" id="input-bu_fd_head" name="bu_fd_head" value="{{ frappe.session.user_doc.bu_fd_head or '' }}" readonly>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-rsm_state_head">RSM/State Head</label>
-                <input type="text" class="form-control" id="input-rsm_state_head" name="rsm_state_head" value="{{ frappe.session.user_doc.rsm_state_head or '' }}">
+                <input type="text" class="form-control" id="input-rsm_state_head" name="rsm_state_head" value="{{ frappe.session.user_doc.rsm_state_head or '' }}" readonly>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-region">Region</label>
-                <input type="text" class="form-control" id="input-region" name="region" value="{{ frappe.session.user_doc.region or '' }}">
+                <input type="text" class="form-control" id="input-region" name="region" value="{{ frappe.session.user_doc.region or '' }}" readonly>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-state">State</label>
-                <input type="text" class="form-control" id="input-state" name="state" value="{{ frappe.session.user_doc.state or '' }}">
+                <input type="text" class="form-control" id="input-state" name="state" value="{{ frappe.session.user_doc.state or '' }}" readonly>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-city">City</label>
-                <input type="text" class="form-control" id="input-city" name="city" value="{{ frappe.session.user_doc.city or '' }}">
+                <input type="text" class="form-control" id="input-city" name="city" value="{{ frappe.session.user_doc.city or '' }}" readonly>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-distributor_code">Distributor Code</label>
-                <input type="text" class="form-control" id="input-distributor_code" name="distributor_code" value="{{ frappe.session.user_doc.distributor_code or '' }}">
+                <input type="text" class="form-control" id="input-distributor_code" name="distributor_code" value="{{ frappe.session.user_doc.distributor_code or '' }}" readonly>
             </div>
 
             <!-- Distributor Company Name (Mandatory) -->
             <div class="form-group col-md-6">
                 <label for="input-distributor_company_name">Distributor Company Name <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="input-distributor_company_name" name="distributor_company_name" value="{{ frappe.session.user_doc.distributor_company_name or '' }}" required>
+                <input type="text" class="form-control" id="input-distributor_company_name" name="distributor_company_name" value="{{ frappe.session.user_doc.distributor_company_name or '' }}" readonly required>
             </div>
             <!-- Distributor Email (Mandatory) -->
             <div class="form-group col-md-6">
                 <label for="input-distributor_email">Distributor Email <span class="text-danger">*</span></label>
-                <input type="email" class="form-control" id="input-distributor_email" name="distributor_email" value="{{ frappe.session.user_doc.distributor_email or '' }}" required>
+                <input type="email" class="form-control" id="input-distributor_email" name="distributor_email" value="{{ frappe.session.user_doc.distributor_email or '' }}" readonly required>
             </div>
             <!-- Distributor Address (Mandatory) -->
             <div class="form-group col-md-6">
                 <label for="input-distributor_address">Distributor Address <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="input-distributor_address" name="distributor_address" value="{{ frappe.session.user_doc.distributor_address or '' }}" required>
+                <input type="text" class="form-control" id="input-distributor_address" name="distributor_address" value="{{ frappe.session.user_doc.distributor_address or '' }}" readonly required>
             </div>
             <!-- Distributor Contact (Mandatory) -->
             <div class="form-group col-md-6">
                 <label for="input-distributor_contact">Distributor Contact <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="input-distributor_contact" name="distributor_contact" value="{{ frappe.session.user_doc.distributor_contact or '' }}" required>
+                <input type="text" class="form-control" id="input-distributor_contact" name="distributor_contact" value="{{ frappe.session.user_doc.distributor_contact or '' }}" readonly required>
             </div>
             <!-- Attendee Name (Mandatory) -->
             <div class="form-group col-md-6">
@@ -83,7 +83,7 @@
             <!-- Country Name (Mandatory) -->
             <div class="form-group col-md-6">
                 <label for="input-country">Country <span class="text-danger">*</span></label>
-                <select class="form-control" id="input-country" name="country" required>
+                <select class="form-control" id="input-country" name="country" disabled required>
                     <option value="">Select Country</option>
                 </select>
             </div>
@@ -95,8 +95,8 @@
     </div>
 
     <script>
-        // Store department-company list for division/company mapping
-        let departmentCompanyList = [];
+        // Store division-company list for division/company mapping
+        let divisionCompanyList = [];
         // Store country list from backend
         let countryList = [];
 
@@ -123,8 +123,8 @@
                 });
                 $("#distributor-profile-info").removeClass("d-none");
                 if(res?.message) {
-                    // Use department_company_list for division/company mapping
-                    departmentCompanyList = Array.isArray(res.message.department_company_list) ? res.message.department_company_list : [];
+                    // Use division_company_list for division/company mapping
+                    divisionCompanyList = Array.isArray(res.message.division_company_list) ? res.message.division_company_list : [];
                     // Use country_list from backend for country select
                     countryList = Array.isArray(res.message.country_list) ? res.message.country_list : [];
                     fill_distributor_profile(res.message);
@@ -206,7 +206,7 @@
         // Helper to create select options HTML for divisions
         function getDivisionOptionsHtml(selectedValue) {
             let html = '<option value="">Select</option>';
-            departmentCompanyList.forEach(function(opt) {
+            divisionCompanyList.forEach(function(opt) {
                 let value = opt.name || '';
                 html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${value}</option>`;
             });
@@ -215,7 +215,7 @@
 
         // Get company name for a given division
         function getCompanyNameForDivision(division) {
-            let found = departmentCompanyList.find(function(opt) {
+            let found = divisionCompanyList.find(function(opt) {
                 return opt.name === division;
             });
             return found && found.company ? found.company : '';
@@ -224,7 +224,7 @@
         // Add row with select for division and readonly input for company name
         function addMerilCompanyRow(division = '', meril_company_name = '') {
             const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
-            const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')">${getDivisionOptionsHtml(division)}</select>`;
+            const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')" disabled>${getDivisionOptionsHtml(division)}</select>`;
             // If division is set, get company name from mapping, else use passed value
             let companyName = division ? getCompanyNameForDivision(division) : (meril_company_name || '');
             const companyInput = `<input type="text" class="form-control meril-company-name" value="${companyName || ''}" readonly tabindex="-1">`;
@@ -232,7 +232,7 @@
                 <tr id="${rowId}">
                     <td>${divisionSelect}</td>
                     <td>${companyInput}</td>
-                    <td><button type="button" class="btn btn-sm btn-danger" onclick="removeMerilCompanyRow('${rowId}')">Remove</button></td>
+                    <td><button type="button" class="btn btn-sm btn-danger" onclick="removeMerilCompanyRow('${rowId}')" disabled>Remove</button></td>
                 </tr>
             `;
             $('#meril-company-table-body').append(newRow);

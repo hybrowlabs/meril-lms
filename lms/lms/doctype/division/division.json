@@ -9,7 +9,8 @@
  "engine": "InnoDB",
  "field_order": [
   "division_name",
-  "description"
+  "description",
+  "company"
  ],
  "fields": [
   {
@@ -24,11 +25,17 @@
    "fieldname": "description",
    "fieldtype": "Text",
    "label": "Description"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-19 11:30:15.534645",
+ "modified": "2025-09-22 15:53:58.555358",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Division",
