@@ -209,6 +209,8 @@
         // Helper to create select options HTML for divisions
         function getDivisionOptionsHtml(selectedValue) {
             let html = '<option value="">Select</option>';
+
+            // If we have divisions list, use it
             if (divisionCompanyList && divisionCompanyList.length > 0) {
                 divisionCompanyList.forEach(function(opt) {
                     // Division doctype has 'name' field
@@ -216,9 +218,12 @@
                     let display = opt.name || '';
                     html += `<option value="${value}"${selectedValue && value === selectedValue ? ' selected' : ''}>${display}</option>`;
                 });
-            } else {
-                console.log('No divisions available in divisionCompanyList');
             }
+            // If no list but we have a selected value, at least show that
+            else if (selectedValue) {
+                html += `<option value="${selectedValue}" selected>${selectedValue}</option>`;
+            }
+
             return html;
         }
 
