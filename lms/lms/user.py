@@ -72,18 +72,77 @@ def create_user_from_employee(self, method=None):
 				self.db_set("user_id", self.user_id)
 				update_password(email, new_password)
 				
+				# Find LMS Course(s) where custom_assigned_to_role is "Employee" or "All" and Option Country includes employee's country
+				employee_courses = []
+				for course in frappe.get_all(
+					"LMS Course",
+					filters={
+						"custom_assigned_to_role": ["in", ["Employee", "All"]],
+						"published": 1
+					},
+					fields=["name", "title", "short_introduction"]
+				):
+					# Check if employee's country is in the course's assigned countries via Option Country child table
+					assigned_countries = frappe.get_all(
+						"Option Country",
+						filters={
+							"parent": course["name"],
+							"parenttype": "LMS Course",
+							"country": country
+						},
+						pluck="country"
+					)
+					if assigned_countries:
+						employee_courses.append(course)
+
+				# Use the first matching course, or set empty if none found
+				if employee_courses:
+					employee_course = employee_courses[0]["title"]
+					employee_course_intro = employee_courses[0]["short_introduction"]
+				else:
+					employee_course = ""
+					employee_course_intro = ""
+
 				# Update self in the database
+				notification_subject = f'{employee_course} on {employee_course_intro}'
+				notification_message = f'''<p>Dear {self.first_name},</p>
+
+					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">E{employee_course} on {employee_course_intro}.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+
+					<p style="font-weight: bold;">Login Credentials:</p>
+					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
+					----------(<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>)--------------------------
+					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
+					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
+
+					<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
+
+					<p>Your cooperation and commitment to compliance are highly appreciated.</p>
+
+					<p>Best regards,</p>
+					<p>Meril</p>'''
+
+				# Send email notification
 				frappe.sendmail(
-					recipients=[self.company_email],	
+					recipients=[self.company_email],
 					sender=get_default_sender(),
-					subject='Test Email',	
-					message=f'<p>Hello {self.first_name},<br><br>Your account for LMS has been created.<br><br>Email: {self.company_email}<br>Password: {new_password}<br><br>Please <a href="{frappe.utils.get_url("/login")}">click here to login</a>.<br><br>Thank you!</p>'
+					subject=notification_subject,
+					message=notification_message
 				)
+				# Create a Notification Log to send system notification
+				frappe.get_doc({
+					"doctype": "Notification Log",
+					"subject": notification_subject,
+					"email_content": notification_message,
+					"for_user": self.company_email,
+					"type": "Alert",
+					"document_type": "Employee",
+					"document_name": self.name
+				}).insert(ignore_permissions=True)
 
 				# self.db_set("user_id", self.user_id)
 		else:
-				frappe.throw(_("A user with this email already exists."))
-		
+			frappe.throw(_("A user with this email already exists."))
 		print("User created successfully")
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Employee Creation Process Failed")
@@ -131,12 +190,70 @@ def create_user_from_distributor(self, method=None):
                 self.db_set("is_active_user", 1)
                 self.db_set("login_reminder_count", 0)
 
+                # Find LMS Course(s) where custom_assigned_to_role is "Distributor" or "All" and Option Country includes distributor's country
+                distributor_courses = []
+                for course in frappe.get_all(
+                    "LMS Course",
+                    filters={
+                        "custom_assigned_to_role": ["in", ["Distributor", "All"]],
+                        "published": 1
+                    },
+                    fields=["name", "title", "short_introduction"]
+                ):
+                    # Check if distributor's country is in the course's assigned countries via Option Country child table
+                    assigned_countries = frappe.get_all(
+                        "Option Country",
+                        filters={
+                            "parent": course["name"],
+                            "parenttype": "LMS Course",
+                            "country": country
+                        },
+                        pluck="country"
+                    )
+                    if assigned_countries:
+                        distributor_courses.append(course)
+
+                # Use the first matching course, or set empty if none found
+                if distributor_courses:
+                    distributor_course = distributor_courses[0]["title"]
+                    distributor_course_intro = distributor_courses[0]["short_introduction"]
+                else:
+                    distributor_course = ""
+                    distributor_course_intro = ""
+
+                subject = f'{distributor_course} for Distributors on {distributor_course_intro}'
+                message = f'''<p>Dear {self.distributor_name},</p>
+
+                    <p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">{distributor_course} on {distributor_course_intro}</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+
+					<p style="font-weight: bold;">Login Credentials:</p>
+					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
+					----------(<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>)--------------------------
+					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
+					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
+
+					<p>This training is mandatory for Distributors to ensure our {distributor_course_intro} fully comply with legal and ethical norms.</p>
+
+					<p>We kindly request you to complete this training at your earliest. Timely completion is crucial to maintain compliance and avoid any lapses in our collective regulatory obligations.</p>
+
+					<p>Best regards,</p>
+					<p>Meril</p>
+					'''
+
                 frappe.sendmail(
                     recipients=[email],
                     sender=get_default_sender(),
-                    subject='Your Merlin LMS Account',
-                    message=f'<p>Hello {email},<br>Your password is: <b>{new_password}</b><br>You can log in at: <a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a><br>Regards,<br>Merlin LMS</p>'
+                    subject=subject,
+                    message=message
                 )
+                # Also send a system notification using Notification Log
+                frappe.get_doc({
+                    "doctype": "Notification Log",
+                    "subject": subject,
+                    "email_content": message,
+                    "for_user": email,
+					"type": "Alert"
+				}).insert(ignore_permissions=True)
                 
                 # Send email notification to admins about new distributor creation
                 admins = frappe.get_all("User", 
@@ -149,7 +266,6 @@ def create_user_from_distributor(self, method=None):
                     
                     frappe.sendmail(
                         recipients=admins,
-
                         sender=get_default_sender(),
                         subject=subject,
                         message=message
@@ -360,14 +476,24 @@ def send_daily_login_reminders():
 			)
 			
 			# Send email to the distributor
+			# Send email
 			frappe.sendmail(
 				recipients=[distributor.distributor_email_address],
-
 				sender=get_default_sender(),
-
 				subject=subject,
 				message=message_content
 			)
+			# Also create a notification log for the distributor user
+			if distributor.user_id:
+				frappe.get_doc({
+					"doctype": "Notification Log",
+					"subject": subject,
+					"email_content": message_content,
+					"for_user": distributor.user_id,
+					"type": "Alert"
+				}).insert(ignore_permissions=True)
+
+			
 			# Update reminder count in distributor record
 			frappe.db.set_value("Distributor", distributor.distributor_id, "login_reminder_count", new_count)
 			
@@ -468,6 +594,7 @@ def send_daily_course_reminders():
 	This function should be called by scheduler daily.
 	"""
 	
+	print("get_course reimder reached")
 	# Get all users with incomplete enrolled courses
 	incomplete_enrollments = frappe.db.sql("""
 		SELECT 
@@ -476,8 +603,10 @@ def send_daily_course_reminders():
 			e.course,
 			e.creation as enrollment_date,
 			c.title as course_title,
+			c.short_introduction as course_introduction,
 			u.full_name as user_name,
 			u.email as user_email,
+			u.name as user_name,
 			e.progress,
 			e.course_reminder_count,
 			DATEDIFF(NOW(), e.creation) as days_since_enrollment
@@ -498,16 +627,18 @@ def send_daily_course_reminders():
 	
 	reminders_sent = 0
 	
+
 	for enrollment in incomplete_enrollments:
 		try:
 			# Increment reminder count
 			current_count = enrollment.course_reminder_count or 0
 			new_count = current_count + 1
-			
-			# Determine reminder urgency based on days and count
+			user = enrollment.user_name
+			# Check if the user is a distributor by looking up the user_id in Distributor records
+			is_distributor = False
+
 			days_since = enrollment.days_since_enrollment
 			progress = enrollment.progress or 0
-			
 			if days_since <= 7:
 				urgency = "gentle"
 				subject_prefix = "📚 Gentle Reminder"
@@ -524,9 +655,34 @@ def send_daily_course_reminders():
 			# Create personalized reminder message
 			subject = f"{subject_prefix}: Complete your course - {enrollment.course_title}"
 			
-			message_content = get_course_reminder_message(
-				enrollment.user_name,
+			is_distributor = frappe.db.exists("Distributor", {"user_id": user})
+			is_employee = frappe.db.exists("Employee", {"user_id": user})
+			subject = "Course Remainer"
+			for_role = "Administrator"
+		
+			if is_distributor:
+				subject = f"Reminder {new_count} : {enrollment.course_title} for Distributor on {enrollment.course_introduction}."
+				for_role = "Distributor"
+				# Get attendee_name from Distributor
+				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
+			elif is_employee:
+				subject = f"Reminder {new_count} : {enrollment.course_title} on {enrollment.course_introduction}"
+				for_role = "Employee"
+				# Get employee_name from Employee
+				attendee_name = frappe.db.get_value("Employee", {"user_id": user}, "employee_name")
+
+			name = attendee_name if attendee_name else enrollment.user_name
+			# Determine reminder urgency based on days and count
+			days_since = enrollment.days_since_enrollment
+			progress = enrollment.progress or 0
+			
+	
+			
+			message_content = get_course_reminder_message(	
+				for_role,
+				name,
 				enrollment.course_title,
+				enrollment.course_intrudoction,
 				days_since,
 				progress,
 				new_count,
@@ -540,6 +696,16 @@ def send_daily_course_reminders():
 				subject=subject,
 				message=message_content
 			)
+			# Create notification log for the user
+			frappe.get_doc({
+				"doctype": "Notification Log",
+				"subject": subject,
+				"email_content": message_content,
+				"for_user": enrollment.user_name,
+				"type": "Alert",
+				"document_type": "LMS Enrollment",
+				"document_name": enrollment.enrollment_id,
+			}).insert(ignore_permissions=True)
 			
 			# Update reminder count in enrollment record
 			frappe.db.set_value("LMS Enrollment", enrollment.enrollment_id, "course_reminder_count", new_count)
@@ -565,6 +731,7 @@ def send_daily_course_reminders():
 			frappe.logger().info(f"Course reminder sent to {enrollment.user_name} for {enrollment.course_title} (Day {days_since}, Reminder #{new_count})")
 			
 		except Exception as e:
+			print("error", str(e))
 			frappe.log_error(f"Failed to send course reminder to {enrollment.user_name}: {str(e)}", "Course Reminder Error")
 			continue
 	
@@ -578,9 +745,39 @@ def send_daily_course_reminders():
 	}
 
 
-def get_course_reminder_message(name, course_title, days_since, progress, reminder_count, urgency):
+def get_course_reminder_message(for_role, name, course_title, course_introduction, days_since, progress, reminder_count, urgency):
 	"""Generate personalized course completion reminder message based on urgency level"""
 	
+	if for_role == "Distributor":
+		return f'''<p>Dear {name},</p>
+
+		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span> for which you were enrolled earlier. Our records indicate that the training is still pending. </p>
+
+		<p>This training is mandatory for distributors to ensure our {course_introduction} fully comply with legal and ethical norms.</p>
+
+		<p>We request you to complete the training to ensure adherence to our Ethics Standards. Timely completion is important to meet regulatory requirements and uphold our ethical standards.</p>
+
+		<p>If you experience any difficulty accessing the course with your credentials, please use the <span style="font-weight:bold;">‘Forgot Password’</span> option to reset your password and proceed.</p>
+
+		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
+
+		<p>Best regards,</p>
+		<p>Meril</p>'''
+	elif for_role == "Employee":
+		return f'''<p>Dear {name},</p>
+
+		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span> for which you were enrolled earlier. Our records indicate that the training is still pending.</p>
+
+
+		<p>We request you to complete the training to ensure adherence to our Ethics Standards. Timely completion is important to meet regulatory requirements and uphold our ethical standards.</p>
+
+		<p>If you experience any difficulty accessing the course with your credentials, please use the <span style="font-weight:bold;">‘Forgot Password’</span> option to reset your password and proceed.</p>
+
+		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
+
+		<p>Best regards,</p>
+		<p>Meril</p>'''
+
 	base_message = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 		<h2 style="color: #2c3e50;">Hello {name}!</h2>
@@ -902,8 +1099,10 @@ def send_manual_course_reminder(enrollment_id):
 		subject = f"{subject_prefix}: Complete your course - {course.title}"
 		
 		message_content = get_course_reminder_message(
+			None,
 			user.full_name,
 			course.title,
+			None,
 			days_since,
 			enrollment.progress or 0,
 			new_count,
@@ -924,6 +1123,16 @@ def send_manual_course_reminder(enrollment_id):
 			subject=subject,
 			message=message_content
 		)
+		# Create notification log for the user
+		frappe.get_doc({
+			"doctype": "Notification Log",
+			"subject": subject,
+			"email_content": message_content,
+			"for_user": user.name,
+			"type": "Alert",
+			"document_type": "LMS Enrollment",
+			"document_name": enrollment_id,
+		}).insert(ignore_permissions=True)
 		
 		# Update reminder count
 		frappe.db.set_value("LMS Enrollment", enrollment_id, "course_reminder_count", new_count)

@@ -122,7 +122,7 @@
   "description": "LMS Course Access According Country and Roles",
   "docstatus": 0,
   "doctype": "DocType Permission",
-  "modified": "2025-09-18 14:46:08.093643",
+  "modified": "2025-09-18 15:31:36.588999",
   "name": "LMS Course Access",
   "ref_doctype": "LMS Course",
   "testing": 1,
