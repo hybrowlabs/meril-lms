@@ -127,6 +127,8 @@
                     divisionCompanyList = Array.isArray(res.message.division_company_list) ? res.message.division_company_list : [];
                     // Use country_list from backend for country select
                     countryList = Array.isArray(res.message.country_list) ? res.message.country_list : [];
+                    console.log('Division Company List:', divisionCompanyList);
+                    console.log('Meril Company Table Data:', res.message.meril_company_table);
                     fill_distributor_profile(res.message);
                 }
                 else
@@ -206,27 +208,38 @@
         // Helper to create select options HTML for divisions
         function getDivisionOptionsHtml(selectedValue) {
             let html = '<option value="">Select</option>';
-            divisionCompanyList.forEach(function(opt) {
-                let value = opt.name || '';
-                html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${value}</option>`;
-            });
+            if (divisionCompanyList && divisionCompanyList.length > 0) {
+                divisionCompanyList.forEach(function(opt) {
+                    // Handle both possible field names
+                    let value = opt.name || opt.division || '';
+                    let display = opt.name || opt.division || '';
+                    html += `<option value="${value}"${selectedValue && value == selectedValue ? ' selected' : ''}>${display}</option>`;
+                });
+            }
             return html;
         }
 
         // Get company name for a given division
         function getCompanyNameForDivision(division) {
+            if (!divisionCompanyList || divisionCompanyList.length === 0) {
+                console.log('Division company list is empty');
+                return '';
+            }
             let found = divisionCompanyList.find(function(opt) {
-                return opt.name === division;
+                // Check both possible field names
+                return (opt.name === division) || (opt.division === division);
             });
-            return found && found.company ? found.company : '';
+            console.log('Found division mapping:', found);
+            // Handle different possible field names for company
+            return found ? (found.company || found.meril_company_name || found.company_name || '') : '';
         }
 
         // Add row with select for division and readonly input for company name
         function addMerilCompanyRow(division = '', meril_company_name = '') {
             const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
             const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')" disabled>${getDivisionOptionsHtml(division)}</select>`;
-            // If division is set, get company name from mapping, else use passed value
-            let companyName = division ? getCompanyNameForDivision(division) : (meril_company_name || '');
+            // Use passed company name or get from mapping
+            let companyName = meril_company_name || (division ? getCompanyNameForDivision(division) : '');
             const companyInput = `<input type="text" class="form-control meril-company-name" value="${companyName || ''}" readonly tabindex="-1">`;
             const newRow = `
                 <tr id="${rowId}">
@@ -236,6 +249,7 @@
                 </tr>
             `;
             $('#meril-company-table-body').append(newRow);
+            console.log('Added row with division:', division, 'company:', companyName);
         }
 
         // When division changes, update company name in the same row
@@ -268,9 +282,16 @@
             // Fill child table data
             $('#meril-company-table-body').empty();
             if (data.meril_company_table && Array.isArray(data.meril_company_table)) {
+                console.log('Filling Meril Company Table with:', data.meril_company_table);
                 data.meril_company_table.forEach(function(item) {
-                    addMerilCompanyRow(item.division || '', item.meril_company_name || '');
+                    // Check both possible field names for division
+                    const divisionValue = item.division || item.division_name || '';
+                    const companyName = item.meril_company_name || item.company || '';
+                    console.log('Adding row with division:', divisionValue, 'company:', companyName);
+                    addMerilCompanyRow(divisionValue, companyName);
                 });
+            } else if (!data.meril_company_table) {
+                console.log('No meril_company_table data received from backend');
             }
         }
 
