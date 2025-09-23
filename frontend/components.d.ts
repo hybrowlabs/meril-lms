@@ -78,6 +78,7 @@ declare module 'vue' {
     OtpDialog: typeof import('./src/components/custom/OtpDialog.vue')['default']
     PageModal: typeof import('./src/components/Modals/PageModal.vue')['default']
     PaymentSettings: typeof import('./src/components/Settings/PaymentSettings.vue')['default']
+    PDFViewer: typeof import('./src/components/PDFViewer.vue')['default']
     Play: typeof import('./src/components/Icons/Play.vue')['default']
     ProgressBar: typeof import('./src/components/ProgressBar.vue')['default']
     Question: typeof import('./src/components/Modals/Question.vue')['default']
