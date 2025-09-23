@@ -758,13 +758,14 @@ def get_next_distributor_document(course: str | None = None):
     return {"success": True, "next_document": None}
 
 @frappe.whitelist(allow_guest=True)
-def generate_dynamic_docx(name=None):
+def generate_dynamic_docx(name=None, course=None):
     """
-    Generate a PDF directly using Frappe's PDF generation, with the same styling/content
-    as the previous docx would have produced, but with increased font size for A4 page.
+    Generate a PDF using the print format for Meril Distributor Compliance Policy Adoption Form.
+    Creates or updates the Distributor Course Documents record with the entered name,
+    then generates PDF using the print format.
     """
     import base64
-    from frappe.utils import get_datetime
+    from frappe.utils import now_datetime
 
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
@@ -772,7 +773,7 @@ def generate_dynamic_docx(name=None):
     if not name:
         return {
             "success": False,
-            "message": "No distributor name provided"
+            "message": "No compliance officer name provided"
         }
 
     roles = [role.role for role in user_doc.roles]
@@ -799,99 +800,144 @@ def generate_dynamic_docx(name=None):
         if not distributor_doc.distributor_contact_number and not user_doc.mobile_no:
             frappe.throw("Contact number is missing in distributor and user document.")
 
-        meril_company_name = distributor_doc.meril_company_table[0].meril_company_name
-        distributor_company_name = distributor_doc.distributor_company_name
-        distributor_name = distributor_doc.attendee_name
-        designation = distributor_doc.designation
-        email = distributor_doc.distributor_email_address or user_doc.email
-        contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
-        today = get_datetime().strftime("%d-%m-%Y")
-        today_long = frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy")
+        # Get or create Distributor Course Documents record
+        doc_name = None
+        if course:
+            doc_name = frappe.db.exists(
+                "Distributor Course Documents",
+                {"distributor": distributor_doc.name, "course": course}
+            )
 
-        # Compose HTML with increased font size for A4 page
-        html = f"""
-        <html>
-        <head>
-            <style>
-                @page {{
-                    size: A4;
-                    margin: 40px;
-                }}
-                body {{
-                    font-family: Arial, sans-serif;
-                    font-size: 16pt;
-                    color: #000;
-                    margin: 40px;
-                }}
-                .center {{
-                    text-align: center;
-                }}
-                .heading {{
-                    font-size: 18pt;
-                    font-weight: bold;
-                    text-decoration: underline;
-                    margin-bottom: 18px;
-                }}
-                .spacer {{
-                    height: 60px;
-                }}
-                .section-title {{
-                    font-weight: bold;
-                    margin-top: 24px;
-                    font-size: 18pt;
-                }}
-                .info-table {{
-                    margin-top: 24px;
-                    margin-bottom: 24px;
-                    font-size: 16pt;
-                }}
-                .info-table div {{
-                    padding: 4px 12px 4px 0;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="center" style="font-size:18pt;">On letter head of distributor</div>
-            <div class="spacer"></div>
-            <div class="spacer"></div>
-            <div class="center heading">Meril Distributor - Compliance Policy Adoption Form</div>
-            <div class="spacer"></div>
-            <div style="font-size:16pt;">{frappe.utils.format_datetime(frappe.utils.now(), "d MMMM yyyy, h:mm a")} [System Generated]</div>
-            <div class="spacer"></div>
-            <div style="font-size:16pt;">
-                We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.<br><br>
-                All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy.
-            </div>
-            <div class="spacer"></div>
-            <div class="section-title">Nomination of Compliance Officer:</div>
-            <div class="spacer"></div>
-            <div style="font-size:16pt;">
-                {name} is nominated as Compliance Officer of our organization with effect from {today_long}
-            </div>
-            <div class="spacer"></div>
-            <div class="section-title">Authorized representative of {distributor_name}</div>
-            <div class="info-table">
-                <div>Name: {distributor_name}</div>
-                <div>Title: {designation}</div>
-                <div>Email Id: {email}</div>
-                <div>Contact number: {contact_number}</div>
-                <div>Sign and Seal :  &lt;Compliance officer nominee name&gt; </div>
-            </div>
-        </body>
-        </html>
-        """
+        if doc_name:
+            doc = frappe.get_doc("Distributor Course Documents", doc_name)
+        elif course:
+            doc = frappe.get_doc({
+                "doctype": "Distributor Course Documents",
+                "distributor": distributor_doc.name,
+                "course": course,
+                "has_submitted_documents": 0
+            })
+            doc.insert(ignore_permissions=True)
+        else:
+            # Fallback to old behavior if no course is provided
+            from frappe.utils import get_datetime
+            today = get_datetime().strftime("%d-%m-%Y")
+            today_long = frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy")
 
-        # Generate PDF using Frappe's PDF generator
-        pdf_content = frappe.utils.pdf.get_pdf(html)
+            meril_company_name = distributor_doc.meril_company_table[0].meril_company_name
+            distributor_company_name = distributor_doc.distributor_company_name
+            distributor_name = distributor_doc.attendee_name
+            designation = distributor_doc.designation
+            email = distributor_doc.distributor_email_address or user_doc.email
+            contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
+
+            # Compose HTML with increased font size for A4 page
+            html = f"""
+            <html>
+            <head>
+                <style>
+                    @page {{
+                        size: A4;
+                        margin: 40px;
+                    }}
+                    body {{
+                        font-family: Arial, sans-serif;
+                        font-size: 16pt;
+                        color: #000;
+                        margin: 40px;
+                    }}
+                    .center {{
+                        text-align: center;
+                    }}
+                    .heading {{
+                        font-size: 18pt;
+                        font-weight: bold;
+                        text-decoration: underline;
+                        margin-bottom: 18px;
+                    }}
+                    .spacer {{
+                        height: 60px;
+                    }}
+                    .section-title {{
+                        font-weight: bold;
+                        margin-top: 24px;
+                        font-size: 18pt;
+                    }}
+                    .info-table {{
+                        margin-top: 24px;
+                        margin-bottom: 24px;
+                        font-size: 16pt;
+                    }}
+                    .info-table div {{
+                        padding: 4px 12px 4px 0;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="center" style="font-size:18pt;">On letter head of distributor</div>
+                <div class="spacer"></div>
+                <div class="spacer"></div>
+                <div class="center heading">Meril Distributor - Compliance Policy Adoption Form</div>
+                <div class="spacer"></div>
+                <div style="font-size:16pt;">{frappe.utils.format_datetime(frappe.utils.now(), "d MMMM yyyy, h:mm a")} [System Generated]</div>
+                <div class="spacer"></div>
+                <div style="font-size:16pt;">
+                    We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.<br><br>
+                    All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy.
+                </div>
+                <div class="spacer"></div>
+                <div class="section-title">Nomination of Compliance Officer:</div>
+                <div class="spacer"></div>
+                <div style="font-size:16pt;">
+                    {name} is nominated as Compliance Officer of our organization with effect from {today_long}
+                </div>
+                <div class="spacer"></div>
+                <div class="section-title">Authorized representative of {distributor_name}</div>
+                <div class="info-table">
+                    <div>Name: {distributor_name}</div>
+                    <div>Title: {designation}</div>
+                    <div>Email Id: {email}</div>
+                    <div>Contact number: {contact_number}</div>
+                    <div>Sign and Seal :  &lt;Compliance officer nominee name&gt; </div>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Generate PDF using Frappe's PDF generator
+            pdf_content = frappe.utils.pdf.get_pdf(html)
+            pdf_content_base64 = base64.b64encode(pdf_content).decode('utf-8')
+
+            return {
+                "success": True,
+                "file_content": pdf_content_base64,
+                "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.pdf"
+            }
+
+        # Update the entered_name field with the compliance officer name
+        doc.entered_name = name
+        doc.submission_datetime = now_datetime()
+        doc.save(ignore_permissions=True)
+
+        # Generate PDF using the print format
+        pdf_content = frappe.get_print(
+            doctype="Distributor Course Documents",
+            name=doc.name,
+            print_format="Meril Distributor Compliance Policy Adoption Form",
+            as_pdf=True,
+            no_letterhead=1
+        )
+
         pdf_content_base64 = base64.b64encode(pdf_content).decode('utf-8')
 
         return {
             "success": True,
             "file_content": pdf_content_base64,
-            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.pdf"
+            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.pdf",
+            "document_id": doc.name
         }
     except Exception as e:
-        frappe.log_error(f"Error generating dynamic pdf: {str(e)}")
+        frappe.log_error(f"Error generating dynamic pdf from print format: {str(e)}")
         return {
             "success": False,
             "error": str(e)

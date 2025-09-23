@@ -569,11 +569,12 @@ const directDownload = async(url, file_name)=>{
 
 
 const handleDownload = async() => {
-  
+
   try{
-    // Pass name in the API call
+    // Pass name and course in the API call
     const res = await call("lms.overrides.documents.generate_dynamic_docx", {
       name: name?.value || '',
+      course: courseName.value,
       font_path: null,
     });
     console.log("res", res)
