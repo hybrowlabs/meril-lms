@@ -41,10 +41,14 @@ def generate_and_save_otp():
 	otp = "123456"
 	return otp
 
-def create_user_from_employee(self, method=None):
-	full_name = self.first_name + " " + self.last_name if self.last_name else self.first_name
-	email = self.company_email 
-	country = self.custom_country 
+@frappe.whitelist()
+def create_user_from_employee(employee_id):
+	frappe.only_for(["Supervisor", "System User"])
+
+	employee_doc = frappe.get_doc("Employee", employee_id)
+	full_name = employee_doc.first_name + " " + employee_doc.last_name if employee_doc.last_name else employee_doc.first_name
+	email = employee_doc.company_email 
+	country = employee_doc.custom_country 
 
 	print( "email", email, "country", country)
 	# Check if user already exists
@@ -52,24 +56,24 @@ def create_user_from_employee(self, method=None):
 		if not frappe.db.exists("User", email):
 			new_password = frappe.generate_hash(length=10)
 
-			if not self.user_id:
+			if not employee_doc.user_id:
 				# if user is not created, then create user
-				self.user_id = frappe.get_doc(
+				employee_doc.user_id = frappe.get_doc(
 					{
 						"doctype": "User",
-						"email": self.company_email,
-						"first_name": self.first_name,
+						"email": employee_doc.company_email,
+						"first_name": employee_doc.first_name,
 						"full_name": full_name,
 						"enabled": 1,
 						"user_type": "Website User",						
 						"new_password": new_password,
 						"user_category": "Employee",
-						"mobile_no": self.cell_number,
+						"mobile_no": employee_doc.cell_number,
 						"send_welcome_email": 0,
 					}
 					).insert(ignore_permissions=True).email
 
-				self.db_set("user_id", self.user_id)
+				employee_doc.db_set("user_id", employee_doc.user_id)
 				update_password(email, new_password)
 				
 				# Find LMS Course(s) where custom_assigned_to_role is "Employee" or "All" and Option Country includes employee's country
@@ -103,9 +107,9 @@ def create_user_from_employee(self, method=None):
 					employee_course = ""
 					employee_course_intro = ""
 
-				# Update self in the database
+				# Update employee_doc in the database
 				notification_subject = f'{employee_course} on {employee_course_intro}'
-				notification_message = f'''<p>Dear {self.first_name},</p>
+				notification_message = f'''<p>Dear {employee_doc.first_name},</p>
 
 					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">E{employee_course} on {employee_course_intro}.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
@@ -124,7 +128,7 @@ def create_user_from_employee(self, method=None):
 
 				# Send email notification
 				frappe.sendmail(
-					recipients=[self.company_email],
+					recipients=[employee_doc.company_email],
 					sender=get_default_sender(),
 					subject=notification_subject,
 					message=notification_message
@@ -134,10 +138,10 @@ def create_user_from_employee(self, method=None):
 					"doctype": "Notification Log",
 					"subject": notification_subject,
 					"email_content": notification_message,
-					"for_user": self.company_email,
+					"for_user": employee_doc.company_email,
 					"type": "Alert",
 					"document_type": "Employee",
-					"document_name": self.name
+					"document_name": employee_doc.name
 				}).insert(ignore_permissions=True)
 
 				# self.db_set("user_id", self.user_id)
@@ -152,27 +156,32 @@ def create_user_from_employee(self, method=None):
 def generate_password(length=10):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-def create_user_from_distributor(self, method=None):
-    email = self.distributor_email_address
-    country = self.country
 
-    print("email", email, "country", country)
+@frappe.whitelist()
+def create_user_from_distributor(distributor_id):
+	frappe.only_for(["Administrator", "Supervisor", "System User"])
 
-    try:
-        if not frappe.db.exists("User", email):
-            new_password = generate_password()
+	distributor_doc = frappe.get_doc("Distributor", distributor_id)
+	email = distributor_doc.distributor_email_address
+	country = distributor_doc.country
 
-            if not self.user_id:
-                # Create the user
-                user = frappe.get_doc({
-                    "doctype": "User",
-                    "email": email,
-                    "enabled": 1,
-                    "user_type": "Website User",
-                    "send_welcome_email": 0,
-					"mobile_no": self.distributor_contact_number,
+	print("email", email, "country", country)
+
+	try:
+		if not frappe.db.exists("User", email):
+			new_password = generate_password()
+
+			if not distributor_doc.user_id:
+				# Create the user
+				user = frappe.get_doc({
+					"doctype": "User",
+					"email": email,
+					"enabled": 1,
+					"user_type": "Website User",
+					"send_welcome_email": 0,
+					"mobile_no": distributor_doc.distributor_contact_number,
 					"first_name": email.split('@')[0],  # Use email prefix as first name
-                    "user_category": "Distributor",
+					"user_category": "Distributor",
 			"roles": [
 				{"role": "Distributor"},
 				{"role": "LMS Student"},
@@ -181,50 +190,50 @@ def create_user_from_distributor(self, method=None):
 			"country": country
 		}).insert(ignore_permissions=True)
 
-                update_password(email, new_password)
-                print("user", user)
-                self.db_set("user_id", user.name)
-                
-                # Set credentials sent date when user is created and email is sent
-                self.db_set("credentials_sent_date", frappe.utils.now_datetime())
-                self.db_set("is_active_user", 1)
-                self.db_set("login_reminder_count", 0)
+				update_password(email, new_password)
+				print("user", user)
+				distributor_doc.db_set("user_id", user.name)
+				
+				# Set credentials sent date when user is created and email is sent
+				distributor_doc.db_set("credentials_sent_date", frappe.utils.now_datetime())
+				distributor_doc.db_set("is_active_user", 1)
+				distributor_doc.db_set("login_reminder_count", 0)
 
-                # Find LMS Course(s) where custom_assigned_to_role is "Distributor" or "All" and Option Country includes distributor's country
-                distributor_courses = []
-                for course in frappe.get_all(
-                    "LMS Course",
-                    filters={
-                        "custom_assigned_to_role": ["in", ["Distributor", "All"]],
-                        "published": 1
-                    },
-                    fields=["name", "title", "short_introduction"]
-                ):
-                    # Check if distributor's country is in the course's assigned countries via Option Country child table
-                    assigned_countries = frappe.get_all(
-                        "Option Country",
-                        filters={
-                            "parent": course["name"],
-                            "parenttype": "LMS Course",
-                            "country": country
-                        },
-                        pluck="country"
-                    )
-                    if assigned_countries:
-                        distributor_courses.append(course)
+				# Find LMS Course(s) where custom_assigned_to_role is "Distributor" or "All" and Option Country includes distributor's country
+				distributor_courses = []
+				for course in frappe.get_all(
+					"LMS Course",
+					filters={
+						"custom_assigned_to_role": ["in", ["Distributor", "All"]],
+						"published": 1
+					},
+					fields=["name", "title", "short_introduction"]
+				):
+					# Check if distributor's country is in the course's assigned countries via Option Country child table
+					assigned_countries = frappe.get_all(
+						"Option Country",
+						filters={
+							"parent": course["name"],
+							"parenttype": "LMS Course",
+							"country": country
+						},
+						pluck="country"
+					)
+					if assigned_countries:
+						distributor_courses.append(course)
 
-                # Use the first matching course, or set empty if none found
-                if distributor_courses:
-                    distributor_course = distributor_courses[0]["title"]
-                    distributor_course_intro = distributor_courses[0]["short_introduction"]
-                else:
-                    distributor_course = ""
-                    distributor_course_intro = ""
+				# Use the first matching course, or set empty if none found
+				if distributor_courses:
+					distributor_course = distributor_courses[0]["title"]
+					distributor_course_intro = distributor_courses[0]["short_introduction"]
+				else:
+					distributor_course = ""
+					distributor_course_intro = ""
 
-                subject = f'{distributor_course} for Distributors on {distributor_course_intro}'
-                message = f'''<p>Dear {self.distributor_name},</p>
+				subject = f'{distributor_course} for Distributors on {distributor_course_intro}'
+				message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
-                    <p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">{distributor_course} on {distributor_course_intro}</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">{distributor_course} on {distributor_course_intro}</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
 					<p style="font-weight: bold;">Login Credentials:</p>
 					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
@@ -240,46 +249,46 @@ def create_user_from_distributor(self, method=None):
 					<p>Meril</p>
 					'''
 
-                frappe.sendmail(
-                    recipients=[email],
-                    sender=get_default_sender(),
-                    subject=subject,
-                    message=message
-                )
-                # Also send a system notification using Notification Log
-                frappe.get_doc({
-                    "doctype": "Notification Log",
-                    "subject": subject,
-                    "email_content": message,
-                    "for_user": email,
+				frappe.sendmail(
+					recipients=[email],
+					sender=get_default_sender(),
+					subject=subject,
+					message=message
+				)
+				# Also send a system notification using Notification Log
+				frappe.get_doc({
+					"doctype": "Notification Log",
+					"subject": subject,
+					"email_content": message,
+					"for_user": email,
 					"type": "Alert"
 				}).insert(ignore_permissions=True)
-                
-                # Send email notification to admins about new distributor creation
-                admins = frappe.get_all("User", 
-                    filters={"role_profile_name": "System Manager", "enabled": 1}, 
-                    pluck="email")
-                
-                if admins:
-                    subject = f"🎯 New Distributor Created: {self.attendee_name}"
-                    message = f"<p>New distributor <b>{self.attendee_name}</b> from <b>{self.distributor_company_name}</b> has been created and credentials sent.</p><p>📧 Email: {email}</p><p>📅 Credentials sent: {frappe.utils.format_datetime(frappe.utils.now_datetime())}</p><p>🔔 Daily login reminders will start tomorrow if no login occurs.</p>"
-                    
-                    frappe.sendmail(
-                        recipients=admins,
-                        sender=get_default_sender(),
-                        subject=subject,
-                        message=message
-                    )
-                
-        else:
-            frappe.throw(_("A user with this email already exists."))
+				
+				# Send email notification to admins about new distributor creation
+				admins = frappe.get_all("User", 
+					filters={"role_profile_name": "System Manager", "enabled": 1}, 
+					pluck="email")
+				
+				if admins:
+					subject = f"🎯 New Distributor Created: {distributor_doc.attendee_name}"
+					message = f"<p>New distributor <b>{distributor_doc.attendee_name}</b> from <b>{distributor_doc.distributor_company_name}</b> has been created and credentials sent.</p><p>📧 Email: {email}</p><p>📅 Credentials sent: {frappe.utils.format_datetime(frappe.utils.now_datetime())}</p><p>🔔 Daily login reminders will start tomorrow if no login occurs.</p>"
+					
+					frappe.sendmail(
+						recipients=admins,
+						sender=get_default_sender(),
+						subject=subject,
+						message=message
+					)
+				
+		else:
+			frappe.throw(_("A user with this email already exists."))
 
-        print("User created successfully")
+		print("User created successfully")
 
-    except Exception as e:
-        print("ERROR:", str(e))
-        frappe.log_error(frappe.get_traceback(), "Distributor Creation Process Failed")
-        frappe.throw(_("An error occurred during distributor creation: {0}").format(str(e)))
+	except Exception as e:
+		print("ERROR:", str(e))
+		frappe.log_error(frappe.get_traceback(), "Distributor Creation Process Failed")
+		frappe.throw(_("An error occurred during distributor creation: {0}").format(str(e)))
 
 
 

@@ -11,7 +11,9 @@
   "column_break_iqxo",
   "entered_name",
   "signature_style",
-  "submission_datetime"
+  "submission_datetime",
+  "section_break_knpr",
+  "document_upload_datetime"
  ],
  "fields": [
   {
@@ -55,12 +57,22 @@
    "fieldname": "submission_datetime",
    "fieldtype": "Datetime",
    "label": "Submission Datetime"
+  },
+  {
+   "fieldname": "section_break_knpr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "document_upload_datetime",
+   "fieldtype": "Table",
+   "label": "Document Upload Datetime",
+   "options": "Distributor Document Upload Timdate"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-19 13:34:43.158756",
+ "modified": "2025-09-23 18:26:47.308216",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor Course Documents",

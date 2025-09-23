@@ -65,7 +65,12 @@
   "meta_description",
   "meta_image",
   "column_break_xijv",
-  "meta_keywords"
+  "meta_keywords",
+  "custom_settings_tab",
+  "meril_distributor_compliance_policy_adoption_form_column",
+  "distributor_self_declaration",
+  "meril_distributor_compliance_code_of_conduct",
+  "meril_distributor_compliance_policy_adoption_form"
  ],
  "fields": [
   {
@@ -405,14 +410,42 @@
    "fieldname": "certified_members",
    "fieldtype": "Check",
    "label": "Certified Members"
+  },
+  {
+   "fieldname": "custom_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Custom Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "distributor_self_declaration",
+   "fieldtype": "Check",
+   "label": "Distributor Self Declaration"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_code_of_conduct",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Code of Conduct"
+  },
+  {
+   "fieldname": "meril_distributor_compliance_policy_adoption_form_column",
+   "fieldtype": "Column Break",
+   "label": "Enable Upload and Download"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_policy_adoption_form",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Policy Adoption Form"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-05-30 19:02:51.381668",
- "modified_by": "sayali@frappe.io",
+ "modified": "2025-09-23 16:29:52.717240",
+ "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Settings",
  "owner": "Administrator",

@@ -45,6 +45,8 @@ declare module 'vue' {
     DiscussionModal: typeof import('./src/components/Modals/DiscussionModal.vue')['default']
     DiscussionReplies: typeof import('./src/components/DiscussionReplies.vue')['default']
     Discussions: typeof import('./src/components/Discussions.vue')['default']
+    DIstributorDocuments: typeof import('./src/components/custom/documentsmodel/DIstributorDocuments.vue')['default']
+    DistributorSelfDeclaration: typeof import('./src/components/custom/documentsmodel/DistributorSelfDeclaration.vue')['default']
     DocumentDownloadModal: typeof import('./src/components/custom/DocumentDownloadModal.vue')['default']
     EditCoverImage: typeof import('./src/components/Modals/EditCoverImage.vue')['default']
     EditProfile: typeof import('./src/components/Modals/EditProfile.vue')['default']

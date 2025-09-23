@@ -66,17 +66,21 @@
       >
         ×
       </button>
-      <h3 class="text-lg font-semibold mb-4 uppercase text-gray-900">Instructions:</h3>
+      <h3 class="text-lg font-semibold mb-4 uppercase text-gray-900">{{ currentDocName || 'Instructions:' }}</h3>
       <ol class="list-decimal list-inside text-gray-700 mb-4 space-y-1">
         <li>
-          Please <span class="font-semibold text-gray-900">download</span> the <span class="font-semibold">Meril Distributor - Compliance Policy Adoption Form</span> (DOCX file).
+          Please <span class="font-semibold text-gray-900">download</span> the <span class="font-semibold"> {{  uploadDocumentName }} </span> 
         </li>
-        <li>
-          Insert your company's letterhead at the top of the document.
-        </li>
-        <li>
-          Then upload the completed document.
-        </li>
+  
+          <li v-if="uploadDocumentName=='Meril Distributor Compliance Policy Adoption Form'">
+            Insert your company's letterhead at the top of the document.
+          </li>
+          <li v-else>
+            Sign the Docuemnt
+          </li>
+          <li>
+            Then upload the completed document.
+          </li>
       </ol>
       <div v-if="showDownloadForm" class="mb-4 p-3 bg-gray-50 border border-gray-400 text-gray-800 rounded flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-white font-bold mr-2">✓</span>
@@ -94,7 +98,7 @@
           <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
           </svg>
-          Download DOCX
+          Download Document
         </button>
       </form>
       <form @submit.prevent="uploadDocument">
@@ -147,18 +151,19 @@
         ×
       </button>
       <div v-if="role_is=='Distributor'">
+        <div v-if="uploadDocumentName=='Meril Distributor Compliance Policy Adoption Form'">
           <h3 class="text-center font-semibold mx-auto max-w-80">Meril Distributor- Compliance Policy Adoption Form</h3>
           <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
               <p class="text-sm mt-4">
-                {{ current_date }}
+                {{ new Date().toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, year: 'numeric', month: 'short', day: '2-digit' }) }}
               </p>
               <p class="text-sm text-justify mt-2">We {{ declaratinoInfo.distributor_company_name }}, being the Distributor of Meril {{ distributor?.meril_company_table[0]?.meril_company_name }} do hereby certify that we have willingly adopted attached Meril
             Distributor Compliance Policy as our own Compliance Policy with effect from
             {{ current_date }} and declare to abide by the same.</p>
-            <p class="text-sm text-justify mt-2">All employees, partners, directors, proprietor of our organization are expected to
+              <p class="text-sm text-justify mt-2">All employees, partners, directors, proprietor of our organization are expected to
               observe and adhere to this Policy.</p>
               <p class="text-sm text-justify mt-2 underline font-semibold">Nomination of Compliance Officer:</p>
-              <p class="text-sm text-justify mt-2">{{ name?name:"<signature>" }} is nominated as Compliance Officer of our organization with effect
+              <p class="text-sm text-justify mt-2">{{ name }} is nominated as Compliance Officer of our organization with effect
                 from {{ current_date }}</p>
                 
                 <p class="text-sm text-justify mt-6">Authorized representative of {{ declaratinoInfo.distributor_company_name }}</p>
@@ -169,9 +174,16 @@
                 <p
                   class="text-sm text-justify mt-2"
                 >
-                  Sign and Seal : <span :style="signatureType ? { fontFamily: signatureType } : {}">{{ name ? name : "<signature>" }}</span>
+                  Sign and Seal : <span > {{"<Compliance officer nominee name>"}} </span>
                 </p>
              </div>
+            </div>
+            <div v-else-if="uploadDocumentName=='Distributor Self Declaration'">
+              Self Declaration
+            </div>
+            <div v-else-if="uploadDocumentName=='Meril Distributor Compliance Code Of Conduct'">
+              Meril Distributor Compliance Code Of Conduct
+            </div>
         </div>
         <div v-else-if="role_is=='Employee'">
           <h3 class="text-center font-semibold mx-auto max-w-80">Employee Declaration - Ethical Practices &amp; Compliance</h3>
@@ -206,12 +218,7 @@ within thirty (30) days from the date of awareness.</p>
                   <p class="text-sm text-justify mt-2">I also declare that I will not engage in any financial transactions with any distributor or
 nominated representative of the distributor. I acknowledge that Meril Group shall bear no
 responsibility or liability for any such transactions.</p>
-             
-                <p
-                  class="text-sm text-justify mt-6"
-                >
-                  Signature : <span :style="signatureType ? { fontFamily: signatureType } : {}">{{ name ? name : "<signature>" }}</span>
-                </p>
+                
                 <p class="text-sm text-justify mt-2">Employee Name : {{ declaratinoInfo.employee_name }}</p>
                 <p class="text-sm text-justify mt-2">Employee ID : {{ declaratinoInfo.custom_employee_id }}</p>
                 <p class="text-sm text-justify mt-2">Company Name : {{ declaratinoInfo.company }}</p>
@@ -220,41 +227,29 @@ responsibility or liability for any such transactions.</p>
         </div>
         
         <form @submit="handleCertify" class="flex flex-col gap-y-2">
-        <TextInput
-            type="text"
-            placeholder="Signature"
-            v-model="name"
-            class="w-full rounded-lg border focus:outline-none focus:ring-2 border-none p-0"
-            required
-            minlength="3"
-            ></TextInput>
-            <div class="flex gap-x-2">
-            <select
-              v-model="signatureType"
-              @change="signatureType = $event.target.value"
-              :style="{ fontFamily: signatureType || 'sans-serif', lineHeight: 1.9, padding: '0px 5px' }"
-              class="block w-full px-3 overflow-auto py-2 border border-gray-300 rounded text-sm bg-white text-gray-900 focus:outline-none focus:ring-0 focus:border-gray-300"
+          <div class="flex flex-col gap-y-2">
+            <label for="name" class="text-sm font-medium">Name</label>
+            <TextInput
+              id="name"
+              type="text"
+              placeholder="Enter name"
+              v-model="name"
+              class="w-full rounded-lg border focus:outline-none focus:ring-2 border-gray-300"
               required
-            >
-              <option
-                v-for="fontStyle in fontStyles"
-                :key="fontStyle.value"
-                :value="fontStyle.value"
-                :style="{ fontFamily: fontStyle.value }"
-              >
-                {{ signatureText }}
-              </option>
-          </select>
-          <TextInput
-            type="date"
-            id="date"
-            v-model="date"
-            :value="date || new Date().toISOString().split('T')[0]"
-            disabled
-            class="w-full rounded-lg border p-0 border-none focus:outline-none focus:ring-2"
-            required
-          />
-        </div>
+              minlength="3"
+            />
+          </div>
+        
+          <div class="flex flex-col gap-y-2">
+            <label for="date" class="text-sm font-medium">Date</label>
+            <input
+              id="date"
+              type="datetime-local"
+              :value="new Date().toISOString().slice(0,16)"
+              class="border rounded px-2 py-1 text-sm"
+              readonly
+            />
+          </div>
           <Button theme="gray" variant="solid" class="w-full mt-4" type="submit" :disabled="loadingUploadForm">
         <div class="flex items-center justify-center w-full">
         <Spinner v-if="loadingUploadForm" class="w-4 mr-2" />  
@@ -284,18 +279,22 @@ const current_date = (() => {
 })();
 // Second modal state and logic
 const showUploadForm = ref(false)
+const uploadDocumentName = ref("Meril Distributor Compliance Policy Adoption Form");
 const loadingScreen = ref(false);
 const showDownloadForm = ref(false)
-const signatureType = ref('')
+const name = ref('')
+const currentDocName = ref('')
+const signatureText = computed(() => name.value?.trim() || 'Signature')
 const showError = ref(false)
 const declaratinoInfo = ref(null);
 const showDeclarationForm = ref(true);
+const uploadDolaodEnabled = ref({
+  distributor_self_declaration: false,
+  meril_distributor_compliance_code_of_conduct: false,
+  meril_distributor_compliance_policy_adoption_form: false,
+})
 
-const name = ref('')
-const signatureText = computed(() => {
-  const trimmedName = name.value.trim();
-  return trimmedName !== "" ? trimmedName : "Signature";
-});
+// signature removed
 
 const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
@@ -306,7 +305,7 @@ const course_documents_record_id = ref('');
 const doctype = ref('');
 
 const role_is = ref(null);
-const fontStyles = ref([]);
+// signature fonts removed
 
 
 const handleCertify = async (event) => {
@@ -317,34 +316,12 @@ const handleCertify = async (event) => {
   // If Employee, take signature via API then show download form
   if (role_is.value === 'Employee') {
     if (!name.value || name.value.trim().length < 3) {
-      toast.error("Please enter signature (minimum 3 characters)");
-      return;
+      toast.error('Please enter name (minimum 3 characters)')
+      return
     }
-    if (!signatureType.value) {
-      toast.error("Please select a signature type");
-      return;
-    }
-    try {
-      loadingUploadForm.value = true;
-      const res = await call('lms.overrides.documents.get_employee_signature', {
-        signature: name.value,
-        signature_font_type: signatureType.value,
-        course: courseName.value
-      });
-      if (res?.success) {
-        toast.success('Signature submitted successfully');
-        await checkDocumentSubmission();
-        showDeclarationForm.value = false;
-        showUploadForm.value = false;
-        showDownloadForm.value = true;
-      } else {
-        toast.error(res?.message || 'Failed to submit signature');
-      }
-    } catch (e) {
-      toast.error(e?.message || 'Failed to submit signature');
-    } finally {
-      loadingUploadForm.value = false;
-    }
+    showDeclarationForm.value = false;
+    showUploadForm.value = false;
+    showDownloadForm.value = true;
     return;
   }
 
@@ -353,42 +330,7 @@ const handleCertify = async (event) => {
   showUploadForm.value = true;
 }
 // Fetch list of signature types where font files are not private
-async function fetchSignatureTypesWithPublicFonts() {
-  try {
-    // Use the whitelisted backend function to fetch public signature font styles
-    const res = await call("lms.overrides.documents.get_public_signature_font_styles");
-    console.log("res", res);
-    // Dynamically generate @font-face CSS rules for each font style returned from backend
-    if (Array.isArray(res)) {
-      // Remove any previously injected font-face styles to avoid duplicates
-      const prevStyle = document.getElementById('dynamic-font-face-styles');
-      if (prevStyle) prevStyle.remove();
-
-      let css = '';
-      res.forEach(font => {
-        if (font.font_file && font.value) {
-          css += `
-            @font-face {
-              font-family: '${font.value}';
-              src: url('${font.font_file}');
-              font-display: swap;
-            }
-          `;
-        }
-      });
-      if (css) {
-        const style = document.createElement('style');
-        style.id = 'dynamic-font-face-styles';
-        style.innerHTML = css;
-        document.head.appendChild(style);
-      }
-    }
-    return res || [];
-  } catch (e) {
-    toast.error("Failed to fetch signature types");
-    return [];
-  }
-}
+// signature fonts removed
 
 async function get_declaration_info(){
   try{
@@ -401,11 +343,52 @@ async function get_declaration_info(){
     toast.error("Error in  getting declaration")
   }
 }
+uploadDolaodEnabled
+function decideInitialView() {
+  // Priority: Self Declaration → Code of Conduct → Policy Adoption → else Download
+  showError.value = false
+  loadingScreen.value = false
+  showDownloadForm.value = false
+  showUploadForm.value = false
+  showDeclarationForm.value = false
+
+  if (uploadDolaodEnabled.value.distributor_self_declaration) {
+    showDeclarationForm.value = true
+    return
+  }
+  if (uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct) {
+    // enable upload flow for Code of Conduct
+    currentDocName.value = 'Meril Distributor Compliance Code of Conduct'
+    uploadDocumentName.value = currentDocName.value
+    showUploadForm.value = true
+    return
+  }
+  if (uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
+    // enable upload/download for Policy Adoption
+    currentDocName.value = 'Meril Distributor Compliance Policy Adoption Form'
+    uploadDocumentName.value = currentDocName.value
+    showUploadForm.value = true
+    return
+  }
+  // fallback: only show download list modal
+  showDownloadForm.value = true
+}
 
 onMounted(async () => {
   console.log("mounted");
-  fontStyles.value = await fetchSignatureTypesWithPublicFonts();
-  console.log(fontStyles.value)
+  try {
+    const res = await call("lms.overrides.documents.get_upload_download_docuemtn_enabled");
+    if (res?.success) {
+      uploadDolaodEnabled.value = {
+        distributor_self_declaration: !!res.distributor_self_declaration,
+        meril_distributor_compliance_code_of_conduct: !!res.meril_distributor_compliance_code_of_conduct,
+        meril_distributor_compliance_policy_adoption_form: !!res.meril_distributor_compliance_policy_adoption_form,
+      }
+    }
+  } catch (e) {
+    console.error("Error fetching upload/download enabled flags", e);
+  }
+  decideInitialView()
 });
 
 
@@ -442,6 +425,15 @@ const checkDocumentSubmission = async () => {
 try {
     loadingScreen.value = true
     showDeclarationForm.value = false
+    // Gate by enablement flags with requested priority.
+    // If none are enabled, show only download modal and return.
+    if (!uploadDolaodEnabled.value.distributor_self_declaration
+      && !uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct
+      && !uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
+      loadingScreen.value = false
+      decideInitialView()
+      return
+    }
     const res = await call('lms.overrides.documents.has_user_submited_document', { course: courseName.value })
     console.log("res",res)
     if(res.error){
@@ -464,9 +456,8 @@ try {
     } else {
       get_declaration_info();
       role_is.value = res.role_is
-      showDownloadForm.value = false
-      showUploadForm.value = false
-      showDeclarationForm.value = true
+      // decide initial view based on flags
+      decideInitialView()
     }
 
     if(showError.value){
@@ -487,43 +478,51 @@ try {
 const uploadDocument = async () => {
   loadingUploadForm.value = true
 
-  if(!name.value || name.value.trim().length < 3){
-    toast.error("Please enter name (minimum 3 characters)");
-    loadingUploadForm.value = false
-    return;
-  }
   if(!file.value) {
     toast.error("Please select a file")
     loadingUploadForm.value = false
     return;
   }
-  if (!signatureType.value) {
-    toast.error("Please select a signature type")
-    loadingUploadForm.value = false
-    return;
-  }
+  
   try {
-
     // Convert file to base64
     const base64Data = await fileToBase64(file.value)
     
     // Call the save_user_course_document_with_file method
-    const response = await call('lms.overrides.documents.save_user_course_document_with_file', {
+    const response = await call('lms.overrides.documents.upload_distributor_document_with_datetime', {
       course: courseName.value,
-      document_name: name.value || file.value.name,
+      document_name: currentDocName.value || file.value.name,
       filename: file.value.name,
       base64_file_data: base64Data,
       is_private: 0,
-      signature_type: signatureType.value,
-      name : name.value
+      document_upload_datetime: new Date().toISOString(),
+      uploadDocumentName: uploadDocumentName.value
     })
     console.log("response", response)
     if (response.message && response.success) {
       toast.success('Document uploaded successfully')
       showUploadForm.value = false
       showDownloadForm.value = true
+      // After successful upload, check what should be prompted next
+      try {
+        const next = await call('lms.overrides.documents.get_next_distributor_document', { course: courseName.value })
+        if (next?.success) {
+          if (next.next_document) {
+            // Prompt next document in sequence using existing download flow
+            currentDocName.value = next.next_document
+            uploadDocumentName.value = next.next_document
+            showDownloadForm.value = false
+            showUploadForm.value = true
+            showDeclarationForm.value = false
+          } else {
+            // No further docs → refresh normal state
+            await checkDocumentSubmission();
+          }
+        }
+      } catch (e) {
+        console.error('Failed to get next distributor document', e)
+      }
       // Reset form
-      name.value = ''
       date.value = ''
       file.value = null
       // Reset file input
@@ -570,15 +569,13 @@ const directDownload = async(url, file_name)=>{
 
 
 const handleDownload = async() => {
-  if(name.value === '' || name.value.trim().length < 3 || date.value === '') {
-    toast.error("Please enter name (minimum 3 characters) and date")
-    return
-  }
+
   try{
-    // Pass signature_type in the API call
+    // Pass name and course in the API call
     const res = await call("lms.overrides.documents.generate_dynamic_docx", {
-      name: name.value,
-      font_path: fontStyles.value.find(f => f.value === signatureType.value)?.font_file
+      name: name?.value || '',
+      course: courseName.value,
+      font_path: null,
     });
     console.log("res", res)
     if (res?.success && res.file_content) {
@@ -601,7 +598,7 @@ const handleDownload = async() => {
         const url = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + res.file_content
         const a = document.createElement('a');
         a.href = url;
-        a.download = res.file_name || `${name.value}_Compliance_Policy_Adoption_Form.docx`;
+        a.download = res.file_name || `${name?.value || 'Compliance'}_Compliance_Policy_Adoption_Form.docx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

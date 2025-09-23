@@ -14,6 +14,80 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops
 import requests
 from frappe.utils.file_manager import get_file_path
 
+@frappe.whitelist(allow_guest=False)
+def get_next_distributor_document(course=None):
+    """
+    Returns the next document name that the distributor needs to upload for the given course,
+    based on the enabled flags and what has already been submitted.
+    """
+    user = frappe.session.user
+    if not course:
+        return {"success": False, "message": "No course provided"}
+
+    # Check if course exists
+    if not frappe.db.exists("LMS Course", course):
+        return {"success": False, "message": "Course does not exist"}
+
+    # Get user roles
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+
+    # Only for Distributors
+    if "Distributor" not in roles:
+        return {"success": False, "message": "User is not a Distributor"}
+
+    # Get distributor doc
+    distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+    distributor_id = distributor_doc.name
+
+    # Get enabled document flags for this course/distributor
+    # This logic should match the frontend's "priority" order
+    # For now, assume a function exists to get these flags (or hardcode for demo)
+    # You may want to replace this with your own logic as needed
+    enabled_flags = frappe.call("lms.overrides.documents.get_upload_download_docuemtn_enabled", course=course)
+    # Fallback if not callable
+    if not enabled_flags or not enabled_flags.get("success", True):
+        # fallback: try to get from course or system settings
+        enabled_flags = {
+            "distributor_self_declaration": True,
+            "meril_distributor_compliance_code_of_conduct": True,
+            "meril_distributor_compliance_policy_adoption_form": True,
+        }
+
+    # List of document names in priority order (should match frontend)
+    doc_priority = [
+        ("distributor_self_declaration", "Distributor Self Declaration"),
+        ("meril_distributor_compliance_code_of_conduct", "Meril Distributor Compliance Code of Conduct"),
+        ("meril_distributor_compliance_policy_adoption_form", "Meril Distributor Compliance Policy Adoption Form"),
+    ]
+
+    # Get already submitted documents for this distributor and course
+    submitted_docs = frappe.get_all(
+        "Distributor Course Documents",
+        filters={
+            "distributor": distributor_id,
+            "course": course,
+            "has_submitted_documents": 1
+        },
+        fields=["document_name"]
+    )
+    submitted_names = {d["document_name"] for d in submitted_docs}
+
+    # Find the next document that is enabled and not yet submitted
+    for flag, doc_name in doc_priority:
+        if enabled_flags.get(flag) and doc_name not in submitted_names:
+            return {
+                "success": True,
+                "next_document": doc_name
+            }
+
+    # If all enabled documents are already submitted
+    return {
+        "success": True,
+        "next_document": None,
+        "message": "All required documents have been submitted"
+    }
+
 
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
@@ -139,6 +213,213 @@ def has_user_submited_document(course=None):
     except Exception as e:
         return {"submited": False, "error": str(e)}
 
+@frappe.whitelist(allow_guest=False)
+def upload_distributor_document_with_datetime(
+    course=None,
+    document_name=None,
+    filename=None,
+    base64_file_data=None,
+    is_private=1,
+    signature_type=None,
+    name=None,
+    document_upload_datetime=None,
+    uploadDocumentName=None
+):
+    """
+    Upload a distributor document for the Distributor Course Documents doctype,
+    and record the upload datetime in the document_upload_datetime child table.
+    Ensures the file is actually attached to an inserted parent document.
+    """
+    try:
+        user = frappe.session.user
+        user_doc = frappe.get_doc("User", user)
+        roles = [role.role for role in user_doc.roles]
+
+        # Only Distributors can upload
+        if "Distributor" not in roles:
+            return {"success": False, "message": "User is not Distributor"}
+
+        if not course:
+            return {"success": False, "message": "No course provided"}
+
+        if not document_name:
+            return {"success": False, "message": "Document name is required"}
+
+        if not filename or not base64_file_data:
+            return {"success": False, "message": "File data is required"}
+
+        # Check that uploadDocumentName is a valid Distributor Document Type
+        if not uploadDocumentName:
+            return {"success": False, "message": "Document type (uploadDocumentName) is required."}
+        valid_types = frappe.get_all("Distributor Document Type", pluck="name")
+        if uploadDocumentName not in valid_types:
+            return {
+                "success": False,
+                "message": f"Invalid document type: {uploadDocumentName}. Allowed types: {', '.join(valid_types)}"
+            }
+        # Validate allowed extensions
+        allowed_ext = (".doc", ".docx", ".pdf")
+        if not filename.lower().endswith(allowed_ext):
+            return {"success": False, "message": "Only .doc, .docx, or .pdf files are allowed"}
+
+        # Validate enrollment and completion
+        enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+        if not enrollment:
+            frappe.local.response["http_status_code"] = 403
+            return {"success": False, "message": "User is not enrolled in this course"}
+        _, progress = enrollment
+        if not progress or int(progress) < 100:
+            frappe.local.response["http_status_code"] = 403
+            return {"success": False, "message": "Course progress is not completed"}
+
+        # Parent Distributor Course Documents – reuse if exists for this course, else create
+        distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+        existing_name = frappe.db.exists(
+            "Distributor Course Documents",
+            {"distributor": distributor_doc.name, "course": course}
+        )
+        if existing_name:
+            doc = frappe.get_doc("Distributor Course Documents", existing_name)
+        else:
+            doc = frappe.get_doc({
+                "doctype": "Distributor Course Documents",
+                "distributor": distributor_doc.name,
+                "course": course,
+                "has_submitted_documents": 0,
+            })
+            doc.insert(ignore_permissions=True)
+
+        # Decode base64 safely
+        import base64, unicodedata
+        try:
+            base64_file_data_clean = (base64_file_data or "").strip().replace("\n", "").replace("\r", "")
+            missing_padding = len(base64_file_data_clean) % 4
+            if missing_padding:
+                base64_file_data_clean += "=" * (4 - missing_padding)
+            file_content = base64.b64decode(base64_file_data_clean)
+        except Exception as e:
+            frappe.log_error(f"Base64 decode failed: {str(e)}")
+            return {"success": False, "message": "Invalid file data format. Please try uploading the file again."}
+
+        # Sanitize filename
+        filename_ascii = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode("ascii")
+
+        # Update parent with metadata (no file attachment on parent)
+        doc.document_name = document_name
+        doc.submission_date = now_datetime()
+        if signature_type:
+            # keep field name flexible if present on doctype
+            if hasattr(doc, "signature_type"):
+                doc.signature_type = signature_type
+            elif hasattr(doc, "signature_style"):
+                doc.signature_style = signature_type
+        if name and hasattr(doc, "entered_name"):
+            doc.entered_name = name
+
+        # Append upload record in child table with document name, datetime, and file link
+        try:
+            # Normalize incoming ISO datetime (e.g., 2025-09-23T13:44:12.991Z) to MySQL-friendly
+            normalized_dt = None
+            if document_upload_datetime:
+                try:
+                    s = str(document_upload_datetime).strip()
+                    # Replace T with space, drop trailing Z, limit to seconds if needed
+                    s = s.replace('T', ' ').replace('Z', '')
+                    # Trim fractional seconds to microseconds supported by MySQL if present
+                    if '.' in s:
+                        main, frac = s.split('.', 1)
+                        # keep up to 6 digits
+                        frac = ''.join(ch for ch in frac if ch.isdigit())[:6]
+                        s = main + ('.' + frac if frac else '')
+                    normalized_dt = get_datetime(s)
+                except Exception:
+                    normalized_dt = now_datetime()
+            else:
+                normalized_dt = now_datetime()
+
+            if not getattr(doc, "document_upload_datetime", None):
+                doc.set("document_upload_datetime", [])
+            # Create child row first, save parent, then attach file to PARENT doctype
+            child = doc.append(
+                "document_upload_datetime",
+                {
+                    "upload_datetime": normalized_dt,
+                    # Save name to the most likely field(s) in child schema
+                    "document_name": document_name,
+                },
+            )
+            doc.save(ignore_permissions=True)
+            # Attach file to parent doctype (standard file attachment)
+            file_doc = save_file(
+                fname=filename_ascii,
+                content=file_content,
+                dt="Distributor Course Documents",
+                dn=doc.name,
+                is_private=int(is_private) if is_private is not None else 1,
+            )
+            # persist file url on child row field (uploaded_document / upload_document)
+            if hasattr(child, "uploaded_document"):
+                child.uploaded_document = file_doc.file_url
+            elif hasattr(child, "upload_document"):
+                child.upload_document = file_doc.file_url
+            # also save name to alternative field if schema uses a different key
+            if not getattr(child, "document_name", None) and hasattr(child, "document"):
+                child.document = document_name
+            child.save(ignore_permissions=True)
+        except Exception:
+            # fail-soft if child table not configured
+            pass
+
+        # Conditionally mark as submitted only when all enabled docs are uploaded
+        try:
+            lms_settings = frappe.get_single("LMS Settings")
+            # Build the list of required document names based on enabled settings
+            required_docs = []
+            if getattr(lms_settings, "distributor_self_declaration", False):
+                required_docs.append("Distributor Self Declaration")
+            if getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False):
+                required_docs.append("Meril Distributor Compliance Code of Conduct")
+            if getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False):
+                required_docs.append("Meril Distributor Compliance Policy Adoption Form")
+
+            # Gather all uploaded document names from the child table
+            uploaded_names = set()
+            for row in (getattr(doc, "document_upload_datetime", []) or []):
+                docname = getattr(row, "document_name", None)
+                if docname:
+                    uploaded_names.add(docname)
+
+            # Mark as submitted only if all required docs are present in uploaded_names
+            if required_docs and all(req in uploaded_names for req in required_docs):
+                doc.has_submitted_documents = 1
+            else:
+                doc.has_submitted_documents = 0
+
+        except Exception:
+            # If settings or child table missing, do not force submission flag
+            pass
+        doc.save(ignore_permissions=True)
+
+        # Suggest next document to upload, if any
+        next_info = {}
+        try:
+            next_info = get_next_distributor_document(course)
+        except Exception:
+            next_info = {}
+
+        return {
+            "success": True,
+            "message": "Document uploaded successfully",
+            "docname": doc.name,
+            "file_url": file_doc.file_url,
+            "file_name": file_doc.file_name,
+            "next_document": next_info.get("next_document") if isinstance(next_info, dict) else None,
+        }
+
+    except Exception as e:
+        frappe.log_error(f"Error uploading distributor document: {str(e)}")
+        return {"success": False, "message": f"Error uploading document: {str(e)}"}
+
 
 @frappe.whitelist(allow_guest=False)
 def save_user_course_document_with_file(
@@ -184,8 +465,6 @@ def save_user_course_document_with_file(
     if not document_name:
         return {"success": False, "message": "Document name is required"}
 
-    if not name:
-        return {"success": False, "message": "name is required"}
 
     if not filename or not base64_file_data:
         return {"success": False, "message": "File data is required"}
@@ -296,7 +575,7 @@ def save_user_course_document_with_file(
         doc.document_name = document_name
         doc.document_file = file_doc.file_url
         doc.submission_date = now_datetime()
-        doc.has_submitted_documents = 1
+    
         if signature_type:
             doc.signature_type = signature_type
 
@@ -398,9 +677,95 @@ def get_signature_image(
     img_bytes.seek(0)
     return img_bytes
 
+import frappe
+
 @frappe.whitelist(allow_guest=True)
-def generate_dynamic_docx(name=None, font_path = None):
-    from docx.shared import Inches, Pt
+def get_upload_download_docuemtn_enabled():
+    """
+    Returns the boolean values of three check fields from LMS Settings:
+    - distributor_self_declaration
+    - meril_distributor_compliance_code_of_conduct
+    - meril_distributor_compliance_policy_adoption_form
+
+    Returns:
+        dict: {
+            "distributor_self_declaration": bool,
+            "meril_distributor_compliance_code_of_conduct": bool,
+            "meril_distributor_compliance_policy_adoption_form": bool
+        }
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        return {
+            "success": False,
+            "message": "User not logged in."
+        }
+
+    # Fetch from LMS Settings doctype (assume singleton)
+    lms_settings = frappe.get_single("LMS Settings")
+
+    if not lms_settings:
+        return {
+            "success": False,
+            "message": "LMS Settings not found."
+        }
+
+    return {
+        "success": True,
+        "distributor_self_declaration": bool(getattr(lms_settings, "distributor_self_declaration", False)),
+        "meril_distributor_compliance_code_of_conduct": bool(getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False)),
+        "meril_distributor_compliance_policy_adoption_form": bool(getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False))
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def get_next_distributor_document(course: str | None = None):
+    """
+    After a successful upload (e.g. Code of Conduct), decide which distributor document
+    should be prompted next based on LMS Settings flags and distributor company context.
+
+    Priority for NEXT doc:
+      - If Policy Adoption is enabled → return appropriate policy doc (Endo/Non-Endo/both)
+      - Otherwise → return None
+    """
+    user = frappe.session.user
+    if not course:
+        return {"success": False, "message": "No course provided"}
+
+    # Ensure user is Distributor and enrolled
+    enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+    if not enrollment:
+        frappe.local.response["http_status_code"] = 403
+        return {"success": False, "message": "User is not enrolled in this course"}
+
+    user_doc = frappe.get_doc("User", user)
+    roles = [r.role for r in user_doc.roles]
+    if "Distributor" not in roles:
+        return {"success": False, "message": "Only Distributor flow supported"}
+
+    flags = get_upload_download_docuemtn_enabled()
+    if not flags.get("success"):
+        return {"success": False, "message": "Unable to read LMS Settings"}
+
+    # Next: Only the three LMS Settings-controlled documents are considered.
+    # After Code of Conduct, prompt Policy Adoption Form if enabled.
+    if flags.get("meril_distributor_compliance_policy_adoption_form"):
+        return {
+            "success": True,
+            "next_document": "Meril Distributor Compliance Policy Adoption Form",
+        }
+
+    return {"success": True, "next_document": None}
+
+@frappe.whitelist(allow_guest=True)
+def generate_dynamic_docx(name=None, course=None):
+    """
+    Generate a PDF using the print format for Meril Distributor Compliance Policy Adoption Form.
+    Creates or updates the Distributor Course Documents record with the entered name,
+    then generates PDF using the print format.
+    """
+    import base64
+    from frappe.utils import now_datetime
 
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
@@ -408,12 +773,7 @@ def generate_dynamic_docx(name=None, font_path = None):
     if not name:
         return {
             "success": False,
-            "message": "No distributor name provided"
-        }
-    if font_path is None:
-        return {
-            "success": False,
-            "message": "No Signature Style Selected"
+            "message": "No compliance officer name provided"
         }
 
     roles = [role.role for role in user_doc.roles]
@@ -440,74 +800,144 @@ def generate_dynamic_docx(name=None, font_path = None):
         if not distributor_doc.distributor_contact_number and not user_doc.mobile_no:
             frappe.throw("Contact number is missing in distributor and user document.")
 
-        meril_company_name = distributor_doc.meril_company_table[0].meril_company_name
-        distributor_company_name = distributor_doc.distributor_company_name
-        distributor_name = distributor_doc.attendee_name
-        designation = distributor_doc.designation
-        email = distributor_doc.distributor_email_address or user_doc.email
-        contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
-        today = get_datetime().strftime("%d-%m-%Y")
+        # Get or create Distributor Course Documents record
+        doc_name = None
+        if course:
+            doc_name = frappe.db.exists(
+                "Distributor Course Documents",
+                {"distributor": distributor_doc.name, "course": course}
+            )
 
-        doc = Document()
-        para = doc.add_paragraph("On letter head of distributor", style='Normal')
-        para.alignment = 1
-        doc.add_paragraph()
-        doc.add_paragraph()
-        heading = doc.add_heading("", level=1)
-        run = heading.add_run("Meril Distributor - Compliance Policy Adoption Form")
-        run.font.underline = True
-        run.font.color.rgb = RGBColor(0, 0, 0)
-        heading.alignment = 1
-        doc.add_paragraph()
-        doc.add_paragraph(frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy"))
-        doc.add_paragraph()
-        doc.add_paragraph(
-            f"We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.\n\n"
-            "All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy."
+        if doc_name:
+            doc = frappe.get_doc("Distributor Course Documents", doc_name)
+        elif course:
+            doc = frappe.get_doc({
+                "doctype": "Distributor Course Documents",
+                "distributor": distributor_doc.name,
+                "course": course,
+                "has_submitted_documents": 0
+            })
+            doc.insert(ignore_permissions=True)
+        else:
+            # Fallback to old behavior if no course is provided
+            from frappe.utils import get_datetime
+            today = get_datetime().strftime("%d-%m-%Y")
+            today_long = frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy")
+
+            meril_company_name = distributor_doc.meril_company_table[0].meril_company_name
+            distributor_company_name = distributor_doc.distributor_company_name
+            distributor_name = distributor_doc.attendee_name
+            designation = distributor_doc.designation
+            email = distributor_doc.distributor_email_address or user_doc.email
+            contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
+
+            # Compose HTML with increased font size for A4 page
+            html = f"""
+            <html>
+            <head>
+                <style>
+                    @page {{
+                        size: A4;
+                        margin: 40px;
+                    }}
+                    body {{
+                        font-family: Arial, sans-serif;
+                        font-size: 16pt;
+                        color: #000;
+                        margin: 40px;
+                    }}
+                    .center {{
+                        text-align: center;
+                    }}
+                    .heading {{
+                        font-size: 18pt;
+                        font-weight: bold;
+                        text-decoration: underline;
+                        margin-bottom: 18px;
+                    }}
+                    .spacer {{
+                        height: 60px;
+                    }}
+                    .section-title {{
+                        font-weight: bold;
+                        margin-top: 24px;
+                        font-size: 18pt;
+                    }}
+                    .info-table {{
+                        margin-top: 24px;
+                        margin-bottom: 24px;
+                        font-size: 16pt;
+                    }}
+                    .info-table div {{
+                        padding: 4px 12px 4px 0;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="center" style="font-size:18pt;">On letter head of distributor</div>
+                <div class="spacer"></div>
+                <div class="spacer"></div>
+                <div class="center heading">Meril Distributor - Compliance Policy Adoption Form</div>
+                <div class="spacer"></div>
+                <div style="font-size:16pt;">{frappe.utils.format_datetime(frappe.utils.now(), "d MMMM yyyy, h:mm a")} [System Generated]</div>
+                <div class="spacer"></div>
+                <div style="font-size:16pt;">
+                    We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.<br><br>
+                    All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy.
+                </div>
+                <div class="spacer"></div>
+                <div class="section-title">Nomination of Compliance Officer:</div>
+                <div class="spacer"></div>
+                <div style="font-size:16pt;">
+                    {name} is nominated as Compliance Officer of our organization with effect from {today_long}
+                </div>
+                <div class="spacer"></div>
+                <div class="section-title">Authorized representative of {distributor_name}</div>
+                <div class="info-table">
+                    <div>Name: {distributor_name}</div>
+                    <div>Title: {designation}</div>
+                    <div>Email Id: {email}</div>
+                    <div>Contact number: {contact_number}</div>
+                    <div>Sign and Seal :  &lt;Compliance officer nominee name&gt; </div>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Generate PDF using Frappe's PDF generator
+            pdf_content = frappe.utils.pdf.get_pdf(html)
+            pdf_content_base64 = base64.b64encode(pdf_content).decode('utf-8')
+
+            return {
+                "success": True,
+                "file_content": pdf_content_base64,
+                "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.pdf"
+            }
+
+        # Update the entered_name field with the compliance officer name
+        doc.entered_name = name
+        doc.submission_datetime = now_datetime()
+        doc.save(ignore_permissions=True)
+
+        # Generate PDF using the print format
+        pdf_content = frappe.get_print(
+            doctype="Distributor Course Documents",
+            name=doc.name,
+            print_format="Meril Distributor Compliance Policy Adoption Form",
+            as_pdf=True,
+            no_letterhead=1
         )
-        doc.add_paragraph()
-        doc.add_paragraph("Nomination of Compliance Officer:")
-        doc.add_paragraph()
-        doc.add_paragraph(
-            f"{name} is nominated as Compliance Officer of our organization with effect from {frappe.utils.format_date(frappe.utils.nowdate(), 'd MMMM yyyy')}"
-        )
-        doc.add_paragraph()
-        doc.add_paragraph(f"Authorized representative of {distributor_name}")
-        doc.add_paragraph(f"Name: {distributor_name}")
-        doc.add_paragraph(f"Title: {designation}")
-        doc.add_paragraph(f"Email Id : {email}")
-        doc.add_paragraph(f"Contact number : {contact_number}")
-        p = doc.add_paragraph("Sign and Seal :   ")
-        
-        run = p.add_run()
 
-        signature_img_bytes = get_signature_image(
-            text=name,
-            font_path=font_path,
-            font_size=80,     
-            fixed_height=80,  
-            dpi=300            
-        )
-    
-        run.add_picture(signature_img_bytes, height=Pt(15)) 
-
-        # Save the document to a buffer
-        buffer = io.BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        file_content = buffer.getvalue()
-
-        # Encode the file content in base64
- 
-        file_content_base64 = base64.b64encode(file_content).decode('utf-8')
+        pdf_content_base64 = base64.b64encode(pdf_content).decode('utf-8')
 
         return {
             "success": True,
-            "file_content": file_content_base64,
-            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.docx"
+            "file_content": pdf_content_base64,
+            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.pdf",
+            "document_id": doc.name
         }
     except Exception as e:
-        frappe.log_error(f"Error generating dynamic docx: {str(e)}")
+        frappe.log_error(f"Error generating dynamic pdf from print format: {str(e)}")
         return {
             "success": False,
             "error": str(e)

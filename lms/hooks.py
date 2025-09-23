@@ -108,8 +108,8 @@ doc_events = {
 		"validate": "lms.lms.user.validate_username_duplicates",
 		"after_insert": "lms.lms.user.after_insert",
 	},
-    "Employee": {"after_insert": "lms.lms.user.create_user_from_employee"},
-	"Distributor": {"after_insert": "lms.lms.user.create_user_from_distributor"},
+    # "Employee": {"after_insert": "lms.lms.user.create_user_from_employee"},
+	# "Distributor": {"after_insert": "lms.lms.user.create_user_from_distributor"},
 }
 
 # Scheduled Tasks
