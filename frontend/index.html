@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<link rel="icon" href="{{ favicon }}" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
 		<title>{{ title }}</title>
 		<meta name="title" content="{{ meta.title }}" />
 		<meta name="image" content="{{ meta.image }}" />
@@ -20,7 +20,7 @@
 				.then(response => response.json())
 				.then(data => {
 					console.log({data})
-					const chatnextAppBundle = data['chatnext-app.bundle.js']
+					const chatnextAppBundle = data['cn-app.bundle.js']
 					console.log({chatnextAppBundle})
 					const script = document.createElement('script')
 					script.src = chatnextAppBundle

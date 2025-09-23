@@ -29,6 +29,7 @@ from frappe.integrations.frappe_providers.frappecloud_billing import (
 )
 from frappe.utils.print_format import download_pdf
 from frappe.exceptions import PermissionError
+import mimetypes
 
 @frappe.whitelist()
 def distributor_download_pdf(doctype, name, format=None, no_letterhead=0, letterhead=None, settings=None):
@@ -2476,3 +2477,163 @@ def unregister_push_token(device_id=None, token=None):
 			"success": False,
 			"message": str(e)
 		}
+
+
+@frappe.whitelist(allow_guest=True)
+def serve_pdf_inline(file_url):
+	"""
+	Enhanced PDF serving with proper headers for all devices.
+	Detects device type and adjusts headers accordingly.
+	"""
+	import os
+	from frappe.utils.file_manager import get_file_path
+
+	try:
+		# Get user agent for device detection
+		user_agent = frappe.get_request_header("User-Agent") or ""
+
+		# Detect device type
+		is_mobile = any(device in user_agent for device in [
+			"Android", "iPhone", "iPad", "iPod", "Mobile", "mobile", "Windows Phone"
+		])
+
+		is_ios = "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent
+		is_android = "Android" in user_agent
+		is_webview = "wv" in user_agent or "WebView" in user_agent
+
+		# Clean the file URL
+		if file_url.startswith('/'):
+			file_url = file_url[1:]
+
+		# Get the actual file path
+		file_path = get_file_path(file_url)
+
+		if not os.path.exists(file_path):
+			frappe.response["http_status_code"] = 404
+			return {"error": "File not found"}
+
+		# Get file size for range requests support
+		file_size = os.path.getsize(file_path)
+
+		# Check for range request (important for iOS)
+		range_header = frappe.get_request_header("Range")
+		if range_header:
+			# Parse range header
+			import re
+			range_match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+			if range_match:
+				start = int(range_match.group(1))
+				end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+
+				# Read the requested range
+				with open(file_path, 'rb') as f:
+					f.seek(start)
+					file_content = f.read(end - start + 1)
+
+				# Set 206 Partial Content response
+				frappe.response["http_status_code"] = 206
+				frappe.local.response.filecontent = file_content
+				frappe.local.response.type = "pdf"
+
+				# Set range headers
+				frappe.local.response.headers = {
+					"Content-Type": "application/pdf",
+					"Content-Length": str(len(file_content)),
+					"Content-Range": f"bytes {start}-{end}/{file_size}",
+					"Accept-Ranges": "bytes",
+					"Content-Disposition": f'inline; filename="{os.path.basename(file_path)}"',
+					"Cache-Control": "public, max-age=3600",
+				}
+				return
+
+		# Read the full file content
+		with open(file_path, 'rb') as f:
+			file_content = f.read()
+
+		# Set proper headers based on device type
+		frappe.local.response.filename = os.path.basename(file_path)
+		frappe.local.response.filecontent = file_content
+		frappe.local.response.type = "pdf"
+
+		# Build headers based on device
+		headers = {
+			"Content-Type": "application/pdf",
+			"Content-Length": str(file_size),
+			"Accept-Ranges": "bytes",  # Enable range requests
+			"X-Content-Type-Options": "nosniff",
+		}
+
+		# Adjust Content-Disposition based on device
+		if is_ios:
+			# iOS requires specific inline handling with proper CORS
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+			headers["X-Frame-Options"] = "SAMEORIGIN"
+			headers["Access-Control-Allow-Origin"] = "*"
+			headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+		elif is_android and is_webview:
+			# Android WebView needs different handling
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "public, max-age=3600"
+			headers["X-Frame-Options"] = "SAMEORIGIN"
+			headers["Access-Control-Allow-Origin"] = "*"
+		elif is_mobile:
+			# General mobile handling with better compatibility
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "public, max-age=3600"
+			headers["X-Frame-Options"] = "SAMEORIGIN"
+			headers["Access-Control-Allow-Origin"] = "*"
+			headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+			# Add viewport support hint
+			headers["X-Mobile-Optimized"] = "width=device-width"
+		else:
+			# Desktop handling
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "public, max-age=86400"
+
+		# Add CORS headers for cross-origin requests
+		headers["Access-Control-Allow-Origin"] = "*"
+		headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+		headers["Access-Control-Allow-Headers"] = "Range, Content-Type"
+
+		frappe.local.response.headers = headers
+		return
+
+	except Exception as e:
+		frappe.log_error(f"Error serving PDF inline: {str(e)}", "PDF Serve Error")
+		frappe.response["http_status_code"] = 500
+		return {"error": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_document_info(file_url):
+	"""
+	Get document information for better client-side handling
+	"""
+	import os
+	from frappe.utils.file_manager import get_file_path
+
+	try:
+		if file_url.startswith('/'):
+			file_url = file_url[1:]
+
+		file_path = get_file_path(file_url)
+
+		if not os.path.exists(file_path):
+			return {"error": "File not found", "exists": False}
+
+		file_size = os.path.getsize(file_path)
+		file_extension = os.path.splitext(file_path)[1].lower()
+
+		return {
+			"exists": True,
+			"size": file_size,
+			"size_mb": round(file_size / (1024 * 1024), 2),
+			"extension": file_extension,
+			"name": os.path.basename(file_path),
+			"mime_type": mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error getting document info: {str(e)}", "Document Info Error")
+		return {"error": str(e), "exists": False}
