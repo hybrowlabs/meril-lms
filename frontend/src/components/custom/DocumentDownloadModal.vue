@@ -66,17 +66,21 @@
       >
         ×
       </button>
-      <h3 class="text-lg font-semibold mb-4 uppercase text-gray-900">Instructions:</h3>
+      <h3 class="text-lg font-semibold mb-4 uppercase text-gray-900">{{ currentDocName || 'Instructions:' }}</h3>
       <ol class="list-decimal list-inside text-gray-700 mb-4 space-y-1">
         <li>
-          Please <span class="font-semibold text-gray-900">download</span> the <span class="font-semibold">Meril Distributor - Compliance Policy Adoption Form</span> (DOCX file).
+          Please <span class="font-semibold text-gray-900">download</span> the <span class="font-semibold"> {{  uploadDocumentName }} </span> 
         </li>
-        <li>
-          Insert your company's letterhead at the top of the document.
-        </li>
-        <li>
-          Then upload the completed document.
-        </li>
+  
+          <li v-if="uploadDocumentName=='Meril Distributor Compliance Policy Adoption Form'">
+            Insert your company's letterhead at the top of the document.
+          </li>
+          <li v-else>
+            Sign the Docuemnt
+          </li>
+          <li>
+            Then upload the completed document.
+          </li>
       </ol>
       <div v-if="showDownloadForm" class="mb-4 p-3 bg-gray-50 border border-gray-400 text-gray-800 rounded flex items-center gap-2">
         <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-white font-bold mr-2">✓</span>
@@ -94,7 +98,7 @@
           <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
           </svg>
-          Download DOCX
+          Download Document
         </button>
       </form>
       <form @submit.prevent="uploadDocument">
@@ -147,6 +151,7 @@
         ×
       </button>
       <div v-if="role_is=='Distributor'">
+        <div v-if="uploadDocumentName=='Meril Distributor Compliance Policy Adoption Form'">
           <h3 class="text-center font-semibold mx-auto max-w-80">Meril Distributor- Compliance Policy Adoption Form</h3>
           <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
               <p class="text-sm mt-4">
@@ -172,6 +177,13 @@
                   Sign and Seal : <span > {{"<Compliance officer nominee name>"}} </span>
                 </p>
              </div>
+            </div>
+            <div v-else-if="uploadDocumentName=='Distributor Self Declaration'">
+              Self Declaration
+            </div>
+            <div v-else-if="uploadDocumentName=='Meril Distributor Compliance Code Of Conduct'">
+              Meril Distributor Compliance Code Of Conduct
+            </div>
         </div>
         <div v-else-if="role_is=='Employee'">
           <h3 class="text-center font-semibold mx-auto max-w-80">Employee Declaration - Ethical Practices &amp; Compliance</h3>
@@ -206,7 +218,6 @@ within thirty (30) days from the date of awareness.</p>
                   <p class="text-sm text-justify mt-2">I also declare that I will not engage in any financial transactions with any distributor or
 nominated representative of the distributor. I acknowledge that Meril Group shall bear no
 responsibility or liability for any such transactions.</p>
-             
                 
                 <p class="text-sm text-justify mt-2">Employee Name : {{ declaratinoInfo.employee_name }}</p>
                 <p class="text-sm text-justify mt-2">Employee ID : {{ declaratinoInfo.custom_employee_id }}</p>
@@ -228,6 +239,7 @@ responsibility or liability for any such transactions.</p>
               minlength="3"
             />
           </div>
+        
           <div class="flex flex-col gap-y-2">
             <label for="date" class="text-sm font-medium">Date</label>
             <input
@@ -267,13 +279,20 @@ const current_date = (() => {
 })();
 // Second modal state and logic
 const showUploadForm = ref(false)
+const uploadDocumentName = ref("Meril Distributor Compliance Policy Adoption Form");
 const loadingScreen = ref(false);
 const showDownloadForm = ref(false)
 const name = ref('')
+const currentDocName = ref('')
 const signatureText = computed(() => name.value?.trim() || 'Signature')
 const showError = ref(false)
 const declaratinoInfo = ref(null);
 const showDeclarationForm = ref(true);
+const uploadDolaodEnabled = ref({
+  distributor_self_declaration: false,
+  meril_distributor_compliance_code_of_conduct: false,
+  meril_distributor_compliance_policy_adoption_form: false,
+})
 
 // signature removed
 
@@ -324,9 +343,52 @@ async function get_declaration_info(){
     toast.error("Error in  getting declaration")
   }
 }
+uploadDolaodEnabled
+function decideInitialView() {
+  // Priority: Self Declaration → Code of Conduct → Policy Adoption → else Download
+  showError.value = false
+  loadingScreen.value = false
+  showDownloadForm.value = false
+  showUploadForm.value = false
+  showDeclarationForm.value = false
+
+  if (uploadDolaodEnabled.value.distributor_self_declaration) {
+    showDeclarationForm.value = true
+    return
+  }
+  if (uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct) {
+    // enable upload flow for Code of Conduct
+    currentDocName.value = 'Meril Distributor Compliance Code of Conduct'
+    uploadDocumentName.value = currentDocName.value
+    showUploadForm.value = true
+    return
+  }
+  if (uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
+    // enable upload/download for Policy Adoption
+    currentDocName.value = 'Meril Distributor Compliance Policy Adoption Form'
+    uploadDocumentName.value = currentDocName.value
+    showUploadForm.value = true
+    return
+  }
+  // fallback: only show download list modal
+  showDownloadForm.value = true
+}
 
 onMounted(async () => {
   console.log("mounted");
+  try {
+    const res = await call("lms.overrides.documents.get_upload_download_docuemtn_enabled");
+    if (res?.success) {
+      uploadDolaodEnabled.value = {
+        distributor_self_declaration: !!res.distributor_self_declaration,
+        meril_distributor_compliance_code_of_conduct: !!res.meril_distributor_compliance_code_of_conduct,
+        meril_distributor_compliance_policy_adoption_form: !!res.meril_distributor_compliance_policy_adoption_form,
+      }
+    }
+  } catch (e) {
+    console.error("Error fetching upload/download enabled flags", e);
+  }
+  decideInitialView()
 });
 
 
@@ -363,6 +425,15 @@ const checkDocumentSubmission = async () => {
 try {
     loadingScreen.value = true
     showDeclarationForm.value = false
+    // Gate by enablement flags with requested priority.
+    // If none are enabled, show only download modal and return.
+    if (!uploadDolaodEnabled.value.distributor_self_declaration
+      && !uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct
+      && !uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
+      loadingScreen.value = false
+      decideInitialView()
+      return
+    }
     const res = await call('lms.overrides.documents.has_user_submited_document', { course: courseName.value })
     console.log("res",res)
     if(res.error){
@@ -385,9 +456,8 @@ try {
     } else {
       get_declaration_info();
       role_is.value = res.role_is
-      showDownloadForm.value = false
-      showUploadForm.value = false
-      showDeclarationForm.value = true
+      // decide initial view based on flags
+      decideInitialView()
     }
 
     if(showError.value){
@@ -408,7 +478,6 @@ try {
 const uploadDocument = async () => {
   loadingUploadForm.value = true
 
-  
   if(!file.value) {
     toast.error("Please select a file")
     loadingUploadForm.value = false
@@ -416,23 +485,43 @@ const uploadDocument = async () => {
   }
   
   try {
-
     // Convert file to base64
     const base64Data = await fileToBase64(file.value)
     
     // Call the save_user_course_document_with_file method
-    const response = await call('lms.overrides.documents.save_user_course_document_with_file', {
+    const response = await call('lms.overrides.documents.upload_distributor_document_with_datetime', {
       course: courseName.value,
-      document_name: file.value.name,
+      document_name: currentDocName.value || file.value.name,
       filename: file.value.name,
       base64_file_data: base64Data,
       is_private: 0,
+      document_upload_datetime: new Date().toISOString(),
+      uploadDocumentName: uploadDocumentName.value
     })
     console.log("response", response)
     if (response.message && response.success) {
       toast.success('Document uploaded successfully')
       showUploadForm.value = false
       showDownloadForm.value = true
+      // After successful upload, check what should be prompted next
+      try {
+        const next = await call('lms.overrides.documents.get_next_distributor_document', { course: courseName.value })
+        if (next?.success) {
+          if (next.next_document) {
+            // Prompt next document in sequence using existing download flow
+            currentDocName.value = next.next_document
+            uploadDocumentName.value = next.next_document
+            showDownloadForm.value = false
+            showUploadForm.value = true
+            showDeclarationForm.value = false
+          } else {
+            // No further docs → refresh normal state
+            await checkDocumentSubmission();
+          }
+        }
+      } catch (e) {
+        console.error('Failed to get next distributor document', e)
+      }
       // Reset form
       date.value = ''
       file.value = null
