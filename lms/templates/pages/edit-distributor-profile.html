@@ -74,11 +74,13 @@
             <div class="form-group col-md-6">
                 <label for="input-attendee_name">Attendee Name <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="input-attendee_name" name="attendee_name" value="{{ frappe.session.user_doc.attendee_name or '' }}" required>
+                <small class="form-text text-muted">Enter the name of the enrolled person</small>
             </div>
             <!-- Designation (Mandatory) -->
             <div class="form-group col-md-6">
                 <label for="input-designation">Designation <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" id="input-designation" name="designation" value="{{ frappe.session.user_doc.designation or '' }}" required>
+                <small class="form-text text-muted">Enter the designation of the enrolled person</small>
             </div>
             <!-- Country Name (Mandatory) -->
             <div class="form-group col-md-6">
@@ -103,7 +105,10 @@
         frappe.ready(function(){
             get_distributor_profile();
         });
-
+        setTimeout(()=>{
+            document.querySelector("body > footer").remove()
+        },100)
+        
         function populateCountryOptions(selectedCountry = "") {
             let html = '<option value="">Select Country</option>';
             countryList.forEach(function(country) {
