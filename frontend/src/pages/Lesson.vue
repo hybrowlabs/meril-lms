@@ -378,6 +378,8 @@ const discussionsContainer = ref(null)
 const timer = ref(0)
 const { brand } = sessionStore()
 let timerFrame
+let timerPaused = false
+let savedTimerKey = null
 
 // --- Video completion logic ---
 const videoFiles = ref([]) // List of video URLs in the lesson
@@ -419,6 +421,8 @@ const props = defineProps({
 onMounted(() => {
 	startTimer()
 	document.addEventListener('fullscreenchange', attachFullscreenEvent)
+	document.addEventListener('visibilitychange', handleVisibilityChange)
+	window.addEventListener('beforeunload', handleBeforeUnload)
 	socket.on('update_lesson_progress', (data) => {
 		if (data.course === props.courseName) {
 			lessonProgress.value = data.progress
@@ -605,6 +609,8 @@ watch(
 				chapter: newChapterNumber,
 				lesson: newLessonNumber,
 			})
+			// Save current lesson timer state before switching
+			saveTimerState()
 			if (timerFrame) cancelAnimationFrame(timerFrame)
 			timer.value = 0
 			startTimer()
@@ -668,12 +674,68 @@ function extractVideoFiles(blocks) {
   return files
 }
 
+// Helper functions for timer persistence
+const getTimerKey = () => {
+  if (!lesson.data?.name || !courseName.value || !chapterNumber.value || !lessonNumber.value) return null
+  return `lesson_timer_${courseName.value}_${chapterNumber.value}_${lessonNumber.value}`
+}
+
+const saveTimerState = () => {
+  const key = getTimerKey()
+  if (!key || timer.value === 0) return
+
+  const timerState = {
+    elapsed: timer.value,
+    timestamp: Date.now(),
+    lessonName: lesson.data?.name,
+    duration: lesson.data?.duration
+  }
+  localStorage.setItem(key, JSON.stringify(timerState))
+}
+
+const loadTimerState = () => {
+  const key = getTimerKey()
+  if (!key) return 0
+
+  const savedState = localStorage.getItem(key)
+  if (!savedState) return 0
+
+  try {
+    const timerState = JSON.parse(savedState)
+    // Check if it's the same lesson
+    if (timerState.lessonName !== lesson.data?.name) {
+      localStorage.removeItem(key)
+      return 0
+    }
+
+    // If lesson is already completed (timer reached duration), return the duration
+    if (timerState.elapsed >= timerState.duration) {
+      return timerState.duration
+    }
+
+    // Return the saved elapsed time
+    return timerState.elapsed || 0
+  } catch (e) {
+    console.error('Error loading timer state:', e)
+    localStorage.removeItem(key)
+    return 0
+  }
+}
+
+const clearTimerState = () => {
+  const key = getTimerKey()
+  if (key) {
+    localStorage.removeItem(key)
+  }
+}
+
 // --- Update startTimer to skip timer if videos exist ---
 const startTimer = () => {
   if (timerFrame) cancelAnimationFrame(timerFrame)
-  timer.value = 0
+
   console.log("duration", lesson.data?.duration);
   if (videoFiles.value.length > 0) return // Don't use timer for video lessons
+
   let durationSeconds = Number(lesson.data?.duration)
   if (isNaN(durationSeconds) || durationSeconds < 0) durationSeconds = 30
   // Enforce a minimum visible duration of 2s
@@ -683,15 +745,39 @@ const startTimer = () => {
     markProgress()
     return
   }
+
+  // Load saved timer state
+  const savedTime = loadTimerState()
+  timer.value = savedTime
+
+  // If lesson was already completed previously
+  if (savedTime >= durationSeconds) {
+    timer.value = durationSeconds
+    markProgress()
+    return
+  }
+
   let startTimestamp = null
+  let baseElapsed = savedTime // Start from saved time
+
   const tick = (timestamp) => {
+    if (timerPaused) return
+
     if (!startTimestamp) startTimestamp = timestamp
-    const elapsed = Math.floor((timestamp - startTimestamp) / 1000)
+    const elapsed = Math.floor((timestamp - startTimestamp) / 1000) + baseElapsed
+
     if (elapsed > timer.value) {
       timer.value = elapsed
+      // Save state periodically (every second)
+      if (elapsed % 1 === 0) {
+        saveTimerState()
+      }
     }
+
     if (timer.value >= durationSeconds) {
       timer.value = durationSeconds
+      saveTimerState()
+      clearTimerState() // Clear saved state after completion
       markProgress()
       return
     }
@@ -700,8 +786,32 @@ const startTimer = () => {
   timerFrame = requestAnimationFrame(tick)
 }
 
+// Handle page visibility changes
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    // Page is hidden (user switched tabs or minimized)
+    timerPaused = true
+    saveTimerState()
+  } else {
+    // Page is visible again
+    timerPaused = false
+    // Restart the timer animation frame if it was running
+    if (timerFrame && timer.value < lesson.data?.duration && videoFiles.value.length === 0) {
+      startTimer()
+    }
+  }
+}
+
+// Handle page unload
+const handleBeforeUnload = () => {
+  saveTimerState()
+}
+
 onBeforeUnmount(() => {
 	if (timerFrame) cancelAnimationFrame(timerFrame)
+	saveTimerState()
+	document.removeEventListener('visibilitychange', handleVisibilityChange)
+	window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 const checkIfDiscussionsAllowed = () => {
