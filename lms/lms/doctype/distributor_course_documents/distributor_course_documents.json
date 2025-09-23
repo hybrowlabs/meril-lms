@@ -8,6 +8,7 @@
   "distributor",
   "course",
   "has_submitted_documents",
+  "documents_submitted",
   "column_break_iqxo",
   "entered_name",
   "signature_style",
@@ -55,12 +56,17 @@
    "fieldname": "submission_datetime",
    "fieldtype": "Datetime",
    "label": "Submission Datetime"
+  },
+  {
+   "fieldname": "documents_submitted",
+   "fieldtype": "Data",
+   "label": "Documents Submitted"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-19 13:34:43.158756",
+ "modified": "2025-09-23 16:32:58.379510",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor Course Documents",

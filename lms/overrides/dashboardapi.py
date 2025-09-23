@@ -12,20 +12,32 @@ def get_distributor_dashboard_info():
     LMS Enrollment fields: progress, completed_on, completion_status, member.
     """
     frappe.only_for("Supervisor")
-
+    
     query = """
         SELECT
             d.name                               AS `distributo_docid`,
             d.attendee_name                      AS `attendee_name`,
             d.designation                        AS `designation`,
-            d.distributor_name                   AS `distributor_name`,
-            d.distributor_contact_number         AS `distributor_contact_number`,
+            d.user_id                            AS `distributor_user_id`,
+            IFNULL(CAST(d.login_reminder_count AS CHAR), '0') AS `login_remainer_count`,
             d.distributor_email_address          AS `distributor_email_address`,
+            d.distributor_contact_number         AS `distributor_contact_number`,
+            d.distributor_company_name           AS `distributor_company_name`,
             d.account__distributor_code          AS `account_distributor_code`,
+            d.distributor_name                   AS `distributor_name`,
+            d.rsm__state_head                    AS `distributor_rsm_state_head`,
+            d.bu__fd_head                        AS `distributor_bu__fd_head`,
+            (
+                SELECT
+                    GROUP_CONCAT(CONCAT(mddc.division, ':', mddc.meril_company_name) SEPARATOR '; ')
+                FROM `tabMeril Distributor Division Child` AS mddc
+                WHERE mddc.parent = d.name
+            ) AS `divisions_meril_company_names`,
             d.distributor_company_address        AS `distributor_company_address`,
             d.country                            AS `country`,
-            IFNULL(CAST(d.login_reminder_count AS CHAR), '0') AS `login_remainer_count`,
-            d.distributor_company_name           AS `distributor_company_name`,
+            d.city                               AS `city`,
+            d.region                             AS `region`,
+            d.state                              AS `state`,
             dd.has_submitted_documents           AS `submitted_documents`,
             dd.submission_datetime               AS `submission_datetime`,
             dd.name                              AS `docuemnts_id`,
@@ -33,7 +45,7 @@ def get_distributor_dashboard_info():
             le.progress                          AS `progress`,
             le.completed_on                      AS `completed_on`,
             le.completion_status                 AS `completion_status`,
-           IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`
+            IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`
         FROM `tabDistributor` AS d
         LEFT JOIN `tabLMS Enrollment` AS le
             ON le.member = d.user_id 
@@ -66,6 +78,7 @@ def get_employee_dashboard_info():
             e.company_email                    AS `company_email`,
             e.country                          AS `country`,
             e.custom_employee_id               AS `custom_employee_id`,
+            e.user_id                          AS `employee_user_id`,
             ed.name                            AS `docuemnts_id`,
             le.course                          AS `course_name`,
         IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`,

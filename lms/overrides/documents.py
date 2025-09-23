@@ -184,8 +184,6 @@ def save_user_course_document_with_file(
     if not document_name:
         return {"success": False, "message": "Document name is required"}
 
-    if not name:
-        return {"success": False, "message": "name is required"}
 
     if not filename or not base64_file_data:
         return {"success": False, "message": "File data is required"}
@@ -398,9 +396,54 @@ def get_signature_image(
     img_bytes.seek(0)
     return img_bytes
 
+import frappe
+
 @frappe.whitelist(allow_guest=True)
-def generate_dynamic_docx(name=None, font_path = None):
-    from docx.shared import Inches, Pt
+def get_upload_download_docuemtn_enabled():
+    """
+    Returns the boolean values of three check fields from LMS Settings:
+    - distributor_self_declaration
+    - meril_distributor_compliance_code_of_conduct
+    - meril_distributor_compliance_policy_adoption_form
+
+    Returns:
+        dict: {
+            "distributor_self_declaration": bool,
+            "meril_distributor_compliance_code_of_conduct": bool,
+            "meril_distributor_compliance_policy_adoption_form": bool
+        }
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        return {
+            "success": False,
+            "message": "User not logged in."
+        }
+
+    # Fetch from LMS Settings doctype (assume singleton)
+    lms_settings = frappe.get_single("LMS Settings")
+
+    if not lms_settings:
+        return {
+            "success": False,
+            "message": "LMS Settings not found."
+        }
+
+    return {
+        "success": True,
+        "distributor_self_declaration": bool(getattr(lms_settings, "distributor_self_declaration", False)),
+        "meril_distributor_compliance_code_of_conduct": bool(getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False)),
+        "meril_distributor_compliance_policy_adoption_form": bool(getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False))
+    }
+
+@frappe.whitelist(allow_guest=True)
+def generate_dynamic_docx(name=None):
+    """
+    Generate a PDF directly using Frappe's PDF generation, with the same styling/content
+    as the previous docx would have produced, but with increased font size for A4 page.
+    """
+    import base64
+    from frappe.utils import get_datetime
 
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
@@ -409,11 +452,6 @@ def generate_dynamic_docx(name=None, font_path = None):
         return {
             "success": False,
             "message": "No distributor name provided"
-        }
-    if font_path is None:
-        return {
-            "success": False,
-            "message": "No Signature Style Selected"
         }
 
     roles = [role.role for role in user_doc.roles]
@@ -447,67 +485,92 @@ def generate_dynamic_docx(name=None, font_path = None):
         email = distributor_doc.distributor_email_address or user_doc.email
         contact_number = distributor_doc.distributor_contact_number or user_doc.mobile_no
         today = get_datetime().strftime("%d-%m-%Y")
+        today_long = frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy")
 
-        doc = Document()
-        para = doc.add_paragraph("On letter head of distributor", style='Normal')
-        para.alignment = 1
-        doc.add_paragraph()
-        doc.add_paragraph()
-        heading = doc.add_heading("", level=1)
-        run = heading.add_run("Meril Distributor - Compliance Policy Adoption Form")
-        run.font.underline = True
-        run.font.color.rgb = RGBColor(0, 0, 0)
-        heading.alignment = 1
-        doc.add_paragraph()
-        doc.add_paragraph(frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy"))
-        doc.add_paragraph()
-        doc.add_paragraph(
-            f"We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.\n\n"
-            "All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy."
-        )
-        doc.add_paragraph()
-        doc.add_paragraph("Nomination of Compliance Officer:")
-        doc.add_paragraph()
-        doc.add_paragraph(
-            f"{name} is nominated as Compliance Officer of our organization with effect from {frappe.utils.format_date(frappe.utils.nowdate(), 'd MMMM yyyy')}"
-        )
-        doc.add_paragraph()
-        doc.add_paragraph(f"Authorized representative of {distributor_name}")
-        doc.add_paragraph(f"Name: {distributor_name}")
-        doc.add_paragraph(f"Title: {designation}")
-        doc.add_paragraph(f"Email Id : {email}")
-        doc.add_paragraph(f"Contact number : {contact_number}")
-        p = doc.add_paragraph("Sign and Seal :   ")
-        
-        run = p.add_run()
+        # Compose HTML with increased font size for A4 page
+        html = f"""
+        <html>
+        <head>
+            <style>
+                @page {{
+                    size: A4;
+                    margin: 40px;
+                }}
+                body {{
+                    font-family: Arial, sans-serif;
+                    font-size: 16pt;
+                    color: #000;
+                    margin: 40px;
+                }}
+                .center {{
+                    text-align: center;
+                }}
+                .heading {{
+                    font-size: 18pt;
+                    font-weight: bold;
+                    text-decoration: underline;
+                    margin-bottom: 18px;
+                }}
+                .spacer {{
+                    height: 60px;
+                }}
+                .section-title {{
+                    font-weight: bold;
+                    margin-top: 24px;
+                    font-size: 18pt;
+                }}
+                .info-table {{
+                    margin-top: 24px;
+                    margin-bottom: 24px;
+                    font-size: 16pt;
+                }}
+                .info-table div {{
+                    padding: 4px 12px 4px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="center" style="font-size:18pt;">On letter head of distributor</div>
+            <div class="spacer"></div>
+            <div class="spacer"></div>
+            <div class="center heading">Meril Distributor - Compliance Policy Adoption Form</div>
+            <div class="spacer"></div>
+            <div style="font-size:16pt;">{frappe.utils.format_datetime(frappe.utils.now(), "d MMMM yyyy, h:mm a")} [System Generated]</div>
+            <div class="spacer"></div>
+            <div style="font-size:16pt;">
+                We {distributor_company_name}, being the Distributor of Meril {meril_company_name} do hereby certify that we have willingly adopted attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from {today} and declare to abide by the same.<br><br>
+                All employees, partners, directors, proprietor of our organization are expected to observe and adhere to this Policy.
+            </div>
+            <div class="spacer"></div>
+            <div class="section-title">Nomination of Compliance Officer:</div>
+            <div class="spacer"></div>
+            <div style="font-size:16pt;">
+                {name} is nominated as Compliance Officer of our organization with effect from {today_long}
+            </div>
+            <div class="spacer"></div>
+            <div class="section-title">Authorized representative of {distributor_name}</div>
+            <div class="info-table">
+                <div>Name: {distributor_name}</div>
+                <div>Title: {designation}</div>
+                <div>Email Id: {email}</div>
+                <div>Contact number: {contact_number}</div>
+                <div>Sign and Seal :  &lt;Compliance officer nominee name&gt; </div>
+            </div>
+        </body>
+        </html>
+        """
 
-        signature_img_bytes = get_signature_image(
-            text=name,
-            font_path=font_path,
-            font_size=80,     
-            fixed_height=80,  
-            dpi=300            
-        )
-    
-        run.add_picture(signature_img_bytes, height=Pt(15)) 
-
-        # Save the document to a buffer
-        buffer = io.BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        file_content = buffer.getvalue()
-
-        # Encode the file content in base64
- 
-        file_content_base64 = base64.b64encode(file_content).decode('utf-8')
+        # Generate PDF using Frappe's PDF generator
+        pdf_content = frappe.utils.pdf.get_pdf(html)
+        pdf_content_base64 = base64.b64encode(pdf_content).decode('utf-8')
 
         return {
             "success": True,
-            "file_content": file_content_base64,
-            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.docx"
+            "file_content": pdf_content_base64,
+            "file_name": "Meril_Distributor_Compliance_Policy_Adoption_Form.pdf"
         }
     except Exception as e:
-        frappe.log_error(f"Error generating dynamic docx: {str(e)}")
+        frappe.log_error(f"Error generating dynamic pdf: {str(e)}")
         return {
             "success": False,
             "error": str(e)
