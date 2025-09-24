@@ -198,46 +198,7 @@
 						</div>
 					</div>
 
-					<div v-if="!zenModeEnabled" class="flex items-center mt-2">
-						<span
-							class="h-6 mr-1"
-							:class="{
-								'avatar-group overlap': lesson.data.instructors?.length > 1,
-							}"
-						>
-							<UserAvatar
-								v-for="instructor in lesson.data.instructors"
-								:user="instructor"
-							/>
-						</span>
-						<CourseInstructors
-							v-if="lesson.data?.instructors"
-							:instructors="lesson.data.instructors"
-						/>
-					</div>
 
-					<div
-						v-if="
-							lesson.data.instructor_content &&
-							JSON.parse(lesson.data.instructor_content)?.blocks?.length > 1 &&
-							allowInstructorContent()
-						"
-						class="bg-surface-gray-2 p-3 rounded-md mt-6"
-					>
-						<div class="text-ink-gray-5 font-medium">
-							{{ __('Instructor Notes') }}
-						</div>
-						<div
-							id="instructor-content"
-							class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal"
-						></div>
-					</div>
-					<div
-						v-else-if="lesson.data.instructor_notes"
-						class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8"
-					>
-						<LessonContent :content="lesson.data.instructor_notes" />
-					</div>
 					<div
 						v-if="lesson.data.content"
 						class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-td:relative prose-th:relative prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal mt-8"
@@ -341,7 +302,6 @@ import {
 	nextTick,
 } from 'vue'
 import CourseOutline from '@/components/CourseOutline.vue'
-import UserAvatar from '@/components/UserAvatar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
 	ChevronLeft,
@@ -358,7 +318,6 @@ import { getEditorTools, enablePlyr } from '@/utils'
 import { sessionStore } from '@/stores/session'
 import EditorJS from '@editorjs/editorjs'
 import LessonContent from '@/components/LessonContent.vue'
-import CourseInstructors from '@/components/CourseInstructors.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import CertificationLinks from '@/components/CertificationLinks.vue'
 import { setCourseCompletion } from "../stores/course_completion.js";
@@ -369,7 +328,6 @@ const router = useRouter()
 const route = useRoute()
 const allowDiscussions = ref(false)
 const editor = ref(null)
-const instructorEditor = ref(null)
 const lessonProgress = ref(0)
 const lessonContainer = ref(null)
 const zenModeEnabled = ref(false)
@@ -507,14 +465,6 @@ const setupLesson = (data) => {
 			editorDiv.innerHTML = '<div class="text-ink-gray-5 text-center py-10">No content available for this lesson.</div>'
 		}
 	}
-	if (
-		data.instructor_content &&
-		JSON.parse(data.instructor_content)?.blocks?.length > 1
-	)
-		instructorEditor.value = renderEditor(
-			'instructor-content',
-			data.instructor_content
-		)
 	editor.value?.isReady.then(() => {
 		checkIfDiscussionsAllowed()
 	})
@@ -603,7 +553,6 @@ watch(
 	) => {
 		if (newChapterNumber || newLessonNumber) {
 			editor.value = null
-			instructorEditor.value = null
 			allowDiscussions.value = false
 			lesson.submit({
 				chapter: newChapterNumber,
@@ -836,7 +785,7 @@ const checkIfDiscussionsAllowed = () => {
 		!zenModeEnabled.value &&
 		(lesson.data?.membership ||
 			user.data?.is_moderator ||
-			user.data?.is_instructor)
+			false)
 	)
 		allowDiscussions.value = true
 }
@@ -844,15 +793,9 @@ const checkIfDiscussionsAllowed = () => {
 const allowEdit = () => {
 	if (window.read_only_mode) return false
 	if (user.data?.is_moderator) return true
-	if (lesson.data?.instructors?.includes(user.data?.name)) return true
 	return false
 }
 
-const allowInstructorContent = () => {
-	if (user.data?.is_moderator) return true
-	if (lesson.data?.instructors?.includes(user.data?.name)) return true
-	return false
-}
 
 const enrollment = createResource({
 	url: 'frappe.client.insert',
@@ -881,7 +824,6 @@ const enrollStudent = () => {
 const canGoZen = () => {
 	if (
 		user.data?.is_moderator ||
-		user.data?.is_instructor ||
 		user.data?.is_evaluator
 	)
 		return false
@@ -939,14 +881,6 @@ usePageMeta(() => {
 })
 </script>
 <style>
-.avatar-group {
-	display: inline-flex;
-	align-items: center;
-}
-
-.avatar-group .avatar {
-	transition: margin 0.1s ease-in-out;
-}
 
 .lesson-content p {
 	margin-bottom: 1rem;

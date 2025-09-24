@@ -133,9 +133,24 @@ def save_progress(lesson, course, completed_videos=None):
 
 	# Update enrollment progress and check completion
 	enrollment = frappe.get_doc("LMS Enrollment", membership)
+	previous_progress = enrollment.progress or 0
 	enrollment.progress = progress
 	enrollment.save()
 	enrollment.run_method("on_change")
+
+	# Auto-create course documents when course reaches 100% completion
+	if progress == 100 and previous_progress < 100:
+		try:
+			# Import the function from documents module
+			from lms.overrides.documents import create_course_documents_on_completion
+			create_course_documents_on_completion(
+				user=frappe.session.user,
+				course=course,
+				enrollment_name=membership
+			)
+		except Exception as e:
+			# Log error but don't fail the lesson progress update
+			frappe.log_error(f"Error creating course documents on completion: {str(e)}")
 
 	frappe.publish_realtime(
 		event="update_lesson_progress",

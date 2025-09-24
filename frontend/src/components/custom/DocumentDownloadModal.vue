@@ -416,12 +416,31 @@ const handleCertify = async (event) => {
 async function get_declaration_info(){
   try{
   const res = await call("lms.overrides.documents.get_declaration_info");
-  
+
   console.log("declaraion info", res);
   declaratinoInfo.value = res;
+
+  // If we don't have declaratinoInfo, set defaults to prevent empty modal
+  if (!declaratinoInfo.value) {
+    declaratinoInfo.value = {
+      distributor_company_name: 'Company Name',
+      attendee_name: 'Name',
+      designation: 'Designation',
+      distributor_email_address: 'Email',
+      distributor_contact_number: 'Contact'
+    }
+  }
   }catch(err){
-    console.error("Error getting declaration", e)
-    toast.error("Error in  getting declaration")
+    console.error("Error getting declaration", err)
+    toast.error("Error in getting declaration")
+    // Set defaults even on error
+    declaratinoInfo.value = {
+      distributor_company_name: 'Company Name',
+      attendee_name: 'Name',
+      designation: 'Designation',
+      distributor_email_address: 'Email',
+      distributor_contact_number: 'Contact'
+    }
   }
 }
 uploadDolaodEnabled
@@ -725,15 +744,13 @@ const directDownload = async(url, file_name)=>{
 
 const handleDownload = async() => {
   try{
-    // For all documents, use the generate_dynamic_docx API which handles creation if needed
-    // This ensures the document is created if it doesn't exist
-
-    // For Compliance Policy Adoption Form, use the existing dynamic generation
+    // Always use the generate_dynamic_docx API which handles document creation if needed
     const res = await call("lms.overrides.documents.generate_dynamic_docx", {
       name: name?.value || '',
       course: courseName.value,
       font_path: null,
-      document_type: uploadDocumentName.value  // Pass document type
+      document_type: uploadDocumentName.value,  // Pass document type
+      use_print_format: true  // Force print format generation to ensure document is created
     });
     console.log("res", res)
     if (res?.success && res.file_content) {

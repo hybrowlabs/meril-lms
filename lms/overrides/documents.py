@@ -120,6 +120,9 @@ def has_user_submited_document(course=None):
                 "message": "Course progress is not completed"
             }
 
+        # Auto-create Distributor Course Documents when course is completed
+        create_course_documents_on_completion(user, course, enrollment_name)
+
         user_doc = frappe.get_doc("User", user)
         roles = [role.role for role in user_doc.roles]
 
@@ -190,6 +193,7 @@ def has_user_submited_document(course=None):
 
             if not submitted_exists:
                 return {
+                    "submited": False,  # Important: frontend checks this field
                     "success": False,
                     "message": "User Has not Submitted Documents",
                     "role_is": "Distributor",
@@ -253,6 +257,85 @@ def has_user_submited_document(course=None):
 
     except Exception as e:
         return {"submited": False, "error": str(e)}
+
+
+@frappe.whitelist(allow_guest=False)
+def create_course_documents_on_completion(user=None, course=None, enrollment_name=None):
+    """
+    Automatically create Distributor/Employee Course Documents when course reaches 100% completion.
+    This ensures print formats are available immediately after course completion.
+    """
+    if not user:
+        user = frappe.session.user
+
+    if not course:
+        return {"success": False, "message": "No course provided"}
+
+    try:
+        user_doc = frappe.get_doc("User", user)
+        roles = [role.role for role in user_doc.roles]
+
+        # Handle Distributor
+        if "Distributor" in roles:
+            distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+
+            # Check if document already exists
+            existing = frappe.db.exists(
+                "Distributor Course Documents",
+                {"distributor": distributor_doc.name, "course": course}
+            )
+
+            if not existing:
+                # Create new Distributor Course Documents
+                doc = frappe.get_doc({
+                    "doctype": "Distributor Course Documents",
+                    "distributor": distributor_doc.name,
+                    "course": course,
+                    "has_submitted_documents": 0,
+                    "submission_date": frappe.utils.now_datetime(),
+                    "entered_name": distributor_doc.attendee_name or user_doc.full_name or ""
+                })
+                doc.insert(ignore_permissions=True)
+                frappe.db.commit()
+
+                return {
+                    "success": True,
+                    "message": "Distributor Course Documents created",
+                    "doc_name": doc.name
+                }
+
+        # Handle Employee
+        elif "Employee" in roles:
+            employee_doc = frappe.get_doc("Employee", {"user_id": user})
+
+            # Check if document already exists
+            existing = frappe.db.exists(
+                "Employee Course Documents",
+                {"employee": employee_doc.name, "course": course}
+            )
+
+            if not existing:
+                # Create new Employee Course Documents
+                doc = frappe.get_doc({
+                    "doctype": "Employee Course Documents",
+                    "employee": employee_doc.name,
+                    "course": course,
+                    "submission_date": frappe.utils.now_datetime()
+                })
+                doc.insert(ignore_permissions=True)
+                frappe.db.commit()
+
+                return {
+                    "success": True,
+                    "message": "Employee Course Documents created",
+                    "doc_name": doc.name
+                }
+
+        return {"success": True, "message": "Documents already exist or not applicable"}
+
+    except Exception as e:
+        frappe.log_error(f"Error creating course documents on completion: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 @frappe.whitelist(allow_guest=False)
 def upload_distributor_document_with_datetime(
