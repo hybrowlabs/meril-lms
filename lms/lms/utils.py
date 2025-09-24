@@ -1002,28 +1002,67 @@ def change_currency(amount, currency, country=None):
 	amount, currency = check_multicurrency(amount, currency, country)
 	return fmt_money(amount, 0, currency)
 
-# @frappe.whitelist(allow_guest=False)
-# def get_filtered_courses():
-#     user = frappe.get_doc("User", frappe.session.user)
-#     print("user", user)
-#     print("End user")
-#     roles = set(frappe.get_roles(user.name))
-#     country = user.country 
-#     # Admin can see everything
-#     if "Administrator" in roles:
-#         return get_courses()
-	
-#     if country == None:
-#         return []
-			
+def has_privileged_role(user=None):
+	"""Check if user has Supervisor or System Manager role."""
+	if not user:
+		user = frappe.session.user
 
-#     # Other roles: only courses in their country
-#     if roles & {"Employee", "Distributor"}:
-#         filters = {"custom_country": country}
-#         return get_courses(filters=filters)
+	roles = frappe.get_roles(user)
+	privileged_roles = {"Supervisor", "System Manager", "Administrator"}
+	return bool(privileged_roles.intersection(set(roles)))
 
-#     # Fallback: no courses
-#     return []
+
+def get_user_country(user=None):
+	"""Get the country of the user from their profile."""
+	if not user:
+		user = frappe.session.user
+
+	return frappe.db.get_value("User", user, "country")
+
+
+def apply_country_based_course_filtering(filters):
+	"""Apply country-based filtering for courses based on user role and country."""
+	if filters is None:
+		filters = {}
+
+	# Skip filtering for privileged users
+	if has_privileged_role():
+		return filters
+
+	# Get user's country
+	user_country = get_user_country()
+
+	if not user_country:
+		# If user has no country set, they won't see any courses
+		# You can adjust this behavior as needed
+		filters["name"] = ["in", []]  # Empty list means no courses
+		return filters
+
+	# Get courses that are assigned to the user's country
+	# We need to check the child table custom_assigned_to_countries
+	assigned_courses = frappe.db.sql("""
+		SELECT DISTINCT parent
+		FROM `tabOption Country`
+		WHERE country = %s
+		AND parenttype = 'LMS Course'
+		AND parentfield = 'custom_assigned_to_countries'
+	""", (user_country,), as_list=True)
+
+	course_names = [course[0] for course in assigned_courses] if assigned_courses else []
+
+	# Apply filter to show only courses assigned to user's country
+	if course_names:
+		if "name" in filters and isinstance(filters["name"], list) and filters["name"][0] == "in":
+			# If there's already a name filter, intersect with it
+			existing_courses = set(filters["name"][1])
+			filters["name"] = ["in", list(existing_courses.intersection(set(course_names)))]
+		else:
+			filters["name"] = ["in", course_names]
+	else:
+		# No courses assigned to user's country
+		filters["name"] = ["in", []]
+
+	return filters
 
 
 @frappe.whitelist(allow_guest=False)
@@ -1032,6 +1071,9 @@ def get_courses(filters=None, start=0, page_length=20):
 
 	if not filters:
 		filters = {}
+
+	# Apply country-based filtering for non-privileged users
+	filters = apply_country_based_course_filtering(filters)
 
 	filters, or_filters, show_featured = update_course_filters(filters)
 	fields = get_course_fields()
@@ -1050,7 +1092,7 @@ def get_courses(filters=None, start=0, page_length=20):
 
 	courses = get_enrollment_details(courses)
 	courses = get_course_card_details(courses)
-	
+
 	return courses
 
 
@@ -1169,6 +1211,25 @@ def get_course_fields():
 
 @frappe.whitelist(allow_guest=True)
 def get_course_details(course):
+	# Check if user has access to view this course based on country
+	if not frappe.session.user == "Guest" and not has_privileged_role():
+		user_country = get_user_country()
+		if user_country:
+			# Check if course is assigned to user's country
+			has_access = frappe.db.sql("""
+				SELECT COUNT(*)
+				FROM `tabOption Country`
+				WHERE parent = %s
+				AND country = %s
+				AND parenttype = 'LMS Course'
+				AND parentfield = 'custom_assigned_to_countries'
+			""", (course, user_country))[0][0]
+
+			if not has_access:
+				frappe.throw(_("You do not have access to view this course."))
+		else:
+			frappe.throw(_("Please set your country in your user profile to access courses."))
+
 	course_details = frappe.db.get_value(
 		"LMS Course",
 		course,
