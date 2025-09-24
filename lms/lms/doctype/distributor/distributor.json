@@ -26,9 +26,9 @@
   "section_break_lbjn",
   "meril_company_table",
   "section_break_edqt",
-  "city",
-  "state",
   "country",
+  "state",
+  "city",
   "column_break_boqd",
   "region",
   "distributor_company_address"
@@ -187,7 +187,7 @@
    "link_fieldname": "distributor"
   }
  ],
- "modified": "2025-09-19 17:17:21.193550",
+ "modified": "2025-09-25 03:11:06.565175",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",
