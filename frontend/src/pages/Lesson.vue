@@ -320,7 +320,9 @@ import EditorJS from '@editorjs/editorjs'
 import LessonContent from '@/components/LessonContent.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import CertificationLinks from '@/components/CertificationLinks.vue'
+import PDFViewerEnhanced from '@/components/PDFViewerEnhanced.vue'
 import { setCourseCompletion } from "../stores/course_completion.js";
+import { createApp } from 'vue'
 
 const user = inject('$user')
 const socket = inject('$socket')
@@ -456,6 +458,10 @@ const setupLesson = (data) => {
 			bodyDiv.className = 'lesson-content prose'
 			bodyDiv.innerHTML = data.body
 			editorDiv.appendChild(bodyDiv)
+			// Process PDF embeds for legacy content
+			nextTick(() => {
+				processPDFEmbeds()
+			})
 		}
 	}
 	if (!contentRendered && !data.body) {
@@ -467,6 +473,10 @@ const setupLesson = (data) => {
 	}
 	editor.value?.isReady.then(() => {
 		checkIfDiscussionsAllowed()
+		// Process PDF embeds after EditorJS is ready
+		nextTick(() => {
+			processPDFEmbeds()
+		})
 	})
 
 	if (!editor.value && data.body) {
@@ -486,6 +496,105 @@ const renderEditor = (holder, content) => {
 		data: JSON.parse(content),
 		readOnly: true,
 		defaultBlock: 'embed', // editor adds an empty block at the top, so to avoid that added default block as embed
+	})
+}
+
+// Process PDF embeds and replace with PDFViewerEnhanced
+const processPDFEmbeds = () => {
+	// Find all iframes in the editor content
+	const editorDiv = document.getElementById('editor')
+	if (!editorDiv) return
+
+	// Find all iframes that contain PDF URLs
+	const iframes = editorDiv.querySelectorAll('iframe')
+	iframes.forEach((iframe) => {
+		const src = iframe.src || ''
+
+		// Check if this is a PDF (either direct PDF URL or Google Docs viewer)
+		const isPDFUrl = src.toLowerCase().includes('.pdf')
+		const isGoogleDocsViewer = src.includes('docs.google.com/viewer') || src.includes('drive.google.com')
+		const isDriveEmbed = src.includes('drive.google.com/file')
+
+		if (isPDFUrl || isGoogleDocsViewer || isDriveEmbed) {
+			// Extract the actual PDF URL
+			let pdfUrl = src
+
+			// If it's a Google Docs viewer URL, extract the actual PDF URL
+			if (isGoogleDocsViewer && src.includes('url=')) {
+				const urlMatch = src.match(/url=([^&]+)/)
+				if (urlMatch) {
+					pdfUrl = decodeURIComponent(urlMatch[1])
+				}
+			}
+
+			// If it's a Google Drive embed, convert to direct download URL
+			if (isDriveEmbed) {
+				const fileIdMatch = src.match(/\/d\/([A-Za-z0-9_-]+)/)
+				if (fileIdMatch) {
+					pdfUrl = `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`
+				}
+			}
+
+			// Create a container for the Vue component
+			const container = document.createElement('div')
+			container.className = 'pdf-viewer-enhanced-container'
+			container.style.marginTop = '1rem'
+			container.style.marginBottom = '1rem'
+			container.style.position = 'relative'
+			container.style.isolation = 'isolate'
+			container.style.contain = 'layout style'
+
+			// Replace iframe with container
+			iframe.parentNode.replaceChild(container, iframe)
+
+			// Mount PDFViewerEnhanced component
+			const app = createApp(PDFViewerEnhanced, {
+				src: pdfUrl,
+				documentName: pdfUrl.split('/').pop() || 'Document',
+				downloadUrl: pdfUrl,
+				minHeight: '500px',
+				maxHeight: '80vh',
+				showControls: true,
+				showFooter: true
+			})
+
+			app.mount(container)
+		}
+	})
+
+	// Also process PDF tool placeholders
+	const pdfPlaceholders = editorDiv.querySelectorAll('.pdf-viewer-placeholder')
+	pdfPlaceholders.forEach((placeholder) => {
+		const pdfUrl = placeholder.getAttribute('data-pdf-url')
+		const caption = placeholder.getAttribute('data-pdf-caption')
+		const height = placeholder.getAttribute('data-pdf-height')
+
+		if (pdfUrl) {
+			// Create a container for the Vue component
+			const container = document.createElement('div')
+			container.className = 'pdf-viewer-enhanced-container'
+			container.style.marginTop = '1rem'
+			container.style.marginBottom = '1rem'
+			container.style.position = 'relative'
+			container.style.isolation = 'isolate'
+			container.style.contain = 'layout style'
+
+			// Replace placeholder with container
+			placeholder.parentNode.replaceChild(container, placeholder)
+
+			// Mount PDFViewerEnhanced component
+			const app = createApp(PDFViewerEnhanced, {
+				src: pdfUrl,
+				documentName: caption || pdfUrl.split('/').pop() || 'Document',
+				downloadUrl: pdfUrl,
+				minHeight: height || '500px',
+				maxHeight: '80vh',
+				showControls: true,
+				showFooter: true
+			})
+
+			app.mount(container)
+		}
 	})
 }
 

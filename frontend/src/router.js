@@ -46,6 +46,16 @@ const routes = [
 		component: () => import('@/pages/Batches.vue'),
 	},
 	{
+		path: '/test-pdf',
+		name: 'TestPDFViewer',
+		component: () => import('@/pages/TestPDFViewer.vue'),
+	},
+	{
+		path: '/pdf-lesson-demo',
+		name: 'PDFLessonDemo',
+		component: () => import('@/pages/PDFLessonDemo.vue'),
+	},
+	{
 		path: '/batches/details/:batchName',
 		name: 'BatchDetail',
 		component: () => import('@/pages/BatchDetail.vue'),

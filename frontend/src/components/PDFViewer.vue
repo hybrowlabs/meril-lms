@@ -2,7 +2,7 @@
   <div class="pdf-viewer-wrapper">
     <!-- Primary viewer - iframe with selected strategy -->
     <div v-if="viewerType === 'iframe'" class="pdf-iframe-container">
-      <iframe
+      <embed
         ref="pdfFrame"
         :src="viewerSrc"
         :title="title || 'PDF Document'"

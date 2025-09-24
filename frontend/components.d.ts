@@ -81,6 +81,7 @@ declare module 'vue' {
     PageModal: typeof import('./src/components/Modals/PageModal.vue')['default']
     PaymentSettings: typeof import('./src/components/Settings/PaymentSettings.vue')['default']
     PDFViewer: typeof import('./src/components/PDFViewer.vue')['default']
+    PDFViewerEnhanced: typeof import('./src/components/PDFViewerEnhanced.vue')['default']
     Play: typeof import('./src/components/Icons/Play.vue')['default']
     ProgressBar: typeof import('./src/components/ProgressBar.vue')['default']
     Question: typeof import('./src/components/Modals/Question.vue')['default']

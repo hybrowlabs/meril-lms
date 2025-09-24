@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "serve": "vite preview",
     "build": "node --max-old-space-size=4096 $(yarn bin vite) build --base=/assets/lms/frontend/ && yarn copy-html-entry",
     "copy-html-entry": "cp ../lms/public/frontend/index.html ../lms/www/lms.html"
@@ -20,6 +20,7 @@
     "@editorjs/paragraph": "^2.11.3",
     "@editorjs/simple-image": "^1.6.0",
     "@editorjs/table": "^2.4.2",
+    "@tato30/vue-pdf": "^1.11.4",
     "@vueuse/router": "^12.7.0",
     "ace-builds": "^1.36.2",
     "apexcharts": "^4.3.0",
