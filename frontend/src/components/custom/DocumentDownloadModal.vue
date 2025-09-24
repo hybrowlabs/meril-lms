@@ -43,13 +43,24 @@
       >
         ×
       </button>
-      <h3 class="text-xl font-medium mb-4">Compliance Documents</h3>
+      <h3 class="text-xl font-medium mb-4">{{ allDocumentsUploaded ? 'Your Uploaded Documents' : 'Compliance Documents' }}</h3>
       <ul class="space-y-4 mb-2">
-        <li v-for="document in documentsList" :key="document" class="flex  items-center justify-between">
-          <span class="text-sm text-gray-900">{{ document }}</span>
+        <li v-for="document in displayDocumentsList" :key="document.name || document" class="flex  items-center justify-between">
+          <span class="text-sm text-gray-900">{{ document.name || document }}</span>
           <Button theme="gray" variant="outline" @click="downloadDocument(document)" >Download</Button>
         </li>
       </ul>
+      <!-- Download All Button for uploaded documents -->
+      <div v-if="allDocumentsUploaded && uploadedDocumentsList.length > 0" class="mt-6 border-t pt-4">
+        <Button theme="gray" variant="solid" @click="downloadAllUploadedDocuments" class="w-full">
+          <span class="flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+            </svg>
+            Download All Documents
+          </span>
+        </Button>
+      </div>
     </div>
   </div>
 
@@ -179,10 +190,57 @@
              </div>
             </div>
             <div v-else-if="uploadDocumentName=='Distributor Self Declaration'">
-              Self Declaration
+              <h3 class="text-center font-semibold mx-auto max-w-80">Distributor Self Declaration</h3>
+              <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
+                <p class="text-sm text-justify mt-2">This is to declare that we {{ declaratinoInfo?.distributor_company_name || 'Company Name' }}, have reviewed and understood the Meril Distributor Compliance Policy and will adhere to all its provisions.</p>
+                <p class="text-sm text-justify mt-4">We confirm that we will:</p>
+                <ul class="list-disc pl-6 text-sm mt-2">
+                  <li>Comply with all applicable laws and regulations</li>
+                  <li>Maintain ethical business practices</li>
+                  <li>Report any violations or concerns</li>
+                  <li>Cooperate with compliance reviews and audits</li>
+                </ul>
+                <p class="text-sm text-justify mt-6">Authorized representative of {{ declaratinoInfo?.distributor_company_name || 'Company Name' }}</p>
+                <p class="text-sm text-justify mt-6">Name : {{ declaratinoInfo?.attendee_name || 'Name' }}</p>
+                <p class="text-sm text-justify mt-2">Title : {{ declaratinoInfo?.designation || 'Designation' }}</p>
+                <p class="text-sm text-justify mt-2">Date : {{ current_date }}</p>
+              </div>
             </div>
             <div v-else-if="uploadDocumentName=='Meril Distributor Compliance Code Of Conduct'">
-              Meril Distributor Compliance Code Of Conduct
+              <h3 class="text-center font-semibold mx-auto max-w-80">Meril Distributor Compliance Code Of Conduct</h3>
+              <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
+                <p class="text-sm text-justify mt-2">We {{ declaratinoInfo?.distributor_company_name || 'Company Name' }} acknowledge and agree to abide by the Meril Distributor Compliance Code of Conduct.</p>
+                <p class="text-sm text-justify mt-4">We understand and will comply with:</p>
+                <ol class="list-decimal pl-6 text-sm mt-2">
+                  <li>Anti Bribery and Anti Corruption policies</li>
+                  <li>Fair business practices</li>
+                  <li>Confidentiality and data protection</li>
+                  <li>Conflict of interest policies</li>
+                  <li>Product quality and safety standards</li>
+                </ol>
+                <p class="text-sm text-justify mt-6">Authorized representative of {{ declaratinoInfo?.distributor_company_name || 'Company Name' }}</p>
+                <p class="text-sm text-justify mt-6">Name : {{ declaratinoInfo?.attendee_name || 'Name' }}</p>
+                <p class="text-sm text-justify mt-2">Title : {{ declaratinoInfo?.designation || 'Designation' }}</p>
+                <p class="text-sm text-justify mt-2">Date : {{ current_date }}</p>
+              </div>
+            </div>
+            <div v-else-if="uploadDocumentName=='Distributor Declaration - Ethical Practices & Compliance'">
+              <h3 class="text-center font-semibold mx-auto max-w-80">Distributor Declaration - Ethical Practices & Compliance</h3>
+              <div class="overflow-y-auto h-60 pb-4 border-2 mb-2 mt-4 rounded-lg border-black/50 px-2 border-dotted ">
+                <p class="text-sm text-justify mt-2">I hereby declare that {{ declaratinoInfo?.distributor_company_name || 'Company Name' }} has undergone and understood training provided on Ethical Practices and Compliance.</p>
+                <p class="text-sm text-justify mt-4">We acknowledge and accept the duty to comply with:</p>
+                <ul class="list-disc pl-6 text-sm mt-2">
+                  <li>All procedural frameworks developed by Meril</li>
+                  <li>Ethical operation guidelines</li>
+                  <li>NPPA norms and trade regulations</li>
+                  <li>International compliance standards</li>
+                </ul>
+                <p class="text-sm text-justify mt-4">We certify that we are not currently in violation of any compliance policies.</p>
+                <p class="text-sm text-justify mt-6">Authorized representative of {{ declaratinoInfo?.distributor_company_name || 'Company Name' }}</p>
+                <p class="text-sm text-justify mt-6">Name : {{ declaratinoInfo?.attendee_name || 'Name' }}</p>
+                <p class="text-sm text-justify mt-2">Title : {{ declaratinoInfo?.designation || 'Designation' }}</p>
+                <p class="text-sm text-justify mt-2">Date : {{ current_date }}</p>
+              </div>
             </div>
         </div>
         <div v-else-if="role_is=='Employee'">
@@ -292,6 +350,27 @@ const uploadDolaodEnabled = ref({
   distributor_self_declaration: false,
   meril_distributor_compliance_code_of_conduct: false,
   meril_distributor_compliance_policy_adoption_form: false,
+  distributor_declaration_ethical_practices: false,
+})
+
+// Track which documents have been uploaded in current session
+const uploadedDocuments = ref(new Set())
+
+// Computed property to decide which documents to display
+const displayDocumentsList = computed(() => {
+  // If all 3 documents are uploaded, show the uploaded documents + completion certificate
+  if (allDocumentsUploaded.value && uploadedDocumentsList.value.length >= 3) {
+    // Combine uploaded documents with completion certificate
+    const combinedList = [...uploadedDocumentsList.value]
+    // Add completion certificate as a print format document (not uploaded by user)
+    combinedList.push({
+      name: "Distributor Completion Certificate",
+      isPrintFormat: true
+    })
+    return combinedList
+  }
+  // Otherwise show the standard documents list
+  return documentsList.value
 })
 
 // signature removed
@@ -299,6 +378,8 @@ const uploadDolaodEnabled = ref({
 const date = ref( new Date().toISOString().split('T')[0])
 const file = ref(null)
 const documentsList = ref([])
+const uploadedDocumentsList = ref([]) // List of user's uploaded documents
+const allDocumentsUploaded = ref(false) // Flag to check if all 4 documents are uploaded
 const loadingUploadForm = ref(false);
 const errorMessage = ref('')
 const course_documents_record_id = ref('');
@@ -345,33 +426,51 @@ async function get_declaration_info(){
 }
 uploadDolaodEnabled
 function decideInitialView() {
-  // Priority: Self Declaration → Code of Conduct → Policy Adoption → else Download
+  // Reset all views
   showError.value = false
   loadingScreen.value = false
   showDownloadForm.value = false
   showUploadForm.value = false
   showDeclarationForm.value = false
 
-  if (uploadDolaodEnabled.value.distributor_self_declaration) {
-    showDeclarationForm.value = true
+  // Check what needs to be uploaded next based on priority
+  const documentsToUpload = getNextDocumentToUpload()
+
+  if (documentsToUpload) {
+    // Show the appropriate form for the next document
+    currentDocName.value = documentsToUpload
+    uploadDocumentName.value = documentsToUpload
+
+    // For Policy Adoption Form, show declaration first
+    if (documentsToUpload === 'Meril Distributor Compliance Policy Adoption Form') {
+      showDeclarationForm.value = true
+    } else {
+      showUploadForm.value = true
+    }
     return
   }
-  if (uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct) {
-    // enable upload flow for Code of Conduct
-    currentDocName.value = 'Meril Distributor Compliance Code of Conduct'
-    uploadDocumentName.value = currentDocName.value
-    showUploadForm.value = true
-    return
-  }
-  if (uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
-    // enable upload/download for Policy Adoption
-    currentDocName.value = 'Meril Distributor Compliance Policy Adoption Form'
-    uploadDocumentName.value = currentDocName.value
-    showUploadForm.value = true
-    return
-  }
-  // fallback: only show download list modal
+
+  // All documents uploaded, show download modal
   showDownloadForm.value = true
+}
+
+// Get the next document that needs to be uploaded
+function getNextDocumentToUpload() {
+  // Only 3 documents need to be uploaded (completion certificate is generated, not uploaded)
+  const documentPriority = [
+    { key: 'meril_distributor_compliance_policy_adoption_form', name: 'Meril Distributor Compliance Policy Adoption Form' },
+    { key: 'distributor_self_declaration', name: 'Distributor Self Declaration' },
+    { key: 'meril_distributor_compliance_code_of_conduct', name: 'Meril Distributor Compliance Code of Conduct' }
+  ]
+
+  for (const doc of documentPriority) {
+    // Check if document is enabled and not uploaded yet
+    if (uploadDolaodEnabled.value[doc.key] && !uploadedDocuments.value.has(doc.name)) {
+      return doc.name
+    }
+  }
+
+  return null // All required documents uploaded
 }
 
 onMounted(async () => {
@@ -382,7 +481,7 @@ onMounted(async () => {
       uploadDolaodEnabled.value = {
         distributor_self_declaration: !!res.distributor_self_declaration,
         meril_distributor_compliance_code_of_conduct: !!res.meril_distributor_compliance_code_of_conduct,
-        meril_distributor_compliance_policy_adoption_form: !!res.meril_distributor_compliance_policy_adoption_form,
+        meril_distributor_compliance_policy_adoption_form: !!res.meril_distributor_compliance_policy_adoption_form
       }
     }
   } catch (e) {
@@ -452,10 +551,32 @@ try {
       course_documents_record_id.value = res.course_documents_record_id
       doctype.value = res.doctype
       role_is.value = res.role_is
+
+      // Pull existing uploaded documents from the response
+      if (res.uploaded_documents && res.uploaded_documents.length > 0) {
+        uploadedDocumentsList.value = res.uploaded_documents
+        // Mark documents as uploaded in our tracking
+        res.uploaded_documents.forEach(doc => {
+          uploadedDocuments.value.add(doc.name)
+        })
+        // If we have 3 or more uploaded documents (not including completion certificate), mark as all uploaded
+        if (res.uploaded_documents.length >= 3) {
+          allDocumentsUploaded.value = true
+        }
+      }
+
       console.log('Document already submitted for this course')
     } else {
       get_declaration_info();
       role_is.value = res.role_is
+      // Check if there are partially uploaded documents
+      if (res.uploaded_documents && res.uploaded_documents.length > 0) {
+        uploadedDocumentsList.value = res.uploaded_documents
+        // Mark documents as uploaded in our tracking
+        res.uploaded_documents.forEach(doc => {
+          uploadedDocuments.value.add(doc.name)
+        })
+      }
       // decide initial view based on flags
       decideInitialView()
     }
@@ -501,34 +622,40 @@ const uploadDocument = async () => {
     console.log("response", response)
     if (response.message && response.success) {
       toast.success('Document uploaded successfully')
-      showUploadForm.value = false
-      showDownloadForm.value = true
-      // After successful upload, check what should be prompted next
-      try {
-        const next = await call('lms.overrides.documents.get_next_distributor_document', { course: courseName.value })
-        if (next?.success) {
-          if (next.next_document) {
-            // Prompt next document in sequence using existing download flow
-            currentDocName.value = next.next_document
-            uploadDocumentName.value = next.next_document
-            showDownloadForm.value = false
-            showUploadForm.value = true
-            showDeclarationForm.value = false
-          } else {
-            // No further docs → refresh normal state
-            await checkDocumentSubmission();
-          }
-        }
-      } catch (e) {
-        console.error('Failed to get next distributor document', e)
-      }
+
+      // Mark this document as uploaded
+      uploadedDocuments.value.add(uploadDocumentName.value)
+
       // Reset form
       date.value = ''
       file.value = null
       // Reset file input
       const fileInput = document.querySelector('input[type="file"]')
       if (fileInput) fileInput.value = ''
-      checkDocumentSubmission();
+
+      // Check what document should be shown next
+      const nextDoc = getNextDocumentToUpload()
+
+      if (nextDoc) {
+        // Show form for next document
+        currentDocName.value = nextDoc
+        uploadDocumentName.value = nextDoc
+        showUploadForm.value = false
+        showDownloadForm.value = false
+
+        // For certain documents, show declaration form first
+        if (nextDoc === 'Distributor Self Declaration' ||
+            nextDoc === 'Meril Distributor Compliance Code Of Conduct' ||
+            nextDoc === 'Distributor Declaration - Ethical Practices & Compliance') {
+          showDeclarationForm.value = true
+          get_declaration_info()
+        } else {
+          showUploadForm.value = true
+        }
+      } else {
+        // All documents uploaded, refresh to show download modal
+        await checkDocumentSubmission()
+      }
     } else {
       toast.error(response?.message || 'Upload failed')
     }
@@ -569,13 +696,33 @@ const directDownload = async(url, file_name)=>{
 
 
 const handleDownload = async() => {
-
   try{
-    // Pass name and course in the API call
+    // For documents other than Compliance Policy Adoption Form, download using print format
+    if (uploadDocumentName.value && uploadDocumentName.value !== 'Meril Distributor Compliance Policy Adoption Form') {
+      const baseUrl = window.location.origin;
+
+      // Generate PDF using the appropriate print format
+      const params = new URLSearchParams({
+        doctype: 'Distributor Course Documents',
+        name: course_documents_record_id.value || 'new',
+        format: uploadDocumentName.value,  // Use the document name as print format
+        no_letterhead: '1',
+        letterhead: 'No Letterhead',
+        settings: '{}',
+        _lang: 'en'
+      });
+
+      const url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
+      directDownload(url, uploadDocumentName.value);
+      return;
+    }
+
+    // For Compliance Policy Adoption Form, use the existing dynamic generation
     const res = await call("lms.overrides.documents.generate_dynamic_docx", {
       name: name?.value || '',
       course: courseName.value,
       font_path: null,
+      document_type: uploadDocumentName.value  // Pass document type
     });
     console.log("res", res)
     if (res?.success && res.file_content) {
@@ -584,21 +731,24 @@ const handleDownload = async() => {
       // Check if running inside React Native WebView
       const isReactNativeWebView = !!window.ReactNativeWebView;
 
-      if (isReactNativeWebView) {                                                                                                                                                                                                                                                                                                                                                              
+      if (isReactNativeWebView) {
         // Send file data to React Native via postMessage
+        const isPDF = res.file_name?.endsWith('.pdf');
         window.ReactNativeWebView.postMessage(
           JSON.stringify({
             type: "DOWNLOAD_FILE",
             base64: res.file_content,
-            fileName: res.file_name || `${name.value}_Compliance_Policy_Adoption_Form.docx`,
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            fileName: res.file_name || `${name.value}_${uploadDocumentName.value}.${isPDF ? 'pdf' : 'docx'}`,
+            mimeType: isPDF ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           })
         );
       } else {
-        const url = 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,' + res.file_content
+        const isPDF = res.file_name?.endsWith('.pdf');
+        const mimeType = isPDF ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        const url = `data:${mimeType};base64,${res.file_content}`;
         const a = document.createElement('a');
         a.href = url;
-        a.download = res.file_name || `${name?.value || 'Compliance'}_Compliance_Policy_Adoption_Form.docx`;
+        a.download = res.file_name || `${uploadDocumentName.value}.${isPDF ? 'pdf' : 'docx'}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -613,11 +763,22 @@ const handleDownload = async() => {
   }
 }
 
-const downloadDocument = async (document_name) => {
-
+const downloadDocument = async (document) => {
   try {
       const baseUrl = window.location.origin;
       let url = null;
+
+      // Check if this is an uploaded document object with file_url
+      if (document.file_url) {
+        // Direct download of uploaded file
+        url = `${baseUrl}${document.file_url}`;
+        directDownload(url, document.name || 'document');
+        return;
+      }
+
+      // Check if this is a print format document
+      const document_name = document.name || document;
+      const isPrintFormat = document.isPrintFormat || !document.file_url;
 
       if(!course_documents_record_id?.value){
         toast.error("Course document record id not found")
@@ -638,17 +799,38 @@ const downloadDocument = async (document_name) => {
       });
 
       url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
-        
-      if (document_name === "Meril Distributor Compliance Policy") 
+
+      if (document_name === "Meril Distributor Compliance Policy")
           url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_nonendo_file`;
-      
-      if (document_name === "Meril Distributor Compliance Policy for Endo") 
+
+      if (document_name === "Meril Distributor Compliance Policy for Endo")
           url =  `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`;
 
       directDownload(url, document_name);
   } catch (e) {
       toast.error('Failed to download document');
       console.error("Error in downloadDocument", e);
+  }
+}
+
+// Download all uploaded documents
+const downloadAllUploadedDocuments = async () => {
+  if (!displayDocumentsList.value || displayDocumentsList.value.length === 0) {
+    toast.error('No documents to download')
+    return
+  }
+
+  toast.success('Starting download of all documents...')
+
+  // Add delay between downloads to prevent browser blocking
+  for (let i = 0; i < displayDocumentsList.value.length; i++) {
+    const doc = displayDocumentsList.value[i]
+    await downloadDocument(doc)
+
+    // Add small delay between downloads (except for last one)
+    if (i < displayDocumentsList.value.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
   }
 }
 

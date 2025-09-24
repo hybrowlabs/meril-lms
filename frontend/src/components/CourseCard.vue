@@ -101,18 +101,7 @@
 			</div>
 
 			<div class="flex items-center justify-between mt-auto">
-				<div class="flex avatar-group overlap">
-					<div
-						class="h-6 mr-1"
-						:class="{ 'avatar-group overlap': course.instructors.length > 1 }"
-					>
-						<UserAvatar
-							v-for="instructor in course.instructors"
-							:user="instructor"
-						/>
-					</div>
-					<CourseInstructors :instructors="course.instructors" />
-				</div>
+				<div></div>
 
 				<div v-if="course.paid_course" class="font-semibold">
 					{{ course.price }}
@@ -128,12 +117,10 @@
 	</div>
 </template>
 <script setup>
-import { BookOpen, Users, Star, CheckCircle } from 'lucide-vue-next'
+import { BookOpen, CheckCircle } from 'lucide-vue-next'
 import { computed } from 'vue'
-import UserAvatar from '@/components/UserAvatar.vue'
 import { sessionStore } from '@/stores/session'
 import { Badge, Tooltip } from 'frappe-ui'
-import CourseInstructors from '@/components/CourseInstructors.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 
 const { user } = sessionStore()

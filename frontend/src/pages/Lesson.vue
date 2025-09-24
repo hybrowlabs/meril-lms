@@ -419,7 +419,7 @@ const props = defineProps({
 })
 
 onMounted(() => {
-	startTimer()
+	// Timer will be started when lesson data loads
 	document.addEventListener('fullscreenchange', attachFullscreenEvent)
 	document.addEventListener('visibilitychange', handleVisibilityChange)
 	window.addEventListener('beforeunload', handleBeforeUnload)
@@ -624,6 +624,10 @@ watch(
   (data) => {
     if (data) {
       setupLesson(data)
+      // Start timer after lesson setup if duration is available
+      if (data.duration && videoFiles.value.length === 0) {
+        startTimer()
+      }
     }
   },
   { immediate: true }
@@ -652,9 +656,12 @@ watch(
 
 // Watch for changes in the number of video files and start/stop the timer accordingly
 watch(
-  () => videoFiles.value.length + lesson?.data?.duration,
-  () => {
-    startTimer()
+  () => videoFiles.value.length,
+  (newLength) => {
+    // Only restart timer if videos were removed (going from video lesson to non-video)
+    if (newLength === 0 && lesson?.data?.duration) {
+      startTimer()
+    }
   }
 )
 
@@ -676,8 +683,8 @@ function extractVideoFiles(blocks) {
 
 // Helper functions for timer persistence
 const getTimerKey = () => {
-  if (!lesson.data?.name || !courseName.value || !chapterNumber.value || !lessonNumber.value) return null
-  return `lesson_timer_${courseName.value}_${chapterNumber.value}_${lessonNumber.value}`
+  if (!lesson.data?.name || !props.courseName || !props.chapterNumber || !props.lessonNumber) return null
+  return `lesson_timer_${props.courseName}_${props.chapterNumber}_${props.lessonNumber}`
 }
 
 const saveTimerState = () => {
@@ -761,7 +768,10 @@ const startTimer = () => {
   let baseElapsed = savedTime // Start from saved time
 
   const tick = (timestamp) => {
-    if (timerPaused) return
+    if (timerPaused) {
+      timerFrame = requestAnimationFrame(tick)
+      return
+    }
 
     if (!startTimestamp) startTimestamp = timestamp
     const elapsed = Math.floor((timestamp - startTimestamp) / 1000) + baseElapsed
@@ -795,9 +805,11 @@ const handleVisibilityChange = () => {
   } else {
     // Page is visible again
     timerPaused = false
-    // Restart the timer animation frame if it was running
-    if (timerFrame && timer.value < lesson.data?.duration && videoFiles.value.length === 0) {
-      startTimer()
+    // Restart the timer if it hasn't completed and no videos exist
+    if (!timerPaused && timer.value < lesson.data?.duration && videoFiles.value.length === 0) {
+      if (!timerFrame) {
+        startTimer()
+      }
     }
   }
 }

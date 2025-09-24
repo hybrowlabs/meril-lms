@@ -1983,29 +1983,11 @@ def validate_lesson_access(course_name, lesson_name):
 		user = frappe.session.user
 		if not user or user == "Guest":
 			return {"access_granted": False, "message": "Please log in to access lessons"}
-		
-		# Check if user is enrolled in the course
-		enrollment = frappe.db.get_value("LMS Enrollment", {
-			"member": user,
-			"course": course_name,
-			"docstatus": ("!=", 2)
-		}, ["name", "completed_on", "re_enrolled_on"], as_dict=True)
-		
-		if not enrollment:
-			# No enrollment found - allow access (this handles cases where user isn't enrolled yet)
-			return {"access_granted": True, "message": "Course access granted"}
-		
-		# If course was completed but not re-enrolled, restrict ALL access to the course
-		if enrollment.completed_on and not enrollment.re_enrolled_on:
-			return {
-				"access_granted": False, 
-				"message": "This course has been completed. Access to lessons is currently restricted.",
-				"lesson_completed": True
-			}
-		
-		# For active or re-enrolled courses, allow all lesson access
+
+		# Always allow lesson access for logged-in users
+		# Users can complete lessons in any order they prefer
 		return {"access_granted": True, "message": "Lesson access granted"}
-		
+
 	except Exception as e:
 		frappe.log_error(f"Error validating lesson access: {str(e)}", "Lesson Access Error")
 		# In case of error, default to allowing access to avoid blocking users unnecessarily
