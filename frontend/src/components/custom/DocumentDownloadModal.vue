@@ -524,14 +524,33 @@ const checkDocumentSubmission = async () => {
 try {
     loadingScreen.value = true
     showDeclarationForm.value = false
-    // Gate by enablement flags with requested priority.
-    // If none are enabled, show only download modal and return.
+
+    // First ensure we have the enabled flags loaded
     if (!uploadDolaodEnabled.value.distributor_self_declaration
       && !uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct
       && !uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
-      loadingScreen.value = false
-      decideInitialView()
-      return
+      // Try to load the flags if not already loaded
+      try {
+        const flagsRes = await call("lms.overrides.documents.get_upload_download_docuemtn_enabled");
+        if (flagsRes?.success) {
+          uploadDolaodEnabled.value = {
+            distributor_self_declaration: !!flagsRes.distributor_self_declaration,
+            meril_distributor_compliance_code_of_conduct: !!flagsRes.meril_distributor_compliance_code_of_conduct,
+            meril_distributor_compliance_policy_adoption_form: !!flagsRes.meril_distributor_compliance_policy_adoption_form
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching upload/download enabled flags", e);
+      }
+
+      // If still no flags enabled, show download modal
+      if (!uploadDolaodEnabled.value.distributor_self_declaration
+        && !uploadDolaodEnabled.value.meril_distributor_compliance_code_of_conduct
+        && !uploadDolaodEnabled.value.meril_distributor_compliance_policy_adoption_form) {
+        loadingScreen.value = false
+        decideInitialView()
+        return
+      }
     }
     const res = await call('lms.overrides.documents.has_user_submited_document', { course: courseName.value })
     console.log("res",res)
@@ -569,6 +588,10 @@ try {
     } else {
       get_declaration_info();
       role_is.value = res.role_is
+      // Store the course_documents_record_id even if document doesn't exist yet
+      course_documents_record_id.value = res.course_documents_record_id || null
+      doctype.value = res.doctype || 'Distributor Course Documents'
+
       // Check if there are partially uploaded documents
       if (res.uploaded_documents && res.uploaded_documents.length > 0) {
         uploadedDocumentsList.value = res.uploaded_documents
@@ -697,25 +720,8 @@ const directDownload = async(url, file_name)=>{
 
 const handleDownload = async() => {
   try{
-    // For documents other than Compliance Policy Adoption Form, download using print format
-    if (uploadDocumentName.value && uploadDocumentName.value !== 'Meril Distributor Compliance Policy Adoption Form') {
-      const baseUrl = window.location.origin;
-
-      // Generate PDF using the appropriate print format
-      const params = new URLSearchParams({
-        doctype: 'Distributor Course Documents',
-        name: course_documents_record_id.value || 'new',
-        format: uploadDocumentName.value,  // Use the document name as print format
-        no_letterhead: '1',
-        letterhead: 'No Letterhead',
-        settings: '{}',
-        _lang: 'en'
-      });
-
-      const url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
-      directDownload(url, uploadDocumentName.value);
-      return;
-    }
+    // For all documents, use the generate_dynamic_docx API which handles creation if needed
+    // This ensures the document is created if it doesn't exist
 
     // For Compliance Policy Adoption Form, use the existing dynamic generation
     const res = await call("lms.overrides.documents.generate_dynamic_docx", {
