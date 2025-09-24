@@ -592,6 +592,11 @@ try {
       course_documents_record_id.value = res.course_documents_record_id || null
       doctype.value = res.doctype || 'Distributor Course Documents'
 
+      // If backend provides documents_list for not-submitted state, use it to avoid empty modal
+      if (Array.isArray(res.documents_list) && res.documents_list.length) {
+        documentsList.value = res.documents_list
+      }
+
       // Check if there are partially uploaded documents
       if (res.uploaded_documents && res.uploaded_documents.length > 0) {
         uploadedDocumentsList.value = res.uploaded_documents

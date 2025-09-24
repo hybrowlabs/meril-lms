@@ -167,15 +167,7 @@ def has_user_submited_document(course=None):
                                 "file_url": file_url
                             })
 
-            if not submitted_exists:
-                return {
-                    "success": False,
-                    "message": "User Has not Submitted Documents",
-                    "role_is": "Distributor",
-                    "uploaded_documents": uploaded_documents,
-                    "course_documents_record_id": any_exists
-                }
-
+            # Build documents_list (static downloads available regardless of submission)
             documents_list = [
                 "Distributor Completion Certificate",
                 "Distributor Self Declaration",
@@ -195,6 +187,17 @@ def has_user_submited_document(course=None):
                 documents_list.append("Meril Distributor Compliance Policy for Endo")
             if has_non_endo:
                 documents_list.append("Meril Distributor Compliance Policy")
+
+            if not submitted_exists:
+                return {
+                    "success": False,
+                    "message": "User Has not Submitted Documents",
+                    "role_is": "Distributor",
+                    "uploaded_documents": uploaded_documents,
+                    "course_documents_record_id": any_exists,
+                    "documents_list": documents_list,
+                    "doctype": "Distributor Course Documents"
+                }
 
             return {
                 "submited": bool(submitted_exists),
