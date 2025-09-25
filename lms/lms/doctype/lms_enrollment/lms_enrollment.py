@@ -38,12 +38,13 @@ class LMSEnrollment(Document):
 				self.access_restricted = 0
 
 	def mark_course_completed(self):
-		"""Mark the course as completed and restrict access"""
+		"""Mark the course as completed"""
 		if self.completion_status != "Completed":
 			self.completion_status = "Completed"
+			# Restrict access for completed courses - as per requirement
 			self.access_restricted = 1
 			self.completed_on = now()
-			
+
 			# Log completion event
 			frappe.logger().info(f"Course {self.course} completed by {self.member}")
 

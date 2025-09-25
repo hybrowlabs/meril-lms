@@ -1213,22 +1213,30 @@ def get_course_fields():
 def get_course_details(course):
 	# Check if user has access to view this course based on country
 	if not frappe.session.user == "Guest" and not has_privileged_role():
-		user_country = get_user_country()
-		if user_country:
-			# Check if course is assigned to user's country
-			has_access = frappe.db.sql("""
-				SELECT COUNT(*)
-				FROM `tabOption Country`
-				WHERE parent = %s
-				AND country = %s
-				AND parenttype = 'LMS Course'
-				AND parentfield = 'custom_assigned_to_countries'
-			""", (course, user_country))[0][0]
+		# First check if user is enrolled in the course (including completed enrollments)
+		is_enrolled = frappe.db.exists("LMS Enrollment", {
+			"course": course,
+			"member": frappe.session.user
+		})
 
-			if not has_access:
-				frappe.throw(_("You do not have access to view this course."))
-		else:
-			frappe.throw(_("Please set your country in your user profile to access courses."))
+		# If enrolled, allow access regardless of country restrictions or completion status
+		if not is_enrolled:
+			user_country = get_user_country()
+			if user_country:
+				# Check if course is assigned to user's country
+				has_access = frappe.db.sql("""
+					SELECT COUNT(*)
+					FROM `tabOption Country`
+					WHERE parent = %s
+					AND country = %s
+					AND parenttype = 'LMS Course'
+					AND parentfield = 'custom_assigned_to_countries'
+				""", (course, user_country))[0][0]
+
+				if not has_access:
+					frappe.throw(_("You do not have access to view this course."))
+			else:
+				frappe.throw(_("Please set your country in your user profile to access courses."))
 
 	course_details = frappe.db.get_value(
 		"LMS Course",
