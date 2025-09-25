@@ -212,9 +212,9 @@ def send_email_otp():
 
             if email_expired and mobile_expired:
                 try:
-                    old_doc = frappe.get_doc("Custom Auth Data", otp_info.name)
-                    old_doc.is_expired = 1
-                    old_doc.save(ignore_permissions=True)
+                    frappe.db.set_value("Custom Auth Data", otp_info.name, "is_expired", 1)
+                    frappe.db.commit()
+                    
 
                     new_doc = frappe.get_doc({
                         "doctype": "Custom Auth Data",
