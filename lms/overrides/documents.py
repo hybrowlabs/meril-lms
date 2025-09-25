@@ -181,7 +181,7 @@ def has_user_submited_document(course=None):
             has_endo = False
             has_non_endo = False
             for company in distributor_doc.meril_company_table:
-                name = (company.meril_company_name or "").lower()
+                name = (company.division or "").lower()
                 if "endo" in name:
                     has_endo = True
                 else:

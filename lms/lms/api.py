@@ -1984,8 +1984,33 @@ def validate_lesson_access(course_name, lesson_name):
 		if not user or user == "Guest":
 			return {"access_granted": False, "message": "Please log in to access lessons"}
 
-		# Always allow lesson access for logged-in users
-		# Users can complete lessons in any order they prefer
+		# Check if the lesson is already completed
+		progress = frappe.db.exists(
+			"LMS Course Progress",
+			{
+				"course": course_name,
+				"lesson": lesson_name,
+				"member": user
+			}
+		)
+
+		if progress:
+			# Check enrollment status to see if course is completed and access is restricted
+			enrollment = frappe.db.get_value(
+				"LMS Enrollment",
+				{"member": user, "course": course_name},
+				["access_restricted", "completion_status"],
+				as_dict=True
+			)
+
+			if enrollment and enrollment.get("access_restricted") == 1 and enrollment.get("completion_status") == "Completed":
+				return {
+					"access_granted": False,
+					"message": "This lesson has been completed. Course access is restricted after completion. Please contact the administrator to re-enroll.",
+					"lesson_completed": True
+				}
+
+		# Allow access if not completed or not restricted
 		return {"access_granted": True, "message": "Lesson access granted"}
 
 	except Exception as e:
