@@ -732,13 +732,66 @@ const fileToBase64 = (file) => {
   })
 }
 
+// Helper function to send file to React Native WebView
+const sendToWebView = (base64Content, fileName, mimeType) => {
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({
+        type: "DOWNLOAD_FILE",
+        base64: base64Content,
+        fileName: fileName,
+        mimeType: mimeType || "application/pdf"
+      })
+    );
+    return true;
+  }
+  return false;
+};
+
+// Helper function to fetch document as base64
+const fetchDocumentAsBase64 = async (url) => {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error fetching document as base64:", error);
+    throw error;
+  }
+};
+
 const directDownload = async(url, file_name)=>{
-   const link = document.createElement('a');
+   // Check if running in WebView
+   if (window.ReactNativeWebView) {
+      try {
+        toast.success("Downloading Started...");
+        const base64Content = await fetchDocumentAsBase64(url);
+        const mimeType = file_name?.endsWith('.pdf') ? 'application/pdf' :
+                        file_name?.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+                        'application/octet-stream';
+        sendToWebView(base64Content, file_name, mimeType);
+      } catch (error) {
+        console.error("Error downloading in WebView:", error);
+        toast.error("Download failed in WebView");
+      }
+   } else {
+      // Regular browser download
+      const link = document.createElement('a');
       link.href = url;
       link.download = file_name;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+   }
 }
 
 
@@ -756,27 +809,17 @@ const handleDownload = async() => {
     if (res?.success && res.file_content) {
       toast.success("Downloading Started...");
 
-      // Check if running inside React Native WebView
-      const isReactNativeWebView = !!window.ReactNativeWebView;
+      // Use the helper function for WebView downloads
+      const isPDF = res.file_name?.endsWith('.pdf');
+      const mimeType = isPDF ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const fileName = res.file_name || `${name.value}_${uploadDocumentName.value}.${isPDF ? 'pdf' : 'docx'}`;
 
-      if (isReactNativeWebView) {
-        // Send file data to React Native via postMessage
-        const isPDF = res.file_name?.endsWith('.pdf');
-        window.ReactNativeWebView.postMessage(
-          JSON.stringify({
-            type: "DOWNLOAD_FILE",
-            base64: res.file_content,
-            fileName: res.file_name || `${name.value}_${uploadDocumentName.value}.${isPDF ? 'pdf' : 'docx'}`,
-            mimeType: isPDF ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          })
-        );
-      } else {
-        const isPDF = res.file_name?.endsWith('.pdf');
-        const mimeType = isPDF ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      if (!sendToWebView(res.file_content, fileName, mimeType)) {
+        // Not in WebView, use regular browser download
         const url = `data:${mimeType};base64,${res.file_content}`;
         const a = document.createElement('a');
         a.href = url;
-        a.download = res.file_name || `${uploadDocumentName.value}.${isPDF ? 'pdf' : 'docx'}`;
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -800,13 +843,12 @@ const downloadDocument = async (document) => {
       if (document.file_url) {
         // Direct download of uploaded file
         url = `${baseUrl}${document.file_url}`;
-        directDownload(url, document.name || 'document');
+        await directDownload(url, document.name || 'document');
         return;
       }
 
-      // Check if this is a print format document
+      // Get document name
       const document_name = document.name || document;
-      const isPrintFormat = document.isPrintFormat || !document.file_url;
 
       if(!course_documents_record_id?.value){
         toast.error("Course document record id not found")
@@ -834,7 +876,9 @@ const downloadDocument = async (document) => {
       if (document_name === "Meril Distributor Compliance Policy for Endo")
           url =  `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`;
 
-      directDownload(url, document_name);
+      // Use the appropriate filename with .pdf extension if not present
+      const fileName = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+      await directDownload(url, fileName);
   } catch (e) {
       toast.error('Failed to download document');
       console.error("Error in downloadDocument", e);
