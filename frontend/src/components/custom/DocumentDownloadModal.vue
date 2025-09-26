@@ -732,6 +732,42 @@ const fileToBase64 = (file) => {
   })
 }
 
+// Helper function to get CSRF token from cookies
+const getCSRFToken = () => {
+  // Try to get from window object first
+  if (window.csrf_token) return window.csrf_token;
+
+  // Try to get from cookies
+  const name = 'csrf_token=';
+  const decodedCookie = decodeURIComponent(document.cookie);
+  const ca = decodedCookie.split(';');
+  for(let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) === 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+
+  // Try alternative cookie names
+  const altNames = ['csrftoken=', 'X-Frappe-CSRF-Token='];
+  for (const altName of altNames) {
+    for(let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === ' ') {
+        c = c.substring(1);
+      }
+      if (c.indexOf(altName) === 0) {
+        return c.substring(altName.length, c.length);
+      }
+    }
+  }
+
+  return '';
+};
+
 // Helper function to send file to React Native WebView
 const sendToWebView = (base64Content, fileName, mimeType) => {
   if (window.ReactNativeWebView) {
@@ -751,7 +787,19 @@ const sendToWebView = (base64Content, fileName, mimeType) => {
 // Helper function to fetch document as base64
 const fetchDocumentAsBase64 = async (url) => {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'X-Frappe-CSRF-Token': getCSRFToken(),
+        'Accept': '*/*'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     const blob = await response.blob();
 
     return new Promise((resolve, reject) => {
@@ -760,7 +808,10 @@ const fetchDocumentAsBase64 = async (url) => {
         const base64 = reader.result.split(',')[1];
         resolve(base64);
       };
-      reader.onerror = reject;
+      reader.onerror = (error) => {
+        console.error("FileReader error:", error);
+        reject(error);
+      };
       reader.readAsDataURL(blob);
     });
   } catch (error) {
@@ -777,11 +828,19 @@ const directDownload = async(url, file_name)=>{
         const base64Content = await fetchDocumentAsBase64(url);
         const mimeType = file_name?.endsWith('.pdf') ? 'application/pdf' :
                         file_name?.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+                        file_name?.endsWith('.doc') ? 'application/msword' :
+                        file_name?.endsWith('.xlsx') ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+                        file_name?.endsWith('.xls') ? 'application/vnd.ms-excel' :
+                        file_name?.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' :
+                        file_name?.endsWith('.ppt') ? 'application/vnd.ms-powerpoint' :
                         'application/octet-stream';
         sendToWebView(base64Content, file_name, mimeType);
+        toast.success("Document sent to device for download");
       } catch (error) {
         console.error("Error downloading in WebView:", error);
-        toast.error("Download failed in WebView");
+        toast.error("Download failed. Please try again.");
+        // Fallback: try opening in new window
+        window.open(url, '_blank');
       }
    } else {
       // Regular browser download
@@ -838,46 +897,128 @@ const downloadDocument = async (document) => {
   try {
       const baseUrl = window.location.origin;
       let url = null;
+      let fileName = null;
 
       // Check if this is an uploaded document object with file_url
       if (document.file_url) {
         // Direct download of uploaded file
-        url = `${baseUrl}${document.file_url}`;
-        await directDownload(url, document.name || 'document');
+        url = document.file_url.startsWith('http') ? document.file_url : `${baseUrl}${document.file_url}`;
+        fileName = document.name || 'document';
+        await directDownload(url, fileName);
         return;
       }
 
       // Get document name
       const document_name = document.name || document;
 
-      if(!course_documents_record_id?.value){
-        toast.error("Course document record id not found")
-        console.error("Course document record id not found")
-        return;
+      // Special handling for print format documents
+      if (document.isPrintFormat || document_name === "Distributor Completion Certificate") {
+        if(!course_documents_record_id?.value){
+          toast.error("Course document record id not found")
+          console.error("Course document record id not found")
+          return;
+        }
+
+        // For WebView, we need to fetch the PDF content directly
+        if (window.ReactNativeWebView) {
+          try {
+            const params = new URLSearchParams({
+                doctype: doctype.value,
+                name: course_documents_record_id.value,
+                format: document_name,
+                no_letterhead: '1',
+                letterhead: 'No Letterhead',
+                settings: '{}',
+                _lang: 'en',
+                custom_filename: document_name,
+                custom_type: 'download'
+            });
+
+            url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
+
+            // Fetch as base64 for WebView
+            const response = await fetch(url, {
+              method: 'GET',
+              credentials: 'include',
+              headers: {
+                'X-Frappe-CSRF-Token': getCSRFToken()
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result.split(',')[1];
+              fileName = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+              sendToWebView(base64, fileName, 'application/pdf');
+              toast.success("Document sent to device for download");
+            };
+            reader.onerror = () => {
+              throw new Error('Failed to convert PDF to base64');
+            };
+            reader.readAsDataURL(blob);
+            return;
+          } catch (error) {
+            console.error("Error fetching PDF for WebView:", error);
+            toast.error("Failed to download document. Please try again.");
+            return;
+          }
+        } else {
+          // Regular browser - use direct URL download
+          const params = new URLSearchParams({
+              doctype: doctype.value,
+              name: course_documents_record_id.value,
+              format: document_name,
+              no_letterhead: '1',
+              letterhead: 'No Letterhead',
+              settings: '{}',
+              _lang: 'en',
+              custom_filename: document_name,
+              custom_type: 'download'
+          });
+
+          url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
+          fileName = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+          await directDownload(url, fileName);
+          return;
+        }
       }
 
-      const params = new URLSearchParams({
-          doctype: doctype.value,
-          name: course_documents_record_id.value,
-          format: document_name,
-          no_letterhead: '1',
-          letterhead: 'No Letterhead',
-          settings: '{}',
-          _lang: 'en',
-          custom_filename: document_name, // set custom filename
-          custom_type: 'download'         // set custom type
-      });
-
-      url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
-
-      if (document_name === "Meril Distributor Compliance Policy")
+      // Handle compliance policy documents
+      if (document_name === "Meril Distributor Compliance Policy") {
           url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_nonendo_file`;
+          fileName = "Meril_Distributor_Compliance_Policy.pdf";
+      } else if (document_name === "Meril Distributor Compliance Policy for Endo") {
+          url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`;
+          fileName = "Meril_Distributor_Compliance_Policy_Endo.pdf";
+      } else {
+          // Default case for other documents
+          if(!course_documents_record_id?.value){
+            toast.error("Course document record id not found")
+            console.error("Course document record id not found")
+            return;
+          }
 
-      if (document_name === "Meril Distributor Compliance Policy for Endo")
-          url =  `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`;
+          const params = new URLSearchParams({
+              doctype: doctype.value,
+              name: course_documents_record_id.value,
+              format: document_name,
+              no_letterhead: '1',
+              letterhead: 'No Letterhead',
+              settings: '{}',
+              _lang: 'en',
+              custom_filename: document_name,
+              custom_type: 'download'
+          });
 
-      // Use the appropriate filename with .pdf extension if not present
-      const fileName = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+          url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`;
+          fileName = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
+      }
+
       await directDownload(url, fileName);
   } catch (e) {
       toast.error('Failed to download document');
@@ -894,14 +1035,33 @@ const downloadAllUploadedDocuments = async () => {
 
   toast.success('Starting download of all documents...')
 
-  // Add delay between downloads to prevent browser blocking
-  for (let i = 0; i < displayDocumentsList.value.length; i++) {
-    const doc = displayDocumentsList.value[i]
-    await downloadDocument(doc)
+  // For WebView, download documents sequentially with proper delay
+  if (window.ReactNativeWebView) {
+    for (let i = 0; i < displayDocumentsList.value.length; i++) {
+      const doc = displayDocumentsList.value[i]
 
-    // Add small delay between downloads (except for last one)
-    if (i < displayDocumentsList.value.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 500))
+      try {
+        await downloadDocument(doc)
+        // Add delay between downloads to allow WebView to process
+        if (i < displayDocumentsList.value.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      } catch (error) {
+        console.error(`Failed to download document: ${doc.name || doc}`, error)
+        toast.error(`Failed to download: ${doc.name || doc}`)
+      }
+    }
+    toast.success('All documents sent for download')
+  } else {
+    // For regular browser, download with small delay to prevent blocking
+    for (let i = 0; i < displayDocumentsList.value.length; i++) {
+      const doc = displayDocumentsList.value[i]
+      await downloadDocument(doc)
+
+      // Add small delay between downloads (except for last one)
+      if (i < displayDocumentsList.value.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
     }
   }
 }
