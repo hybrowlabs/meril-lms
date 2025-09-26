@@ -42,7 +42,7 @@ def generate_and_save_otp():
 	return otp
 
 @frappe.whitelist()
-def create_user_from_employee(employee_id):
+def create_user_from_employee(employee_id, _method):
 	frappe.only_for(["Supervisor", "System User"])
 
 	employee_doc = frappe.get_doc("Employee", employee_id)
@@ -1158,7 +1158,7 @@ def send_manual_course_reminder(enrollment_id):
 		return {"status": "error", "message": str(e)}
 
 
-def create_user_from_distributor_hook(doc, method=None):
+def create_user_from_distributor_hook(doc, _method):
 	try:
 		# doc is a Distributor document; pass its name to the API
 		create_user_from_distributor(doc.name)
