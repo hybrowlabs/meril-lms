@@ -237,7 +237,7 @@ def create_user_from_distributor(distributor_id):
 
 					<p style="font-weight: bold;">Login Credentials:</p>
 					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
-					----------(<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>)--------------------------
+					<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
 					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
 					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
 
