@@ -25,10 +25,10 @@ export default defineConfig({
 		}),
 	],
 	server: {
-		allowedHosts: ['fs', 'per2'],
+		allowedHosts: ['fs', 'per2', "8080.grawish.com"],
 		proxy: {
 			'/api': {
-				target: 'http://localhost:8000',
+				target: 'http://localhost:8003',
 				changeOrigin: true,
 			},
 		},

@@ -768,22 +768,6 @@ const getCSRFToken = () => {
   return '';
 };
 
-// Helper function to send file to React Native WebView
-const sendToWebView = (base64Content, fileName, mimeType) => {
-  if (window.ReactNativeWebView) {
-    window.ReactNativeWebView.postMessage(
-      JSON.stringify({
-        type: "DOWNLOAD_FILE",
-        base64: base64Content,
-        fileName: fileName,
-        mimeType: mimeType || "application/pdf"
-      })
-    );
-    return true;
-  }
-  return false;
-};
-
 // Helper function to fetch document as base64
 const fetchDocumentAsBase64 = async (url) => {
   try {
@@ -822,7 +806,7 @@ const fetchDocumentAsBase64 = async (url) => {
 
 const directDownload = async(url, file_name)=>{
    // Check if running in WebView
-   if (window.ReactNativeWebView) {
+   if (window.nativeInterface && window.isApp) {
       try {
         toast.success("Downloading Started...");
         const base64Content = await fetchDocumentAsBase64(url);
@@ -834,8 +818,19 @@ const directDownload = async(url, file_name)=>{
                         file_name?.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' :
                         file_name?.endsWith('.ppt') ? 'application/vnd.ms-powerpoint' :
                         'application/octet-stream';
-        sendToWebView(base64Content, file_name, mimeType);
-        toast.success("Document sent to device for download");
+        window.nativeInterface.execute("downloadFile",{base64Content, name:file_name, mimeType}).then((response) => {
+          // return { success: true, uri: fileUri, fileName };
+          if(response.success){
+            toast.success("Document sent to device for download");
+          }else{
+            toast.error("Download failed. Please try again.");
+          }
+        }).catch((error) => {
+          console.error("Error sending document to device for download:", error);
+          toast.error("Download failed. Please try again.");
+          // Fallback: try opening in new window
+          window.open(url, '_blank');
+        });
       } catch (error) {
         console.error("Error downloading in WebView:", error);
         toast.error("Download failed. Please try again.");
