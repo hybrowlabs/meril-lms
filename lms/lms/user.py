@@ -241,9 +241,8 @@ def create_user_from_distributor(distributor_id):
 					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
 					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
 
-					<p>This training is mandatory for Distributors to ensure our {distributor_course_intro} fully comply with legal and ethical norms.</p>
 
-					<p>We kindly request you to complete this training at your earliest. Timely completion is crucial to maintain compliance and avoid any lapses in our collective regulatory obligations.</p>
+					<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
 
 					<p>Best regards,</p>
 					<p>Meril</p>
@@ -670,7 +669,7 @@ def send_daily_course_reminders():
 			for_role = "Administrator"
 		
 			if is_distributor:
-				subject = f"Reminder {new_count} : {enrollment.course_title} for Distributor on {enrollment.course_introduction}."
+				subject = f"Reminder {new_count} : {enrollment.course_title} on {enrollment.course_introduction}."
 				for_role = "Distributor"
 				# Get attendee_name from Distributor
 				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
@@ -760,14 +759,13 @@ def get_course_reminder_message(for_role, name, course_title, course_introductio
 	if for_role == "Distributor":
 		return f'''<p>Dear {name},</p>
 
-		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span> for which you were enrolled earlier. Our records indicate that the training is still pending. </p>
+		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span>. Our records indicate that the training is still pending. </p>
 
-		<p>This training is mandatory for distributors to ensure our {course_introduction} fully comply with legal and ethical norms.</p>
-
-		<p>We request you to complete the training to ensure adherence to our Ethics Standards. Timely completion is important to meet regulatory requirements and uphold our ethical standards.</p>
-
-		<p>If you experience any difficulty accessing the course with your credentials, please use the <span style="font-weight:bold;">‘Forgot Password’</span> option to reset your password and proceed.</p>
-
+		
+		<p>For login details, please refer to the email sent to you with the subject line ‘{course_title} on {course_introduction}’.</p>
+		
+			<p style="font-weight: bold; margin-left: 10px;"><span style="margin-right: 10px;">•</span> Please click on the below link to log in:</p>
+			<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
 		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
 
 		<p>Best regards,</p>
