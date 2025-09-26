@@ -865,20 +865,9 @@ const handleDownload = async() => {
 
       // Use the helper function for WebView downloads
       const isPDF = res.file_name?.endsWith('.pdf');
-      const mimeType = isPDF ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       const fileName = res.file_name || `${name.value}_${uploadDocumentName.value}.${isPDF ? 'pdf' : 'docx'}`;
 
-      if (!sendToWebView(res.file_content, fileName, mimeType)) {
-        // Not in WebView, use regular browser download
-        const url = `data:${mimeType};base64,${res.file_content}`;
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }
+      await directDownload(res.file_content, fileName);
     } else {
       toast.error(res?.error || "Error generating document")
     }
