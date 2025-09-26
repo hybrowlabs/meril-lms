@@ -259,7 +259,6 @@ def has_user_submited_document(course=None):
         return {"submited": False, "error": str(e)}
 
 
-@frappe.whitelist(allow_guest=False)
 def create_course_documents_on_completion(user=None, course=None, enrollment_name=None):
     """
     Automatically create Distributor/Employee Course Documents when course reaches 100% completion.

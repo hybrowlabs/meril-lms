@@ -662,7 +662,7 @@ const uploadDocument = async () => {
       document_name: currentDocName.value || file.value.name,
       filename: file.value.name,
       base64_file_data: base64Data,
-      is_private: 0,
+      is_private: 1,
       document_upload_datetime: new Date().toISOString(),
       uploadDocumentName: uploadDocumentName.value
     })
@@ -780,6 +780,7 @@ const fetchDocumentAsBase64 = async (url) => {
       }
     });
 
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -809,7 +810,15 @@ const directDownload = async(url, file_name)=>{
    if (window.nativeInterface && window.isApp) {
       try {
         toast.success("Downloading Started...");
-        const base64Content = await fetchDocumentAsBase64(url);
+        // Check if url is already base64 content (from generate_dynamic_docx)
+        let base64Content;
+        if (url.startsWith('data:') || (!url.startsWith('http') && !url.startsWith('/'))) {
+          // It's already base64 content
+          base64Content = url;
+        } else {
+          // It's a URL, fetch the content
+          base64Content = await fetchDocumentAsBase64(url);
+        }
         const mimeType = file_name?.endsWith('.pdf') ? 'application/pdf' :
                         file_name?.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
                         file_name?.endsWith('.doc') ? 'application/msword' :
@@ -818,7 +827,8 @@ const directDownload = async(url, file_name)=>{
                         file_name?.endsWith('.pptx') ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' :
                         file_name?.endsWith('.ppt') ? 'application/vnd.ms-powerpoint' :
                         'application/octet-stream';
-        window.nativeInterface.execute("downloadFile",{base64Content, name:file_name, mimeType}).then((response) => {
+        console.log("mimeType", mimeType, "file_name", file_name)
+        window.nativeInterface.execute("downloadFile",{base64:base64Content, name:file_name, mimeType}).then((response) => {
           // return { success: true, uri: fileUri, fileName };
           if(response.success){
             toast.success("Document sent to device for download");
@@ -840,11 +850,31 @@ const directDownload = async(url, file_name)=>{
    } else {
       // Regular browser download
       const link = document.createElement('a');
-      link.href = url;
+      // Check if url is already base64 content
+      if (!url.startsWith('http') && !url.startsWith('/')) {
+        // Convert base64 to blob URL for download
+        const mimeType = file_name?.endsWith('.pdf') ? 'application/pdf' :
+                        file_name?.endsWith('.docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+                        'application/octet-stream';
+        const byteCharacters = atob(url);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+        link.href = URL.createObjectURL(blob);
+      } else {
+        link.href = url;
+      }
       link.download = file_name;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      // Clean up blob URL if created
+      if (link.href.startsWith('blob:')) {
+        URL.revokeObjectURL(link.href);
+      }
    }
 }
 
@@ -859,7 +889,6 @@ const handleDownload = async() => {
       document_type: uploadDocumentName.value,  // Pass document type
       use_print_format: true  // Force print format generation to ensure document is created
     });
-    console.log("res", res)
     if (res?.success && res.file_content) {
       toast.success("Downloading Started...");
 
@@ -887,7 +916,19 @@ const downloadDocument = async (document) => {
       if (document.file_url) {
         // Direct download of uploaded file
         url = document.file_url.startsWith('http') ? document.file_url : `${baseUrl}${document.file_url}`;
-        fileName = document.name || 'document';
+
+        // Extract extension from file_url
+        const urlPath = document.file_url.split('?')[0]; // Remove query params if any
+        const extension = urlPath.substring(urlPath.lastIndexOf('.')); // Get extension including the dot
+
+        // Use document name with proper extension from file_url
+        const baseName = document.name || 'document';
+        // If the document name already has an extension, replace it; otherwise append
+        fileName = baseName.includes('.') ?
+                   baseName.substring(0, baseName.lastIndexOf('.')) + extension :
+                   baseName + extension;
+
+        console.log("url", url, "fileName", fileName)
         await directDownload(url, fileName);
         return;
       }
@@ -904,7 +945,7 @@ const downloadDocument = async (document) => {
         }
 
         // For WebView, we need to fetch the PDF content directly
-        if (window.ReactNativeWebView) {
+        if (window.nativeInterface && window.isApp) {
           try {
             const params = new URLSearchParams({
                 doctype: doctype.value,
@@ -938,8 +979,13 @@ const downloadDocument = async (document) => {
             reader.onload = () => {
               const base64 = reader.result.split(',')[1];
               fileName = document_name.endsWith('.pdf') ? document_name : `${document_name}.pdf`;
-              sendToWebView(base64, fileName, 'application/pdf');
-              toast.success("Document sent to device for download");
+              window.nativeInterface.execute("downloadFile",{base64Content:base64, name:fileName, mimeType:'application/pdf'}).then((response) => {
+                if(response.success){
+                  toast.success("Document sent to device for download");
+                }else{
+                  toast.error("Download failed. Please try again.");
+                }
+              });
             };
             reader.onerror = () => {
               throw new Error('Failed to convert PDF to base64');
@@ -1020,7 +1066,7 @@ const downloadAllUploadedDocuments = async () => {
   toast.success('Starting download of all documents...')
 
   // For WebView, download documents sequentially with proper delay
-  if (window.ReactNativeWebView) {
+  if (window.nativeInterface && window.isApp) {
     for (let i = 0; i < displayDocumentsList.value.length; i++) {
       const doc = displayDocumentsList.value[i]
 
