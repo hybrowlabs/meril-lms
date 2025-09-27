@@ -284,7 +284,68 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                 {"distributor": distributor_doc.name, "course": course}
             )
 
-            if not existing:
+            doc = None
+            if existing:
+                # Document exists, check if completion certificate is already in child table
+                doc = frappe.get_doc("Distributor Course Documents", existing)
+
+                # Check if completion certificate already exists in child table
+                has_certificate = False
+                if doc.document_upload_datetime:
+                    for upload in doc.document_upload_datetime:
+                        if upload.document == "Distributor Completion Certificate":
+                            has_certificate = True
+                            break
+
+                # If certificate doesn't exist, generate and add it
+                if not has_certificate:
+                    try:
+                        # Generate PDF from print format
+                        pdf_content = frappe.get_print(
+                            doctype="Distributor Course Documents",
+                            name=doc.name,
+                            print_format="Distributor Completion Certificate",
+                            as_pdf=True,
+                            no_letterhead=1
+                        )
+
+                        # Save the PDF as a file attachment
+                        file_doc = save_file(
+                            fname="Distributor_Completion_Certificate.pdf",
+                            content=pdf_content,
+                            dt="Distributor Course Documents",
+                            dn=doc.name,
+                            is_private=0  # Making it not private so it can be downloaded
+                        )
+
+                        # Add the certificate to the child table
+                        if not getattr(doc, "document_upload_datetime", None):
+                            doc.set("document_upload_datetime", [])
+
+                        # First check if the document type exists, if not create it
+                        if not frappe.db.exists("Distributor Document Type", "Distributor Completion Certificate"):
+                            cert_type = frappe.get_doc({
+                                "doctype": "Distributor Document Type",
+                                "name1": "Distributor Completion Certificate"
+                            })
+                            cert_type.insert(ignore_permissions=True)
+
+                        # Append the completion certificate to child table
+                        child = doc.append(
+                            "document_upload_datetime",
+                            {
+                                "upload_datetime": frappe.utils.now_datetime(),
+                                "document": "Distributor Completion Certificate",
+                                "uploaded_docuement": file_doc.file_url  # Note the typo in field name
+                            }
+                        )
+                        doc.save(ignore_permissions=True)
+                        frappe.db.commit()
+
+                    except Exception as e:
+                        frappe.log_error(f"Error generating completion certificate for existing distributor doc: {str(e)}")
+
+            else:
                 # Create new Distributor Course Documents
                 doc = frappe.get_doc({
                     "doctype": "Distributor Course Documents",
@@ -295,6 +356,54 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                     "entered_name": distributor_doc.attendee_name or user_doc.full_name or ""
                 })
                 doc.insert(ignore_permissions=True)
+
+                # Generate and attach the completion certificate PDF
+                try:
+                    # Generate PDF from print format
+                    pdf_content = frappe.get_print(
+                        doctype="Distributor Course Documents",
+                        name=doc.name,
+                        print_format="Distributor Completion Certificate",
+                        as_pdf=True,
+                        no_letterhead=1
+                    )
+
+                    # Save the PDF as a file attachment
+                    file_doc = save_file(
+                        fname="Distributor_Completion_Certificate.pdf",
+                        content=pdf_content,
+                        dt="Distributor Course Documents",
+                        dn=doc.name,
+                        is_private=0  # Making it not private so it can be downloaded
+                    )
+
+                    # Add the certificate to the child table
+                    if not getattr(doc, "document_upload_datetime", None):
+                        doc.set("document_upload_datetime", [])
+
+                    # First check if the document type exists, if not create it
+                    if not frappe.db.exists("Distributor Document Type", "Distributor Completion Certificate"):
+                        cert_type = frappe.get_doc({
+                            "doctype": "Distributor Document Type",
+                            "name1": "Distributor Completion Certificate"
+                        })
+                        cert_type.insert(ignore_permissions=True)
+
+                    # Append the completion certificate to child table
+                    child = doc.append(
+                        "document_upload_datetime",
+                        {
+                            "upload_datetime": frappe.utils.now_datetime(),
+                            "document": "Distributor Completion Certificate",
+                            "uploaded_docuement": file_doc.file_url  # Note the typo in field name
+                        }
+                    )
+                    doc.save(ignore_permissions=True)
+
+                except Exception as e:
+                    frappe.log_error(f"Error generating completion certificate for distributor: {str(e)}")
+                    # Continue even if certificate generation fails
+
                 frappe.db.commit()
 
                 return {
@@ -1171,7 +1280,7 @@ def downlaod_nonendo_file():
 
     # Check if any company name does NOT contain "endo" (case-insensitive)
     for company in distributor_doc.meril_company_table:
-        name = (company.meril_company_name or "").lower()
+        name = (company.division or "").lower()
         if "endo" not in name:
             # Use the direct file path as requested
             file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy.pdf"})
@@ -1217,7 +1326,7 @@ def downlaod_endo_file():
 
     # Check if any company name contains "endo" (case-insensitive)
     for company in distributor_doc.meril_company_table:
-        name = (company.meril_company_name or "").lower()
+        name = (company.division or "").lower()
         if "endo" in name:
             # Use the direct file path as requested
             file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy for Endo.pdf"})
