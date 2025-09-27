@@ -252,7 +252,8 @@ def create_user_from_distributor(distributor_id):
 					recipients=[email],
 					sender=get_default_sender(),
 					subject=subject,
-					message=message
+					message=message,
+					now=True
 				)
 				# Also send a system notification using Notification Log
 				frappe.get_doc({
