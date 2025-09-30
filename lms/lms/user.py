@@ -130,7 +130,7 @@ def create_user_from_employee(employee_id, _method):
 				frappe.sendmail(
 					recipients=[employee_doc.company_email],
 					sender=get_default_sender(),
-					subject=notification_subject,
+					subject=notification_subject + "- Ethics & Compliance Training on HCP/HCO Interactions",
 					message=notification_message
 				)
 				# Create a Notification Log to send system notification
@@ -362,7 +362,7 @@ def create_user_from_distributor(distributor_id):
 					distributor_course = ""
 					distributor_course_intro = ""
 
-				subject = f'Ethics & Compliance Training on HCP/HCO Interactions'
+				subject = f'{distributor_course} on {distributor_course_intro} - Ethics & Compliance Training on HCP/HCO Interactions'
 				message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
 					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">{distributor_course} on {distributor_course_intro}</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
@@ -390,8 +390,7 @@ def create_user_from_distributor(distributor_id):
 				)
 				# Also send a system notification using Notification Log
 				frappe.get_doc({
-					"doctype": "Notification Log",
-					"subject": subject,
+					"doctype": "Notification Log"+ " - Ethics & Compliance Training on HCP/HCO Interactions",
 					"email_content": message,
 					"for_user": email,
 					"type": "Alert"
@@ -403,7 +402,7 @@ def create_user_from_distributor(distributor_id):
 					pluck="email")
 				
 				if admins:
-					subject = f"🎯 New Distributor Created: {distributor_doc.attendee_name}"
+					subject = f"🎯 New Distributor Created: {distributor_doc.attendee_name} - Ethics & Compliance Training on HCP/HCO Interactions"
 					message = f"<p>New distributor <b>{distributor_doc.attendee_name}</b> from <b>{distributor_doc.distributor_company_name}</b> has been created and credentials sent.</p><p>📧 Email: {email}</p><p>📅 Credentials sent: {frappe.utils.format_datetime(frappe.utils.now_datetime())}</p><p>🔔 Daily login reminders will start tomorrow if no login occurs.</p>"
 					
 					frappe.sendmail(
@@ -607,7 +606,7 @@ def send_daily_login_reminders():
 				subject_prefix = "⚠️ Final Reminder"
 			
 			# Create personalized reminder message
-			subject = f"{subject_prefix}: Please login to Meril Learning Portal"
+			subject = f"{subject_prefix}: Please login to Meril Learning Portal "
 			
 			message_content = get_login_reminder_message(
 				distributor.attendee_name,
@@ -622,7 +621,7 @@ def send_daily_login_reminders():
 			frappe.sendmail(
 				recipients=[distributor.distributor_email_address],
 				sender=get_default_sender(),
-				subject=subject,
+				subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
 				message=message_content
 			)
 			# Also create a notification log for the distributor user
@@ -835,7 +834,7 @@ def send_daily_course_reminders():
 			frappe.sendmail(
 				recipients=[enrollment.user_email],
 				sender=get_default_sender(),
-				subject=subject,
+				subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
 				message=message_content
 			)
 			# Create notification log for the user
@@ -1022,7 +1021,7 @@ def get_distributor_profile(user_id=None):
 		meril_company_table = frappe.get_all(
 			"Meril Distributor Division Child",
 			filters={"parent": distributor.name},
-			fields=["division", "meril_company_name"]
+			fields=["division", "meril_company_name", "rsm", "bu_head", "distributor_code"]
 		)
 		
 		distributor["meril_company_table"] = meril_company_table
@@ -1078,7 +1077,7 @@ def update_distributor_profile(data):
         return
     else:
         filter_data = [
-             "bu__fd_head", "rsm__state_head", "region",
+            "region",
             "state", "city", "account__distributor_code", "distributor_company_name",
             "distributor_email_address", "distributor_company_address", "distributor_contact_number", "attendee_name", "designation", "distributor_name", "country"
         ]
@@ -1173,7 +1172,7 @@ def send_manual_login_reminder(distributor_id):
 		frappe.sendmail(
 			recipients=[distributor.distributor_email_address],
 			sender=get_default_sender(),
-			subject=subject,
+			subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
 			message=message_content
 		)
 		

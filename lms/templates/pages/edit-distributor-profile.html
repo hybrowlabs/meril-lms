@@ -9,29 +9,22 @@
         <div class="row">
             <div class="form-group col-12">
                 <label>Meril Company Table <span class="text-danger">*</span></label>
-                <div id="meril-company-table-container">
-                    <table class="table table-bordered" id="meril-company-table">
+                <div id="meril-company-table-container" class="table-responsive">
+                    <table class="table table-bordered mb-0" id="meril-company-table">
                         <thead>
                             <tr>
                                 <th>Division</th>
                                 <th>Meril Company Name</th>
-                                <th>Action</th>
+                                <th>RSM</th>
+                                <th>BU Head</th>
+                                <th>Distributor Code</th>
                             </tr>
                         </thead>
                         <tbody id="meril-company-table-body">
                         </tbody>
                     </table>
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="addMerilCompanyRow()" disabled>Add Row</button>
                     <div id="meril-company-table-error" class="text-danger mt-2" style="display:none;">At least one record is required for Meril Company Table.</div>
                 </div>
-            </div>
-            <div class="form-group col-md-6">
-                <label for="input-bu_fd_head">BU/FD Head</label>
-                <input type="text" class="form-control" id="input-bu_fd_head" name="bu_fd_head" value="{{ frappe.session.user_doc.bu_fd_head or '' }}" readonly>
-            </div>
-            <div class="form-group col-md-6">
-                <label for="input-rsm_state_head">RSM/State Head</label>
-                <input type="text" class="form-control" id="input-rsm_state_head" name="rsm_state_head" value="{{ frappe.session.user_doc.rsm_state_head or '' }}" readonly>
             </div>
             <div class="form-group col-md-6">
                 <label for="input-region">Region</label>
@@ -97,6 +90,36 @@
     </div>
 
     <script>
+        const responsiveTableStyles = `
+            #meril-company-table-container.table-responsive { overflow-x: auto; }
+            #meril-company-table { table-layout: auto; }
+            #meril-company-table th, #meril-company-table td { white-space: nowrap; }
+            /* Make inputs/selects in table shrink to their text width */
+            #meril-company-table input.form-control,
+            #meril-company-table select.form-control {
+                display: inline-block;
+                width: -moz-fit-content;
+                width: fit-content;
+                width: max-content;
+                min-width: 0;
+                max-width: 150px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            @media (max-width: 576px) {
+                #meril-company-table th, #meril-company-table td { padding: 0.5rem; font-size: 0.85rem; }
+                #meril-company-table .form-control { padding: 0.25rem 0.5rem; height: auto; font-size: 0.85rem; }
+            }
+        `;
+        (function injectResponsiveStyles(){
+            if (!document.getElementById('meril-table-responsive-style')) {
+                const style = document.createElement('style');
+                style.id = 'meril-table-responsive-style';
+                style.type = 'text/css';
+                style.appendChild(document.createTextNode(responsiveTableStyles));
+                document.head.appendChild(style);
+            }
+        })();
         // Store division-company list for division/company mapping
         let divisionCompanyList = [];
         // Store country list from backend
@@ -176,8 +199,6 @@
         
         function get_form_data(){
             const data = {};
-            data.bu__fd_head = $('#input-bu_fd_head').val();
-            data.rsm__state_head = $('#input-rsm_state_head').val();
             data.region = $('#input-region').val();
             data.state = $('#input-state').val();
             data.city = $('#input-city').val();
@@ -201,10 +222,16 @@
             $('#meril-company-table-body tr').each(function() {
                 const division = $(this).find('.division-input').val();
                 const merilCompanyName = $(this).find('.meril-company-name').val();
-                if (division || merilCompanyName) {
+                const rsm = $(this).find('.rsm-input').val();
+                const buHead = $(this).find('.bu-head-input').val();
+                const distributorCode = $(this).find('.distributor-code-input').val();
+                if (division || merilCompanyName || rsm || buHead || distributorCode) {
                     tableData.push({
                         division: division,
-                        meril_company_name: merilCompanyName
+                        meril_company_name: merilCompanyName,
+                        rsm: rsm,
+                        bu_head: buHead,
+                        distributor_code: distributorCode
                     });
                 }
             });
@@ -247,23 +274,6 @@
             return found ? (found.company || found.meril_company || '') : '';
         }
 
-        // Add row with select for division and readonly input for company name
-        function addMerilCompanyRow(division = '', meril_company_name = '') {
-            const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
-            const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')" disabled>${getDivisionOptionsHtml(division)}</select>`;
-            // Use passed company name or get from mapping
-            let companyName = meril_company_name || (division ? getCompanyNameForDivision(division) : '');
-            const companyInput = `<input type="text" class="form-control meril-company-name" value="${companyName || ''}" readonly tabindex="-1">`;
-            const newRow = `
-                <tr id="${rowId}">
-                    <td>${divisionSelect}</td>
-                    <td>${companyInput}</td>
-                    <td><button type="button" class="btn btn-sm btn-danger" onclick="removeMerilCompanyRow('${rowId}')" disabled>Remove</button></td>
-                </tr>
-            `;
-            $('#meril-company-table-body').append(newRow);
-            console.log('Added row with division:', division, 'company:', companyName);
-        }
 
         // When division changes, update company name in the same row
         window.onDivisionChange = function(selectElem, rowId) {
@@ -272,13 +282,8 @@
             $('#' + rowId).find('.meril-company-name').val(companyName);
         }
 
-        function removeMerilCompanyRow(rowId) {
-            $('#' + rowId).remove();
-        }
 
         function fill_distributor_profile(data) {
-            $('#input-bu_fd_head').val(data.bu__fd_head || '');
-            $('#input-rsm_state_head').val(data.rsm__state_head || '');
             $('#input-region').val(data.region || '');
             $('#input-state').val(data.state || '');
             $('#input-city').val(data.city || '');
@@ -300,8 +305,28 @@
                     // Division field is linked to Division doctype
                     const divisionValue = item.division || '';
                     const companyName = item.meril_company_name || '';
-                    console.log('Adding row - item:', item, 'division:', divisionValue, 'company:', companyName);
-                    addMerilCompanyRow(divisionValue, companyName);
+                    const rsmValue = item.rsm || '';
+                    const buHeadValue = item.bu_head || '';
+                    const distributorCodeValue = item.distributor_code || '';
+                    console.log('Adding row - item:', item, 'division:', divisionValue, 'company:', companyName, 'rsm:', rsmValue, 'bu_head:', buHeadValue, 'distributor_code:', distributorCodeValue);
+                    
+                    // Create row directly without add/remove functionality
+                    const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
+                    const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')" disabled>${getDivisionOptionsHtml(divisionValue)}</select>`;
+                    const companyInput = `<input type="text" class="form-control meril-company-name" value="${companyName || ''}" readonly tabindex="-1">`;
+                    const rsmInput = `<input type="text" class="form-control rsm-input" value="${rsmValue || ''}" readonly tabindex="-1">`;
+                    const buHeadInput = `<input type="text" class="form-control bu-head-input" value="${buHeadValue || ''}" readonly tabindex="-1">`;
+                    const distributorCodeInput = `<input type="text" class="form-control distributor-code-input" value="${distributorCodeValue || ''}" readonly tabindex="-1">`;
+                    const newRow = `
+                        <tr id="${rowId}">
+                            <td>${divisionSelect}</td>
+                            <td>${companyInput}</td>
+                            <td>${rsmInput}</td>
+                            <td>${buHeadInput}</td>
+                            <td>${distributorCodeInput}</td>
+                        </tr>
+                    `;
+                    $('#meril-company-table-body').append(newRow);
                 });
             } else if (!data.meril_company_table) {
                 console.log('No meril_company_table data received from backend');
