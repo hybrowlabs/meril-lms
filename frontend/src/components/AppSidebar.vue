@@ -357,6 +357,12 @@ const addAdminLinks = () => {
 				icon: 'Bell',
 				to: 'RemindersManagementDashboard',
 				activeFor: ['RemindersManagementDashboard'],
+			},
+			{
+				label: 'Distributor Management',
+				icon: 'Users',
+				to: 'DistributorManagement',
+				activeFor: ['DistributorManagement'],
 			}
 		)
 	}

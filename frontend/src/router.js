@@ -234,6 +234,14 @@ const routes = [
 		name: 'RemindersManagementDashboard',
 		component: () => import('@/pages/RemindersManagementDashboard.vue'),
 	},
+	{
+		path: '/admin/distributor-management',
+		name: 'DistributorManagement',
+		component: () => import('@/pages/DistributorManagement.vue'),
+		meta: {
+			requiresRole: ['System Manager', 'Administrator']
+		}
+	},
 ]
 
 let router = createRouter({

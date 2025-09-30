@@ -98,26 +98,30 @@ def get_next_distributor_document(course=None):
 def has_user_submited_document(course=None):
     user = frappe.session.user
     if not course:
-        return {"submited": False, "message": "No course provided"}
-    
+        return {"submited": False, "message": "No course provided", "success": False}
+
     try:
         # Check if course exists
         if not frappe.db.exists("LMS Course", course):
-            return {"submited": False, "message": "Course does not exist"}
+            return {"submited": False, "message": "Course does not exist", "success": False}
 
         enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
         if not enrollment:
-            frappe.local.response["http_status_code"] = 403
+            # Don't set 403 status, just return the data
             return {
                 "submited": False,
-                "message": "User is not enrolled in this course"
+                "message": "User is not enrolled in this course",
+                "success": False,
+                "enrollment_required": True
             }
         enrollment_name, progress = enrollment
         if not progress or int(progress) < 100:
-            frappe.local.response["http_status_code"] = 403
+            # Don't set 403 status, just return the data
             return {
                 "submited": False,
-                "message": "Course progress is not completed"
+                "message": "Course progress is not completed",
+                "success": False,
+                "progress": progress or 0
             }
 
         # Auto-create Distributor Course Documents when course is completed
@@ -194,7 +198,7 @@ def has_user_submited_document(course=None):
             if not submitted_exists:
                 return {
                     "submited": False,  # Important: frontend checks this field
-                    "success": False,
+                    "success": True,  # Changed to True to avoid error handling
                     "message": "User Has not Submitted Documents",
                     "role_is": "Distributor",
                     "uploaded_documents": uploaded_documents,
@@ -205,6 +209,7 @@ def has_user_submited_document(course=None):
 
             return {
                 "submited": bool(submitted_exists),
+                "success": True,
                 "documents_list": documents_list,
                 "uploaded_documents": uploaded_documents,
                 "course_documents_record_id": submitted_exists or any_exists,
@@ -227,6 +232,7 @@ def has_user_submited_document(course=None):
             if not exists:
                 return {
                     "submited": False,
+                    "success": True,
                     "documents_list": documents_list,
                     "course_documents_record_id": None,
                     "doctype": "Employee Course Documents",
@@ -235,6 +241,7 @@ def has_user_submited_document(course=None):
 
             return {
                 "submited": True,
+                "success": True,
                 "documents_list": documents_list,
                 "course_documents_record_id": exists,
                 "doctype": "Employee Course Documents",
@@ -251,12 +258,19 @@ def has_user_submited_document(course=None):
             documents_list = ["Course Completion Certificate"]
             return {
                 "submited": True,
+                "success": True,
                 "documents_list": documents_list,
                 "doctype": "User Course Documents"
             }
 
     except Exception as e:
-        return {"submited": False, "error": str(e)}
+        frappe.log_error(f"Error in has_user_submited_document: {str(e)}")
+        return {
+            "submited": False,
+            "success": False,
+            "error": str(e),
+            "message": "An error occurred while checking document status"
+        }
 
 
 def create_course_documents_on_completion(user=None, course=None, enrollment_name=None):
@@ -511,12 +525,12 @@ def upload_distributor_document_with_datetime(
         # Validate enrollment and completion
         enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
         if not enrollment:
-            frappe.local.response["http_status_code"] = 403
-            return {"success": False, "message": "User is not enrolled in this course"}
+            # Don't set 403 status, just return error data
+            return {"success": False, "message": "User is not enrolled in this course", "enrollment_required": True}
         _, progress = enrollment
         if not progress or int(progress) < 100:
-            frappe.local.response["http_status_code"] = 403
-            return {"success": False, "message": "Course progress is not completed"}
+            # Don't set 403 status, just return error data
+            return {"success": False, "message": "Course progress is not completed", "progress": progress or 0}
 
         # Parent Distributor Course Documents – reuse if exists for this course, else create
         distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
@@ -689,17 +703,20 @@ def save_user_course_document_with_file(
 
     enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
     if not enrollment:
-        frappe.local.response["http_status_code"] = 403
+        # Don't set 403 status, just return error data
         return {
+            "success": False,
             "submited": False,
             "message": "User is not enrolled in this course"
         }
     enrollment_name, progress = enrollment
     if not progress or int(progress) < 100:
-        frappe.local.response["http_status_code"] = 403
+        # Don't set 403 status, just return error data
         return {
+            "success": False,
             "submited": False,
-            "message": "Course progress is not completed"
+            "message": "Course progress is not completed",
+            "progress": progress or 0
         }
 
     # Only Distributors can upload
@@ -1002,7 +1019,7 @@ def get_next_distributor_document_after_upload(course: str | None = None):
 
     return {"success": True, "next_document": None}
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=False)
 def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_format=False, document_type=None):
     """
     Generate either a DOCX with signature or PDF using print format based on parameters.
@@ -1267,16 +1284,17 @@ def downlaod_nonendo_file():
     user_doc = frappe.get_doc("User", user)
     roles = [role.role for role in user_doc.roles]
     if "Distributor" not in roles:
-        frappe.local.response["http_status_code"] = 403
         frappe.local.response["message"] = "Only Distributor can download this file"
-        return
+        frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+        return {"success": False, "message": "Only Distributor can download this file"}
 
     # Try to get Distributor doc by user_id (not by name, which is not always user email)
-    distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
-    if not distributor_doc:
-        frappe.local.response["http_status_code"] = 403
+    try:
+        distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
+    except frappe.DoesNotExistError:
         frappe.local.response["message"] = "Distributor record not found"
-        return
+        frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+        return {"success": False, "message": "Distributor record not found"}
 
     # Check if any company name does NOT contain "endo" (case-insensitive)
     for company in distributor_doc.meril_company_table:
@@ -1285,9 +1303,9 @@ def downlaod_nonendo_file():
             # Use the direct file path as requested
             file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy.pdf"})
             if not file_docname:
-                frappe.local.response["http_status_code"] = 404
                 frappe.local.response["message"] = "File not found"
-                return
+                frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+                return {"success": False, "message": "File not found"}
 
             file_doc = frappe.get_doc("File", file_docname)
             file_path = get_file_path(file_doc.file_url)
@@ -1301,9 +1319,9 @@ def downlaod_nonendo_file():
             frappe.response["filecontent"] = file_content
             return
 
-    frappe.local.response["http_status_code"] = 403
     frappe.local.response["message"] = "Distributor can not access this resource"
-    return
+    frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+    return {"success": False, "message": "Distributor can not access this resource"}
 
 @frappe.whitelist(allow_guest=False)
 def downlaod_endo_file():
@@ -1313,16 +1331,17 @@ def downlaod_endo_file():
     user_doc = frappe.get_doc("User", user)
     roles = [role.role for role in user_doc.roles]
     if "Distributor" not in roles:
-        frappe.local.response["http_status_code"] = 403
         frappe.local.response["message"] = "Only Distributor can download this file"
-        return
+        frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+        return {"success": False, "message": "Only Distributor can download this file"}
 
     # Try to get Distributor doc by user_id (not by name, which is not always user email)
-    distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
-    if not distributor_doc:
-        frappe.local.response["http_status_code"] = 403
+    try:
+        distributor_doc = frappe.get_doc("Distributor", {"user_id": user}, ignore_permissions=True)
+    except frappe.DoesNotExistError:
         frappe.local.response["message"] = "Distributor record not found"
-        return
+        frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+        return {"success": False, "message": "Distributor record not found"}
 
     # Check if any company name contains "endo" (case-insensitive)
     for company in distributor_doc.meril_company_table:
@@ -1331,9 +1350,9 @@ def downlaod_endo_file():
             # Use the direct file path as requested
             file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy for Endo.pdf"})
             if not file_docname:
-                frappe.local.response["http_status_code"] = 404
                 frappe.local.response["message"] = "File not found"
-                return
+                frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+                return {"success": False, "message": "File not found"}
 
             file_doc = frappe.get_doc("File", file_docname)
             file_path = get_file_path(file_doc.file_url)
@@ -1347,9 +1366,9 @@ def downlaod_endo_file():
             frappe.response["filecontent"] = file_content
             return
 
-    frappe.local.response["http_status_code"] = 403
     frappe.local.response["message"] = "Distributor can not access this resource"
-    return
+    frappe.local.response["http_status_code"] = 200  # Return 200 with error message
+    return {"success": False, "message": "Distributor can not access this resource"}
 
 
 @frappe.whitelist(allow_guest=False)
@@ -1362,21 +1381,15 @@ def get_declaration_info():
         if distributor_doc:
             return distributor_doc
         else:
-            frappe.local.response["http_status_code"] = 404
-            frappe.local.response["message"] = "Distributor record not found"
-            return
+            return {"success": False, "message": "Distributor record not found"}
     elif "Employee" in roles:
         employee_doc = frappe.get_doc("Employee", {"user_id": user}, ignore_permissions=True)
         if employee_doc:
             return employee_doc
         else:
-            frappe.local.response["http_status_code"] = 404
-            frappe.local.response["message"] = "Employee record not found"
-            return
+            return {"success": False, "message": "Employee record not found"}
     else:
-        frappe.local.response["http_status_code"] = 403
-        frappe.local.response["message"] = "User is not a Distributor or Employee"
-        return
+        return {"success": False, "message": "User is not a Distributor or Employee"}
 
 
 @frappe.whitelist(allow_guest=False)
@@ -1385,28 +1398,24 @@ def get_employee_signature(signature, signature_font_type, course):
 
     # Validate user and course
     if not course:
-        frappe.local.response["http_status_code"] = 400
         return {"success": False, "message": "Course is required."}
 
     # Check course exists
     if not frappe.db.exists("LMS Course", course):
-        frappe.local.response["http_status_code"] = 404
         return {"success": False, "message": "Course does not exist."}
 
     # Check enrollment and completion
     enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
     if not enrollment:
-        frappe.local.response["http_status_code"] = 403
-        return {"success": False, "message": "User is not enrolled in this course."}
+        return {"success": False, "message": "User is not enrolled in this course.", "enrollment_required": True}
     enrollment_name, progress = enrollment
     if not progress or int(progress) < 100:
-        frappe.local.response["http_status_code"] = 403
-        return {"success": False, "message": "Course progress is not completed."}
+        return {"success": False, "message": "Course progress is not completed.", "progress": progress or 0}
 
     # Get employee record
-    employee_doc = frappe.get_doc("Employee", {"user_id": user})
-    if not employee_doc:
-        frappe.local.response["http_status_code"] = 404
+    try:
+        employee_doc = frappe.get_doc("Employee", {"user_id": user})
+    except frappe.DoesNotExistError:
         return {"success": False, "message": "Employee record not found."}
 
     # Check if Employee Course Documents exists for this employee and course
@@ -1428,8 +1437,7 @@ def get_employee_signature(signature, signature_font_type, course):
     # Check if signature already taken
     employee_course_doc = frappe.get_doc("Employee Course Documents", employee_course_doc_name)
     if employee_course_doc.signature and employee_course_doc.singature_style:
-        frappe.local.response["http_status_code"] = 409
-        return {"success": False, "message": "Signature already taken for this course."}
+        return {"success": False, "message": "Signature already taken for this course.", "already_signed": True}
 
     # Save signature, font type, and submission datetime
     employee_course_doc.signature = signature
