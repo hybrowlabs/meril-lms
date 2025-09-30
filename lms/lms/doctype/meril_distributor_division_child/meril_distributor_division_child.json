@@ -6,8 +6,11 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "distributor_code",
   "division",
-  "meril_company_name"
+  "meril_company_name",
+  "bu_head",
+  "rsm"
  ],
  "fields": [
   {
@@ -24,13 +27,30 @@
    "in_list_view": 1,
    "label": "Meril Company Name",
    "read_only": 1
+  },
+  {
+   "fieldname": "bu_head",
+   "fieldtype": "Link",
+   "label": "BU Head",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "rsm",
+   "fieldtype": "Link",
+   "label": "RSM",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "distributor_code",
+   "fieldtype": "Data",
+   "label": "Distributor Code"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-19 11:31:28.512141",
+ "modified": "2025-09-29 03:24:12.502400",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Meril Distributor Division Child",

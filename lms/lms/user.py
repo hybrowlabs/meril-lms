@@ -158,6 +158,135 @@ def generate_password(length=10):
 
 
 @frappe.whitelist()
+def get_distributors_by_division(division, filters=None):
+	"""
+	Get distributors filtered by division from child table
+	"""
+	if filters is None:
+		filters = {}
+
+	# Parse filters if it's a string (JSON)
+	if isinstance(filters, str):
+		filters = frappe.parse_json(filters)
+
+	# Remove division from filters since we'll handle it separately
+	filters.pop('division', None)
+
+	# Build the SQL query to join with child table
+	conditions = ["d.name = c.parent"]
+
+	if division:
+		conditions.append("c.division = %(division)s")
+
+	# Add other filters
+	for field, value in filters.items():
+		if field == 'user_id' and isinstance(value, list) and value[0] == 'is' and value[1] == 'not set':
+			conditions.append("(d.user_id IS NULL OR d.user_id = '')")
+		elif isinstance(value, list):
+			# Handle list conditions like ['like', '%value%']
+			operator = value[0]
+			filter_value = value[1]
+			conditions.append(f"d.{field} {operator} %({field}_value)s")
+			filters[f"{field}_value"] = filter_value
+		else:
+			conditions.append(f"d.{field} = %({field})s")
+
+	query = f"""
+		SELECT DISTINCT
+			d.name,
+			d.attendee_name,
+			d.distributor_name,
+			d.distributor_email_address,
+			d.distributor_company_name,
+			d.country,
+			d.state,
+			d.city,
+			d.user_id,
+			d.is_active_user
+		FROM `tabDistributor` d
+		LEFT JOIN `tabMeril Distributor Division Child` c ON d.name = c.parent
+		WHERE {' AND '.join(conditions)}
+		ORDER BY d.creation DESC
+		LIMIT 100
+	"""
+
+	filters['division'] = division
+
+	result = frappe.db.sql(query, filters, as_dict=True)
+	return result
+
+@frappe.whitelist()
+def bulk_create_users_from_distributors(distributor_ids, filters=None):
+	"""
+	Create users for multiple distributors and send emails
+	distributor_ids: List of distributor IDs to create users for
+	filters: Optional filters used to select these distributors (for logging)
+	"""
+	frappe.only_for(["Administrator", "Supervisor", "System User"])
+
+	if isinstance(distributor_ids, str):
+		distributor_ids = frappe.parse_json(distributor_ids)
+
+	if isinstance(filters, str):
+		filters = frappe.parse_json(filters)
+
+	results = {
+		"success": [],
+		"errors": [],
+		"already_exists": [],
+		"total": len(distributor_ids)
+	}
+
+	for distributor_id in distributor_ids:
+		try:
+			distributor_doc = frappe.get_doc("Distributor", distributor_id)
+			email = distributor_doc.distributor_email_address
+
+			# Check if user already exists
+			if frappe.db.exists("User", email):
+				results["already_exists"].append({
+					"distributor_id": distributor_id,
+					"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+					"email": email,
+					"message": "User already exists"
+				})
+				continue
+
+			# Check if distributor already has a user_id
+			if distributor_doc.user_id:
+				results["already_exists"].append({
+					"distributor_id": distributor_id,
+					"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+					"email": email,
+					"message": "User already linked to distributor"
+				})
+				continue
+
+			# Create the user using the existing single function
+			create_user_from_distributor(distributor_id)
+
+			results["success"].append({
+				"distributor_id": distributor_id,
+				"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+				"email": email,
+				"message": "User created and email sent successfully"
+			})
+
+		except Exception as e:
+			results["errors"].append({
+				"distributor_id": distributor_id,
+				"name": getattr(frappe.get_doc("Distributor", distributor_id), 'attendee_name', distributor_id),
+				"error": str(e)
+			})
+			frappe.log_error(f"Failed to create user for distributor {distributor_id}: {str(e)}", "Bulk User Creation Error")
+
+	# Send summary email to admins
+	if results["success"] or results["errors"]:
+		send_bulk_creation_summary_email(results, filters)
+
+	return results
+
+@frappe.whitelist()
 def create_user_from_distributor(distributor_id):
 	frappe.only_for(["Administrator", "Supervisor", "System User"])
 
@@ -193,7 +322,10 @@ def create_user_from_distributor(distributor_id):
 				update_password(email, new_password)
 				print("user", user)
 				distributor_doc.db_set("user_id", user.name)
-				
+
+				# Generate reset password link for the user
+				reset_password_link = user.reset_password(send_email=False)
+
 				# Set credentials sent date when user is created and email is sent
 				distributor_doc.db_set("credentials_sent_date", frappe.utils.now_datetime())
 				distributor_doc.db_set("is_active_user", 1)
@@ -230,7 +362,7 @@ def create_user_from_distributor(distributor_id):
 					distributor_course = ""
 					distributor_course_intro = ""
 
-				subject = f'{distributor_course} for Distributors on {distributor_course_intro}'
+				subject = f'Ethics & Compliance Training on HCP/HCO Interactions'
 				message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
 					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">{distributor_course} on {distributor_course_intro}</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
@@ -240,6 +372,7 @@ def create_user_from_distributor(distributor_id):
 					<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
 					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
 					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
+					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
 
 
 					<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
@@ -1167,5 +1300,86 @@ def create_user_from_distributor_hook(doc, _method):
 		return
 
 
+def send_bulk_creation_summary_email(results, filters):
+	"""Send summary email to admins about bulk user creation results"""
+
+	admins = frappe.get_all("User",
+		filters={"role_profile_name": "System Manager", "enabled": 1},
+		pluck="email")
+
+	if not admins:
+		return
+
+	success_count = len(results["success"])
+	error_count = len(results["errors"])
+	exists_count = len(results["already_exists"])
+	total_count = results["total"]
+
+	subject = f"📊 Bulk User Creation Summary: {success_count} Created, {error_count} Errors"
+
+	message = f"""
+	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+		<h2 style="color: #2c3e50;">Bulk Distributor User Creation Summary</h2>
+
+		<div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;">
+			<h3 style="margin: 0 0 10px 0; color: #007bff;">📈 Summary Statistics</h3>
+			<p><strong>Total Processed:</strong> {total_count}</p>
+			<p><strong>✅ Successfully Created:</strong> {success_count}</p>
+			<p><strong>⚠️ Already Existed:</strong> {exists_count}</p>
+			<p><strong>❌ Errors:</strong> {error_count}</p>
+		</div>
+	"""
+
+	if results["success"]:
+		message += f"""
+		<div style="background-color: #d4edda; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #28a745;">
+			<h3 style="margin: 0 0 10px 0; color: #155724;">✅ Successfully Created ({success_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["success"]:
+			message += f"<li><strong>{item['name']}</strong> ({item['email']})</li>"
+		message += "</ul></div>"
+
+	if results["already_exists"]:
+		message += f"""
+		<div style="background-color: #fff3cd; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #ffc107;">
+			<h3 style="margin: 0 0 10px 0; color: #856404;">⚠️ Already Existed ({exists_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["already_exists"]:
+			message += f"<li><strong>{item['name']}</strong> ({item['email']}) - {item['message']}</li>"
+		message += "</ul></div>"
+
+	if results["errors"]:
+		message += f"""
+		<div style="background-color: #f8d7da; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #dc3545;">
+			<h3 style="margin: 0 0 10px 0; color: #721c24;">❌ Errors ({error_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["errors"]:
+			message += f"<li><strong>{item['name']}</strong> - {item['error']}</li>"
+		message += "</ul></div>"
+
+	if filters:
+		message += f"""
+		<div style="background-color: #e7f3ff; padding: 15px; margin: 20px 0; border-radius: 5px;">
+			<h4 style="margin: 0 0 10px 0; color: #0066cc;">🔍 Applied Filters</h4>
+			<pre style="background: #fff; padding: 10px; border-radius: 3px; font-size: 12px;">{frappe.as_json(filters, indent=2)}</pre>
+		</div>
+		"""
+
+	message += f"""
+		<p style="margin-top: 30px; color: #6c757d; font-size: 12px;">
+			Bulk operation completed at {frappe.utils.format_datetime(frappe.utils.now_datetime())}
+		</p>
+	</div>
+	"""
+
+	frappe.sendmail(
+		recipients=admins,
+		sender=get_default_sender(),
+		subject=subject,
+		message=message
+	)
 
 
