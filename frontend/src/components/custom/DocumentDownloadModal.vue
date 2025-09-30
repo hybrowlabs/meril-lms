@@ -168,7 +168,14 @@
               <p class="text-sm mt-4">
                 {{ new Date().toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, year: 'numeric', month: 'short', day: '2-digit' }) }}
               </p>
-              <p class="text-sm text-justify mt-2">We {{ declaratinoInfo.distributor_company_name }}, being the Distributor of Meril {{ distributor?.meril_company_table[0]?.meril_company_name }} do hereby certify that we have willingly adopted attached Meril
+              <p class="text-sm text-justify mt-2">
+                We {{ declaratinoInfo.distributor_company_name }}, being the Distributor of Meril Companies :  
+                {{
+                  (declaratinoInfo?.meril_company_table && declaratinoInfo.meril_company_table.length)
+                    ? declaratinoInfo.meril_company_table.map(c => c.meril_company_name).filter(Boolean).join(', ')
+                    : ''
+                }}
+                do hereby certify that we have willingly adopted attached Meril
             Distributor Compliance Policy as our own Compliance Policy with effect from
             {{ current_date }} and declare to abide by the same.</p>
               <p class="text-sm text-justify mt-2">All employees, partners, directors, proprietor of our organization are expected to
@@ -290,7 +297,7 @@ responsibility or liability for any such transactions.</p>
             <TextInput
               id="name"
               type="text"
-              placeholder="Enter name"
+              placeholder="Compliance Officer Name"
               v-model="name"
               class="w-full rounded-lg border focus:outline-none focus:ring-2 border-gray-300"
               required
