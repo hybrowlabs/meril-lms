@@ -76,8 +76,17 @@
 
     <div class="content">
         <p>
-            We <strong>{{ distributor.distributor_company_name }}</strong>, being the Distributor of
-            <strong>{{ meril_company }}</strong> do hereby certify that we have willingly adopted
+            We <strong>{{ distributor.distributor_company_name }}</strong>, being the Distributor of Meril Companies :
+            <strong>
+                {%- if distributor.meril_company_table and distributor.meril_company_table|length > 0 -%}
+                    {%- for c in distributor.meril_company_table -%}
+                        {{ c.meril_company_name }}{%- if not loop.last %}, {% endif -%}
+                    {%- endfor -%}
+                {%- else -%}
+                    ______
+                {%- endif -%}
+            </strong>
+            do hereby certify that we have willingly adopted
             attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from
             <strong>{{ today_date }}</strong> and declare to abide by the same.
         </p>
