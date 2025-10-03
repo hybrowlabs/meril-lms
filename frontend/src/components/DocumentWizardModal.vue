@@ -68,6 +68,8 @@
             :user-role="state.userRole"
             :declaration-info="state.declarationInfo"
             :certification-data="state.certification"
+            :course="state.courseName"
+            :document-type="state.documentType || 'Meril Distributor Compliance Policy Adoption Form'"
             @certification-complete="handleCertificationComplete"
           />
 

@@ -240,7 +240,7 @@ const initializeWorkflow = async () => {
       state.userRole = 'Unknown'
       state.documentsList = []
       state.uploadedDocumentsList = []
-      updateRequiredDocuments()
+      await updateRequiredDocuments()
       return
     }
 
@@ -284,7 +284,7 @@ const initializeWorkflow = async () => {
     }
 
     // Set required documents based on enabled flags
-    updateRequiredDocuments()
+    await updateRequiredDocuments()
 
     // Get declaration info with error handling
     if (submissionResponse?.role_is) {
@@ -307,54 +307,49 @@ const initializeWorkflow = async () => {
   }
 }
 
-const updateRequiredDocuments = () => {
-  const documents = []
-
-  if (state.enabledDocuments.meril_distributor_compliance_policy_adoption_form) {
-    documents.push({
-      key: 'meril_distributor_compliance_policy_adoption_form',
-      name: 'Meril Distributor Compliance Policy Adoption Form',
-      requiresDeclaration: true
+const updateRequiredDocuments = async () => {
+  try {
+    // Use the new dynamic document configuration API
+    const response = await call("lms.overrides.documents.get_document_configuration", {
+      course: state.courseName
     })
-  }
 
-  if (state.enabledDocuments.distributor_self_declaration) {
-    documents.push({
-      key: 'distributor_self_declaration',
-      name: 'Distributor Self Declaration',
-      requiresDeclaration: true
-    })
-  }
+    if (response && response.success) {
+      // Convert the API response to the store format
+      const documents = response.document_types.map(doc => ({
+        key: doc.key,
+        name: doc.name,
+        requiresDeclaration: doc.requires_declaration,
+        downloadOnly: !doc.uploadable
+      }))
 
-  if (state.enabledDocuments.meril_distributor_compliance_code_of_conduct) {
-    documents.push({
-      key: 'meril_distributor_compliance_code_of_conduct',
-      name: 'Meril Distributor Compliance Code of Conduct',
-      requiresDeclaration: true
-    })
-  }
+      state.requiredDocuments = documents
 
-  // Add Endo/Non-Endo specific compliance policy documents based on division detection
-  // These are download-only documents and don't require upload
-  if (state.distributorDivisions.hasEndo) {
-    documents.push({
-      key: 'meril_distributor_compliance_policy_endo',
-      name: 'Meril Distributor Compliance Policy for Endo',
-      requiresDeclaration: false,
-      downloadOnly: true
-    })
-  }
+      // Update the state with the configuration data
+      state.enabledDocuments = response.enabled_documents || {}
+      state.distributorDivisions = response.division_info || {
+        hasEndo: false,
+        hasNonEndo: false,
+        divisions: []
+      }
+      state.userRole = response.user_role
 
-  if (state.distributorDivisions.hasNonEndo) {
-    documents.push({
-      key: 'meril_distributor_compliance_policy',
-      name: 'Meril Distributor Compliance Policy',
-      requiresDeclaration: false,
-      downloadOnly: true
-    })
+      console.log('Updated documents from API:', {
+        documents: documents.length,
+        hasEndo: state.distributorDivisions.hasEndo,
+        hasNonEndo: state.distributorDivisions.hasNonEndo,
+        userRole: state.userRole
+      })
+    } else {
+      console.error('Failed to get document configuration:', response?.message)
+      // Fallback to empty state
+      state.requiredDocuments = []
+    }
+  } catch (error) {
+    console.error('Error fetching document configuration:', error)
+    // Fallback to empty state
+    state.requiredDocuments = []
   }
-
-  state.requiredDocuments = documents
 }
 
 const getDeclarationInfo = async () => {
@@ -370,7 +365,7 @@ const getDeclarationInfo = async () => {
 
       // Also detect Endo divisions from distributor's company table if available
       if (response.meril_company_table && Array.isArray(response.meril_company_table)) {
-        detectEndoDivisionsFromCompanyTable(response.meril_company_table)
+        await detectEndoDivisionsFromCompanyTable(response.meril_company_table)
       }
     }
   } catch (error) {
@@ -396,7 +391,7 @@ const detectEndoDivisions = (documentsList) => {
   }
 }
 
-const detectEndoDivisionsFromCompanyTable = (companyTable) => {
+const detectEndoDivisionsFromCompanyTable = async (companyTable) => {
   // Additional detection from company table data
   if (!companyTable || !Array.isArray(companyTable)) return
 
@@ -421,7 +416,7 @@ const detectEndoDivisionsFromCompanyTable = (companyTable) => {
   state.distributorDivisions.divisions = divisions
 
   // Re-update required documents after detection
-  updateRequiredDocuments()
+  await updateRequiredDocuments()
 }
 
 const determineInitialStep = () => {

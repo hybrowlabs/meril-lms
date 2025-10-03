@@ -362,10 +362,10 @@ def create_user_from_distributor(distributor_id):
 					distributor_course = ""
 					distributor_course_intro = ""
 
-				subject = f'{distributor_course} on {distributor_course_intro} - Ethics & Compliance Training on HCP/HCO Interactions'
+				subject = f' Ethics & Compliance Training on HCP/HCO Interactions'
 				message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
-					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">{distributor_course} on {distributor_course_intro}</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCP/HCO Interactions</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
 					<p style="font-weight: bold;">Login Credentials:</p>
 					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>

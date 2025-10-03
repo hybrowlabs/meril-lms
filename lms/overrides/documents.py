@@ -1446,3 +1446,335 @@ def get_employee_signature(signature, signature_font_type, course):
     employee_course_doc.save(ignore_permissions=True)
 
     return {"success": True, "message": "Signature taken successfully."}
+
+
+@frappe.whitelist(allow_guest=False)
+def get_document_preview_html(course=None, document_type=None, compliance_officer_name=None):
+    """
+    Get HTML preview of a document using print format templates.
+    This returns the HTML content that can be displayed in the frontend for preview.
+
+    Args:
+        course: Course name (optional)
+        document_type: Type of document to preview (e.g., 'Meril Distributor Compliance Policy Adoption Form')
+        compliance_officer_name: Name to use in the document (optional)
+
+    Returns:
+        dict: Contains success status and HTML content or error message
+    """
+    from frappe.utils import now_datetime
+
+    user = frappe.session.user
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+
+    try:
+        # Handle Distributor documents
+        if "Distributor" in roles:
+            distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+
+            # Validate required fields
+            if not distributor_doc.distributor_company_name:
+                return {
+                    "success": False,
+                    "message": "Distributor company name is missing in your profile."
+                }
+
+            # Get or create Distributor Course Documents record
+            doc = None
+            if course:
+                doc_name = frappe.db.exists(
+                    "Distributor Course Documents",
+                    {"distributor": distributor_doc.name, "course": course}
+                )
+                if doc_name:
+                    doc = frappe.get_doc("Distributor Course Documents", doc_name)
+
+            if not doc:
+                # Create a temporary document for preview
+                doc = frappe.get_doc({
+                    "doctype": "Distributor Course Documents",
+                    "distributor": distributor_doc.name,
+                    "course": course or "",
+                    "has_submitted_documents": 0,
+                    "entered_name": compliance_officer_name or distributor_doc.attendee_name or "",
+                    "submission_datetime": now_datetime()
+                })
+                # Generate a temporary name without saving
+                doc.name = "preview-" + frappe.generate_hash(length=10)
+            else:
+                # Update with preview values
+                if compliance_officer_name:
+                    doc.entered_name = compliance_officer_name
+                doc.submission_datetime = now_datetime()
+
+            # Determine print format based on document type
+            print_format_map = {
+                "Meril Distributor Compliance Policy Adoption Form": "Meril Distributor Compliance Policy Adoption Form",
+                "Distributor Self Declaration": "Distributor Self Declaration",
+                "Meril Distributor Compliance Code of Conduct": "Meril Distributor Compliance Code of Conduct",
+                "Distributor Declaration - Ethical Practices & Compliance": "Distributor Declaration - Ethical Practices & Compliance"
+            }
+
+            print_format_name = print_format_map.get(document_type)
+            if not print_format_name:
+                # Default to first available format
+                print_format_name = "Meril Distributor Compliance Policy Adoption Form"
+
+            # Generate HTML using the print format
+            html_content = frappe.get_print(
+                doctype="Distributor Course Documents",
+                name=doc.name if doc.name != "preview-" + frappe.generate_hash(length=10) else None,
+                doc=doc,  # Pass doc object for preview
+                print_format=print_format_name,
+                as_pdf=False,  # Get HTML instead of PDF
+                no_letterhead=1
+            )
+
+            return {
+                "success": True,
+                "html_content": html_content,
+                "document_type": document_type,
+                "print_format": print_format_name
+            }
+
+        # Handle Employee documents
+        elif "Employee" in roles:
+            employee_doc = frappe.get_doc("Employee", {"user_id": user})
+
+            # Get or create Employee Course Documents record
+            doc = None
+            if course:
+                doc_name = frappe.db.exists(
+                    "Employee Course Documents",
+                    {"employee": employee_doc.name, "course": course}
+                )
+                if doc_name:
+                    doc = frappe.get_doc("Employee Course Documents", doc_name)
+
+            if not doc:
+                # Create a temporary document for preview
+                doc = frappe.get_doc({
+                    "doctype": "Employee Course Documents",
+                    "employee": employee_doc.name,
+                    "course": course or "",
+                    "submission_datetime": now_datetime()
+                })
+                # Generate a temporary name without saving
+                doc.name = "preview-" + frappe.generate_hash(length=10)
+
+            # Use Employee Declaration Form print format
+            print_format_name = "Employee Declaration Form"
+
+            # Generate HTML using the print format
+            html_content = frappe.get_print(
+                doctype="Employee Course Documents",
+                name=doc.name if doc.name != "preview-" + frappe.generate_hash(length=10) else None,
+                doc=doc,  # Pass doc object for preview
+                print_format=print_format_name,
+                as_pdf=False,  # Get HTML instead of PDF
+                no_letterhead=1
+            )
+
+            return {
+                "success": True,
+                "html_content": html_content,
+                "document_type": "Employee Declaration Form",
+                "print_format": print_format_name
+            }
+
+        else:
+            return {
+                "success": False,
+                "message": "User role not supported for document preview"
+            }
+
+    except Exception as e:
+        frappe.log_error(f"Error generating document preview: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error generating preview: {str(e)}"
+        }
+
+@frappe.whitelist(allow_guest=False)
+def get_document_configuration(course=None):
+    """
+    Get complete document configuration for the current user including:
+    - Enabled document types from LMS Settings
+    - Division-based document requirements (Endo/Non-Endo)
+    - Document categorization (uploadable vs download-only)
+
+    Returns:
+        dict: {
+            "success": bool,
+            "user_role": str,
+            "enabled_documents": dict,
+            "division_info": dict,
+            "document_types": list,
+            "uploadable_documents": list,
+            "download_only_documents": list
+        }
+    """
+    try:
+        user = frappe.session.user
+        user_doc = frappe.get_doc("User", user)
+        roles = [role.role for role in user_doc.roles]
+
+        # Determine user role
+        user_role = None
+        if "Distributor" in roles:
+            user_role = "Distributor"
+        elif "Employee" in roles:
+            user_role = "Employee"
+        else:
+            return {
+                "success": False,
+                "message": "User role not supported. Must be Distributor or Employee."
+            }
+
+        result = {
+            "success": True,
+            "user_role": user_role,
+            "enabled_documents": {},
+            "division_info": {},
+            "document_types": [],
+            "uploadable_documents": [],
+            "download_only_documents": []
+        }
+
+        if user_role == "Distributor":
+            # Get enabled document flags from LMS Settings
+            enabled_flags = get_upload_download_docuemtn_enabled()
+            if not enabled_flags.get("success"):
+                return {
+                    "success": False,
+                    "message": "Unable to read LMS Settings"
+                }
+
+            result["enabled_documents"] = {
+                "distributor_self_declaration": enabled_flags.get("distributor_self_declaration", False),
+                "meril_distributor_compliance_code_of_conduct": enabled_flags.get("meril_distributor_compliance_code_of_conduct", False),
+                "meril_distributor_compliance_policy_adoption_form": enabled_flags.get("meril_distributor_compliance_policy_adoption_form", False),
+                "distributor_declaration_ethical_practices": enabled_flags.get("distributor_declaration_ethical_practices", True)  # Default to true if not in settings
+            }
+
+            # Get distributor document for division analysis
+            distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+
+            # Analyze divisions
+            has_endo = False
+            has_non_endo = False
+            divisions = []
+
+            for company in distributor_doc.meril_company_table:
+                division_name = (company.division or "").lower()
+                divisions.append({
+                    "company_name": company.meril_company_name,
+                    "division": company.division,
+                    "is_endo": "endo" in division_name
+                })
+
+                if "endo" in division_name:
+                    has_endo = True
+                else:
+                    has_non_endo = True
+
+            result["division_info"] = {
+                "has_endo": has_endo,
+                "has_non_endo": has_non_endo,
+                "divisions": divisions
+            }
+
+            # Build document types list based on enabled flags
+            document_types = []
+            uploadable_documents = []
+            download_only_documents = []
+
+            # Add uploadable documents based on enabled flags
+            if enabled_flags.get("meril_distributor_compliance_policy_adoption_form"):
+                doc = {
+                    "key": "meril_distributor_compliance_policy_adoption_form",
+                    "name": "Meril Distributor Compliance Policy Adoption Form",
+                    "requires_declaration": True,
+                    "uploadable": True
+                }
+                document_types.append(doc)
+                uploadable_documents.append(doc)
+
+            if enabled_flags.get("distributor_self_declaration"):
+                doc = {
+                    "key": "distributor_self_declaration",
+                    "name": "Distributor Self Declaration",
+                    "requires_declaration": True,
+                    "uploadable": True
+                }
+                document_types.append(doc)
+                uploadable_documents.append(doc)
+
+            if enabled_flags.get("meril_distributor_compliance_code_of_conduct"):
+                doc = {
+                    "key": "meril_distributor_compliance_code_of_conduct",
+                    "name": "Meril Distributor Compliance Code of Conduct",
+                    "requires_declaration": True,
+                    "uploadable": True
+                }
+                document_types.append(doc)
+                uploadable_documents.append(doc)
+
+            # Always add ethical practices declaration if user is distributor
+            doc = {
+                "key": "distributor_declaration_ethical_practices",
+                "name": "Distributor Declaration - Ethical Practices & Compliance",
+                "requires_declaration": True,
+                "uploadable": True
+            }
+            document_types.append(doc)
+            uploadable_documents.append(doc)
+
+            # Add policy documents based on divisions (download-only)
+            if has_endo:
+                doc = {
+                    "key": "meril_distributor_compliance_policy_endo",
+                    "name": "Meril Distributor Compliance Policy for Endo",
+                    "requires_declaration": False,
+                    "uploadable": False
+                }
+                document_types.append(doc)
+                download_only_documents.append(doc)
+
+            if has_non_endo:
+                doc = {
+                    "key": "meril_distributor_compliance_policy",
+                    "name": "Meril Distributor Compliance Policy",
+                    "requires_declaration": False,
+                    "uploadable": False
+                }
+                document_types.append(doc)
+                download_only_documents.append(doc)
+
+            result["document_types"] = document_types
+            result["uploadable_documents"] = uploadable_documents
+            result["download_only_documents"] = download_only_documents
+
+        elif user_role == "Employee":
+            # For employees, only show employee declaration form
+            doc = {
+                "key": "employee_declaration_form",
+                "name": "Employee Declaration Form",
+                "requires_declaration": True,
+                "uploadable": True
+            }
+            result["document_types"] = [doc]
+            result["uploadable_documents"] = [doc]
+            result["download_only_documents"] = []
+            result["enabled_documents"] = {"employee_declaration_form": True}
+            result["division_info"] = {"has_endo": False, "has_non_endo": False, "divisions": []}
+
+        return result
+
+    except Exception as e:
+        frappe.log_error(f"Error getting document configuration: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error getting document configuration: {str(e)}"
+        }

@@ -10,10 +10,99 @@
       </p>
     </div>
 
+    <!-- Initial Loading State -->
+    <div v-if="!documentConfiguration && !configurationError && configurationLoading" class="max-w-3xl mx-auto">
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <div class="flex items-center justify-center">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <span class="ml-3 text-gray-600">Loading document configuration...</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Declaration Content -->
-    <div class="max-w-3xl mx-auto">
-      <!-- Distributor Declaration -->
-      <div v-if="userRole === 'Distributor'" class="space-y-6">
+    <div v-else class="max-w-3xl mx-auto">
+      <!-- Dynamic Preview Content for Multiple Documents -->
+      <div v-if="!useStaticPreview && documentConfiguration" class="space-y-6">
+        <!-- Show configuration loading -->
+        <div v-if="configurationLoading" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <div class="flex items-center justify-center">
+            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-3"></div>
+            <span class="text-gray-600">Loading document configuration...</span>
+          </div>
+        </div>
+
+        <!-- Show configuration error -->
+        <div v-else-if="configurationError" class="bg-red-50 border border-red-200 rounded-lg p-6">
+          <p class="text-red-600">{{ configurationError }}</p>
+          <button @click="fetchDocumentConfiguration" class="mt-2 text-sm text-blue-600 hover:text-blue-800">
+            Retry Loading Configuration
+          </button>
+        </div>
+
+        <!-- Show previews for all document types that require declaration -->
+        <template v-else>
+          <div v-for="docType in getAllDocumentTypes()" :key="docType" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h4 class="text-center font-semibold mb-4">{{ docType }} - Preview</h4>
+            <div v-if="documentPreviews[docType]"
+                 class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
+                 style="max-height: 400px; min-height: 200px;"
+                 v-html="getSanitizedPreview(docType)">
+            </div>
+            <div v-else-if="previewLoading[docType]" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
+              <div class="flex items-center">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-3"></div>
+                <span class="text-gray-600">Loading preview...</span>
+              </div>
+            </div>
+            <div v-else-if="previewErrors[docType]" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4" style="min-height: 200px;">
+              <div class="text-center text-red-600">
+                <p>{{ previewErrors[docType] }}</p>
+                <button @click="fetchDocumentPreview(docType)" class="mt-2 text-sm text-blue-600 hover:text-blue-800">
+                  Retry Loading Preview
+                </button>
+              </div>
+            </div>
+            <div v-else class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
+              <button @click="fetchDocumentPreview(docType)" class="text-blue-600 hover:text-blue-800">
+                Load Preview
+              </button>
+            </div>
+            <div class="mt-2 text-xs text-gray-500 text-center">
+              <span>Preview shows the actual document content as it will appear when downloaded</span>
+            </div>
+          </div>
+        </template>
+
+        <!-- Show preview for Employee documents -->
+        <template v-if="userRole === 'Employee'">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h4 class="text-center font-semibold mb-4">Employee Declaration Form - Preview</h4>
+            <div v-if="documentPreviews['Employee Declaration Form']"
+                 class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
+                 style="max-height: 600px; min-height: 200px;"
+                 v-html="getSanitizedPreview('Employee Declaration Form')">
+            </div>
+            <div v-else-if="previewLoading['Employee Declaration Form']" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
+              <div class="flex items-center">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-3"></div>
+                <span class="text-gray-600">Loading preview...</span>
+              </div>
+            </div>
+            <div v-else class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
+              <button @click="fetchDocumentPreview('Employee Declaration Form')" class="text-blue-600 hover:text-blue-800">
+                Load Preview
+              </button>
+            </div>
+            <div class="mt-2 text-xs text-gray-500 text-center">
+              <span>Preview shows the actual document content as it will appear when downloaded</span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Static Fallback for Distributor Declaration -->
+      <div v-else-if="userRole === 'Distributor'" class="space-y-6">
         <!-- Policy Adoption Form Declaration -->
         <div v-if="showDeclaration('Meril Distributor Compliance Policy Adoption Form')" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <h4 class="text-center font-semibold mb-4">
@@ -33,7 +122,7 @@
               Nomination of Compliance Officer:
             </p>
             <p class="text-justify">
-              {{ certificationData.name || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
+              {{ localName || certificationData.name || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
             </p>
             <div class="mt-6 space-y-1">
               <p class="text-justify">Authorized representative of {{ declarationInfo?.distributor_company_name || 'Company Name' }}</p>
@@ -134,7 +223,18 @@
         </div>
       </div>
 
-      <!-- Employee Declaration -->
+      <!-- Dynamic Preview Content for Employee -->
+      <div v-else-if="dynamicPreviewContent && !useStaticPreview && userRole === 'Employee'" class="space-y-6">
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <div
+            class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
+            style="max-height: 600px;"
+            v-html="sanitizedPreviewContent"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Static Fallback for Employee Declaration -->
       <div v-else-if="userRole === 'Employee'" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
         <h4 class="text-center font-semibold mb-4">
           Employee Declaration - Ethical Practices & Compliance
@@ -221,7 +321,8 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { TextInput, Button } from 'frappe-ui'
+import { TextInput, Button, createResource } from 'frappe-ui'
+import DOMPurify from 'dompurify'
 
 const props = defineProps({
   userRole: {
@@ -239,6 +340,14 @@ const props = defineProps({
       date: '',
       isCompleted: false
     })
+  },
+  course: {
+    type: String,
+    default: null
+  },
+  documentType: {
+    type: String,
+    default: null
   }
 })
 
@@ -247,6 +356,13 @@ const emit = defineEmits(['certification-complete'])
 const localName = ref('')
 const localDate = ref('')
 const nameError = ref('')
+const documentPreviews = ref({})
+const previewLoading = ref({})
+const previewErrors = ref({})
+const useStaticPreview = ref(false)
+const documentConfiguration = ref(null)
+const configurationLoading = ref(false)
+const configurationError = ref(null)
 
 const currentDate = computed(() => {
   const date = new Date()
@@ -257,19 +373,136 @@ const currentDate = computed(() => {
 })
 
 const currentDateTime = computed(() => {
-  return new Date().toLocaleString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit'
-  })
+  const now = new Date()
+  const day = now.getDate().toString().padStart(2, '0')
+  const month = (now.getMonth() + 1).toString().padStart(2, '0')
+  const year = now.getFullYear()
+  const hours = now.getHours().toString().padStart(2, '0')
+  const minutes = now.getMinutes().toString().padStart(2, '0')
+
+  return `${day}/${month}/${year}, ${hours}:${minutes}`
 })
 
 const isValid = computed(() => {
   return localName.value.trim().length >= 3
 })
+
+const getSanitizedPreview = (docType) => {
+  if (!documentPreviews.value[docType]) return ''
+  // Configure DOMPurify to allow certain attributes and tags
+  const config = {
+    ALLOWED_TAGS: ['div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'article', 'section',
+                   'header', 'footer', 'img', 'br', 'hr', 'ul', 'ol', 'li', 'table', 'tr', 'td', 'th',
+                   'strong', 'b', 'em', 'i', 'u', 'pre', 'code', 'style'],
+    ALLOWED_ATTR: ['class', 'id', 'style', 'src', 'alt', 'width', 'height', 'colspan', 'rowspan',
+                    'data-num', 'href', 'target'],
+    ALLOW_DATA_ATTR: true,
+    ADD_TAGS: ['style'],
+    ADD_ATTR: ['style'],
+    KEEP_CONTENT: true
+  }
+  return DOMPurify.sanitize(documentPreviews.value[docType], config)
+}
+
+const getDocumentTypes = () => {
+  if (!documentConfiguration.value || !documentConfiguration.value.document_types) {
+    return []
+  }
+  return documentConfiguration.value.document_types
+    .filter(doc => doc.requires_declaration && doc.uploadable)
+    .map(doc => doc.name)
+}
+
+const getAllDocumentTypes = () => {
+  if (!documentConfiguration.value || !documentConfiguration.value.document_types) {
+    return []
+  }
+  return documentConfiguration.value.document_types.map(doc => doc.name)
+}
+
+// Function to fetch document configuration
+const fetchDocumentConfiguration = async () => {
+  configurationLoading.value = true
+  configurationError.value = null
+
+  try {
+    const resource = createResource({
+      url: 'lms.overrides.documents.get_document_configuration',
+      params: {
+        course: props.course
+      },
+      onSuccess: (data) => {
+        if (data.success) {
+          documentConfiguration.value = data
+          // After getting configuration, fetch previews for documents that require declaration
+          const docsWithDeclaration = data.document_types.filter(doc => doc.requires_declaration).map(doc => doc.name)
+          if (docsWithDeclaration.length > 0) {
+            fetchDocumentPreview()
+          }
+        } else {
+          configurationError.value = data.message || 'Failed to load document configuration'
+          useStaticPreview.value = true
+        }
+        configurationLoading.value = false
+      },
+      onError: (error) => {
+        console.error('Error fetching document configuration:', error)
+        configurationError.value = 'Failed to load document configuration'
+        useStaticPreview.value = true
+        configurationLoading.value = false
+      }
+    })
+
+    resource.reload()
+  } catch (error) {
+    console.error('Error in fetchDocumentConfiguration:', error)
+    configurationError.value = 'Failed to load document configuration'
+    useStaticPreview.value = true
+    configurationLoading.value = false
+  }
+}
+
+// Helper function to check if all previews are loaded
+const allPreviewsLoaded = computed(() => {
+  const docTypes = getAllDocumentTypes()
+  return docTypes.every(docType =>
+    documentPreviews.value[docType] || previewErrors.value[docType] || previewLoading.value[docType]
+  )
+})
+
+const fetchDocumentPreview = (specificDocType = null) => {
+  const docTypes = specificDocType ? [specificDocType] : getDocumentTypes()
+
+  docTypes.forEach(docType => {
+    previewLoading.value[docType] = true
+    previewErrors.value[docType] = null
+
+    // Create individual resource for each document type
+    const resource = createResource({
+      url: 'lms.overrides.documents.get_document_preview_html',
+      params: {
+        course: props.course,
+        document_type: docType,
+        compliance_officer_name: localName.value || props.certificationData?.name || props.declarationInfo?.attendee_name
+      },
+      onSuccess: (data) => {
+        if (data.success && data.html_content) {
+          documentPreviews.value[docType] = data.html_content
+        } else {
+          previewErrors.value[docType] = data.message || 'Failed to load preview'
+        }
+        previewLoading.value[docType] = false
+      },
+      onError: (error) => {
+        console.error(`Error fetching preview for ${docType}:`, error)
+        previewErrors.value[docType] = 'Failed to load document preview'
+        previewLoading.value[docType] = false
+      }
+    })
+
+    resource.reload()
+  })
+}
 
 const getHeaderTitle = () => {
   if (props.userRole === 'Employee') {
@@ -286,9 +519,13 @@ const getHeaderDescription = () => {
 }
 
 const showDeclaration = (documentType) => {
-  // For now, show all declarations for distributors
-  // This can be made configurable based on enabled documents
-  return props.userRole === 'Distributor'
+  if (!documentConfiguration.value || !documentConfiguration.value.document_types) {
+    return false
+  }
+
+  // Check if the document type exists in the configuration and requires declaration
+  const docConfig = documentConfiguration.value.document_types.find(doc => doc.name === documentType)
+  return docConfig && docConfig.requires_declaration
 }
 
 const validateName = () => {
@@ -321,6 +558,17 @@ watch(() => props.certificationData, (newData) => {
   }
 }, { immediate: true })
 
+// Watch for name changes to update preview
+watch(localName, (newName) => {
+  if (newName && Object.keys(documentPreviews.value).length > 0) {
+    // Debounce the preview update
+    clearTimeout(window.previewUpdateTimeout)
+    window.previewUpdateTimeout = setTimeout(() => {
+      fetchDocumentPreview()
+    }, 500)
+  }
+})
+
 onMounted(() => {
   // Set current date/time
   localDate.value = new Date().toISOString().slice(0, 16)
@@ -331,5 +579,8 @@ onMounted(() => {
   } else if (props.declarationInfo?.employee_name && !localName.value) {
     localName.value = props.declarationInfo.employee_name
   }
+
+  // Fetch document configuration first, which will then fetch previews
+  fetchDocumentConfiguration()
 })
 </script>

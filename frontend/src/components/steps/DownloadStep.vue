@@ -37,10 +37,10 @@
         :key="document.name"
         class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
       >
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <h4 class="text-sm font-medium text-gray-900">{{ document.name }}</h4>
-            <p class="text-sm text-gray-500 mt-1">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <h4 class="text-sm font-medium text-gray-900 break-words">{{ document.name }}</h4>
+            <p class="text-sm text-gray-500 mt-1 break-words">
               {{ getDocumentDescription(document.name) }}
             </p>
 
@@ -54,29 +54,31 @@
             </div>
           </div>
 
-          <div class="ml-4 flex items-center space-x-2">
+          <div class="flex-shrink-0 flex flex-col items-end space-y-2">
             <!-- Download Status -->
-            <div v-if="completedDownloads.has(document.name)" class="flex items-center text-green-600">
-              <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+            <div v-if="completedDownloads.has(document.name)" class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full">
+              <svg class="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
               </svg>
-              <span class="text-xs font-medium">Downloaded</span>
+              <span class="text-xs font-medium whitespace-nowrap">Downloaded</span>
             </div>
 
             <!-- Download Button -->
             <Button
               theme="gray"
               variant="outline"
-              size="sm"
+              size="md"
               @click="downloadDocument(document)"
               :disabled="downloadingDocuments.has(document.name)"
-              class="flex items-center"
+              class="flex items-center justify-center min-w-[140px] px-6 py-3 h-12 bg-white border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 transition-all duration-200 text-sm"
             >
-              <Spinner v-if="downloadingDocuments.has(document.name)" class="w-4 h-4 mr-2" />
-              <svg v-else class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <Spinner v-if="downloadingDocuments.has(document.name)" class="w-4 h-4 mr-2 flex-shrink-0" />
+              <svg v-else class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
               </svg>
-              Download
+              <span class="whitespace-nowrap">
+                {{ downloadingDocuments.has(document.name) ? 'Downloading...' : 'Download' }}
+              </span>
             </Button>
           </div>
         </div>

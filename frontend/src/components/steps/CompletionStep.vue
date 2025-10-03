@@ -60,15 +60,14 @@
             <Button
               theme="gray"
               variant="outline"
-              size="sm"
+              size="md"
+              icon="download"
+              label="Download"
               @click="downloadDocument(document)"
               :disabled="downloadingDocuments.has(document.name)"
+              class="h-12 px-6 py-3 min-w-[120px] text-sm font-medium inline-flex items-center justify-center gap-2 download-btn-override"
             >
-              <Spinner v-if="downloadingDocuments.has(document.name)" class="w-4 h-4 mr-1" />
-              <svg v-else class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-              </svg>
-              Download
+              <Spinner v-if="downloadingDocuments.has(document.name)" class="w-4 h-4 flex-shrink-0" />
             </Button>
           </div>
         </div>
@@ -97,15 +96,14 @@
             <Button
               theme="gray"
               variant="outline"
-              size="sm"
+              size="md"
+              icon="download"
+              label="Download"
               @click="downloadSystemDocument(document)"
               :disabled="downloadingDocuments.has(document)"
+              class="h-12 px-6 py-3 min-w-[120px] text-sm font-medium inline-flex items-center justify-center gap-2 download-btn-override"
             >
-              <Spinner v-if="downloadingDocuments.has(document)" class="w-4 h-4 mr-1" />
-              <svg v-else class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-              </svg>
-              Download
+              <Spinner v-if="downloadingDocuments.has(document)" class="w-4 h-4 flex-shrink-0" />
             </Button>
           </div>
         </div>
@@ -117,17 +115,14 @@
       <Button
         theme="gray"
         variant="solid"
-        class="w-full flex items-center justify-center"
+        class="w-full inline-flex items-center justify-center h-14 px-8 py-4 text-base font-semibold gap-3 download-btn-override"
         @click="downloadAllDocuments"
         :disabled="isDownloadingAll"
       >
-        <Spinner v-if="isDownloadingAll" class="w-5 h-5 mr-2" />
-        <svg v-else class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-        </svg>
-        {{ isDownloadingAll ? 'Downloading All Documents...' : 'Download All Documents' }}
+        <span class="whitespace-nowrap flex-shrink-0">{{ isDownloadingAll ? 'Downloading All Documents...' : 'Download All Documents' }}</span>
       </Button>
     </div>
+    
 
     <!-- Next Steps -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -166,7 +161,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Button, Spinner, call, toast } from 'frappe-ui'
+import { Button, Spinner, toast } from 'frappe-ui'
 
 const props = defineProps({
   uploadedDocuments: {
@@ -429,3 +424,19 @@ const fetchDocumentAsBase64 = async (url) => {
   }
 }
 </script>
+
+<style scoped>
+/* Override frappe-ui Button truncate class */
+.download-btn-override {
+  text-overflow: initial !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+/* Ensure the button content doesn't get truncated */
+.download-btn-override :deep(.truncate) {
+  text-overflow: initial !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+</style>
