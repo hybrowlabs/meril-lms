@@ -362,7 +362,7 @@ def create_user_from_distributor(distributor_id):
 					distributor_course = ""
 					distributor_course_intro = ""
 
-				subject = f' Ethics & Compliance Training on HCP/HCO Interactions'
+				subject = f'Ethics & Compliance Training on HCP/HCO Interactions'
 				message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
 					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCP/HCO Interactions</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
@@ -532,7 +532,7 @@ def on_login(login_manager):
 				pluck="email")
 			
 			if admins:
-				subject = f"✅ Distributor {distributor_doc.attendee_name} logged in for the first time"
+				subject = f"✅ Distributor {distributor_doc.attendee_name} logged in for the first time - Ethics & Compliance Training on HCP/HCO Interactions"
 				message = f"<p>Great news! Distributor <b>{distributor_doc.attendee_name}</b> from <b>{distributor_doc.distributor_company_name}</b> has successfully logged in for the first time.</p><p>📅 First Login: {frappe.utils.format_datetime(now)}</p><p>🎯 No more reminders needed for this distributor.</p>"
 				
 				frappe.sendmail(
@@ -606,7 +606,7 @@ def send_daily_login_reminders():
 				subject_prefix = "⚠️ Final Reminder"
 			
 			# Create personalized reminder message
-			subject = f"{subject_prefix}: Please login to Meril Learning Portal "
+			subject = f"{subject_prefix}: Please login to Meril Learning Portal - Ethics & Compliance Training on HCP/HCO Interactions"
 			
 			message_content = get_login_reminder_message(
 				distributor.attendee_name,
@@ -640,8 +640,8 @@ def send_daily_login_reminders():
 			
 			# If it's been more than 30 days, also notify admins
 			if days_since >= 30:
-				admin_subject = f"⚠️ Distributor {distributor.attendee_name} hasn't logged in for {days_since} days"
-				admin_message = f"<p>Distributor <b>{distributor.attendee_name}</b> from <b>{distributor.distributor_company_name}</b> has not logged in for <b>{days_since} days</b>.</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or account review.</p>"
+				admin_subject = f"⚠️ Distributor {distributor.attendee_name} hasn't logged in for {days_since} days - Ethics & Compliance Training on HCP/HCO Interactions"
+				admin_message = f"<p>Distributor <b>{distributor.attendee_name}</b> from <b>{distributor.distributor_company_name}</b> has not logged in for <b>{days_since} days</b>.</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or account review. Ethics & Compliance Training on HCP/HCO Interactions</p>"
 				
 				admins = frappe.get_all("User", 
 					filters={"role_profile_name": "System Manager", "enabled": 1}, 
@@ -794,7 +794,7 @@ def send_daily_course_reminders():
 				subject_prefix = "⚠️ Final Course Reminder"
 			
 			# Create personalized reminder message
-			subject = f"{subject_prefix}: Complete your course - {enrollment.course_title}"
+			subject = f"{subject_prefix}: Complete your course - Ethics & Compliance Training on HCP/HCO Interactions"
 			
 			is_distributor = frappe.db.exists("Distributor", {"user_id": user})
 			is_employee = frappe.db.exists("Employee", {"user_id": user})
@@ -802,12 +802,12 @@ def send_daily_course_reminders():
 			for_role = "Administrator"
 		
 			if is_distributor:
-				subject = f"Reminder {new_count} : {enrollment.course_title} on {enrollment.course_introduction}."
+				subject = f"Reminder {new_count} : Ethics & Compliance Training on HCP/HCO Interactions"
 				for_role = "Distributor"
 				# Get attendee_name from Distributor
 				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
 			elif is_employee:
-				subject = f"Reminder {new_count} : {enrollment.course_title} on {enrollment.course_introduction}"
+				subject = f"Reminder {new_count} : Ethics & Compliance Training on HCP/HCO Interactions"
 				for_role = "Employee"
 				# Get employee_name from Employee
 				attendee_name = frappe.db.get_value("Employee", {"user_id": user}, "employee_name")
@@ -853,7 +853,7 @@ def send_daily_course_reminders():
 			
 			# If it's been more than 45 days, also notify admins
 			if days_since >= 45:
-				admin_subject = f"⚠️ User {enrollment.user_name} hasn't completed course for {days_since} days"
+				admin_subject = f"⚠️ User {enrollment.user_name} hasn't completed course for {days_since} days - Ethics & Compliance Training on HCP/HCO Interactions"
 				admin_message = f"<p>User <b>{enrollment.user_name}</b> enrolled in <b>{enrollment.course_title}</b> has not completed the course for <b>{days_since} days</b>.</p><p>📊 Current progress: {progress}%</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or course review.</p>"
 				
 				admins = frappe.get_all("User", 
@@ -895,7 +895,7 @@ def get_course_reminder_message(for_role, name, course_title, course_introductio
 		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span>. Our records indicate that the training is still pending. </p>
 
 		
-		<p>For login details, please refer to the email sent to you with the subject line ‘{course_title} on {course_introduction}’.</p>
+		<p>For login details, please refer to the email sent to you with the subject line ‘Ethics & Compliance Training on HCP/HCO Interactions’.</p>
 		
 			<p style="font-weight: bold; margin-left: 10px;"><span style="margin-right: 10px;">•</span> Please click on the below link to log in:</p>
 			<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>

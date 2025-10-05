@@ -166,10 +166,9 @@ const stepDefinitions = computed(() => [
   {
     id: 1,
     title: 'Certify',
-    description: 'Review and certify documents',
     statusMessage: state.userRole === 'Employee'
       ? 'Please review the Employee Declaration and provide your information.'
-      : 'Please review the compliance documents and provide your certification.'
+      : ''
   },
   {
     id: 2,
@@ -210,8 +209,8 @@ const getNextButtonText = () => {
   return texts[state.currentStep] || 'Next'
 }
 
-const handleCertificationComplete = (certificationData) => {
-  completeCertification(certificationData.name, certificationData.date)
+const handleCertificationComplete = async (certificationData) => {
+  await completeCertification(certificationData.name, certificationData.date)
 }
 
 const handleDownloadComplete = (documentName) => {

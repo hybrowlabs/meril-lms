@@ -8,6 +8,7 @@
   "distributor",
   "course",
   "has_submitted_documents",
+  "is_certified",
   "column_break_iqxo",
   "entered_name",
   "signature_style",
@@ -52,6 +53,12 @@
    "fieldname": "has_submitted_documents",
    "fieldtype": "Check",
    "label": "has submitted documents"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_certified",
+   "fieldtype": "Check",
+   "label": "Is Certified"
   },
   {
    "fieldname": "submission_datetime",

@@ -95,6 +95,67 @@ def get_next_distributor_document(course=None):
 
 
 @frappe.whitelist(allow_guest=False)
+def complete_certification(course=None, name=None, date=None):
+    """
+    Mark the certification step as completed for the user in the given course.
+    """
+    user = frappe.session.user
+    if not course:
+        return {"success": False, "message": "No course provided"}
+
+    try:
+        user_doc = frappe.get_doc("User", user)
+        roles = [role.role for role in user_doc.roles]
+
+        # Handle Distributor certification
+        if "Distributor" in roles:
+            distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
+
+            # Check if document record exists
+            existing = frappe.db.exists(
+                "Distributor Course Documents",
+                {"distributor": distributor_doc.name, "course": course}
+            )
+
+            if existing:
+                # Update existing record
+                doc = frappe.get_doc("Distributor Course Documents", existing)
+                doc.is_certified = 1
+                if name:
+                    doc.entered_name = name
+                if date:
+                    doc.submission_datetime = date
+                doc.save(ignore_permissions=True)
+            else:
+                # Create new record
+                doc = frappe.get_doc({
+                    "doctype": "Distributor Course Documents",
+                    "distributor": distributor_doc.name,
+                    "course": course,
+                    "is_certified": 1,
+                    "entered_name": name or "",
+                    "submission_datetime": date or frappe.utils.now_datetime(),
+                    "has_submitted_documents": 0
+                })
+                doc.insert(ignore_permissions=True)
+
+            frappe.db.commit()
+            return {"success": True, "message": "Certification completed successfully"}
+
+        # Handle Employee certification (if needed)
+        elif "Employee" in roles:
+            # Similar logic can be added for Employee Course Documents if needed
+            return {"success": True, "message": "Employee certification completed"}
+
+        else:
+            return {"success": False, "message": "User role not supported"}
+
+    except Exception as e:
+        frappe.log_error(f"Error in complete_certification: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
     user = frappe.session.user
     if not course:
@@ -158,14 +219,19 @@ def has_user_submited_document(course=None):
                 }
             )
 
-            # Get uploaded documents if any record exists
+            # Get uploaded documents and certification status if any record exists
             uploaded_documents = []
+            is_certified = False
             if any_exists:
                 doc = frappe.get_doc("Distributor Course Documents", any_exists)
+                is_certified = bool(doc.get("is_certified", 0))
                 if doc.document_upload_datetime:
                     for upload in doc.document_upload_datetime:
                         doc_name = getattr(upload, 'document', None) or getattr(upload, 'document_name', None)
                         if doc_name:
+                            # Skip auto-generated certificates when counting user uploads
+                            if doc_name == "Distributor Completion Certificate":
+                                continue
                             # Get the file attachment details (note the typo in field name)
                             file_url = getattr(upload, 'uploaded_docuement', None) or getattr(upload, 'uploaded_document', None) or getattr(upload, 'upload_document', None)
                             uploaded_documents.append({
@@ -204,7 +270,8 @@ def has_user_submited_document(course=None):
                     "uploaded_documents": uploaded_documents,
                     "course_documents_record_id": any_exists,
                     "documents_list": documents_list,
-                    "doctype": "Distributor Course Documents"
+                    "doctype": "Distributor Course Documents",
+                    "is_certified": is_certified
                 }
 
             return {
@@ -214,7 +281,8 @@ def has_user_submited_document(course=None):
                 "uploaded_documents": uploaded_documents,
                 "course_documents_record_id": submitted_exists or any_exists,
                 "doctype": "Distributor Course Documents",
-                "role_is": "Distributor"
+                "role_is": "Distributor",
+                "is_certified": is_certified
             }
 
         # Employee logic
@@ -1513,7 +1581,9 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
                 "Meril Distributor Compliance Policy Adoption Form": "Meril Distributor Compliance Policy Adoption Form",
                 "Distributor Self Declaration": "Distributor Self Declaration",
                 "Meril Distributor Compliance Code of Conduct": "Meril Distributor Compliance Code of Conduct",
-                "Distributor Declaration - Ethical Practices & Compliance": "Distributor Declaration - Ethical Practices & Compliance"
+                # "Distributor Declaration - Ethical Practices & Compliance": "Distributor Declaration - Ethical Practices & Compliance",  # REMOVED
+                "Meril Distributor Compliance Policy": "Meril Distributor Compliance Policy",
+                "Meril Distributor Compliance Policy for Endo": "Meril Distributor Compliance Policy for Endo"
             }
 
             print_format_name = print_format_map.get(document_type)
@@ -1722,14 +1792,15 @@ def get_document_configuration(course=None):
                 uploadable_documents.append(doc)
 
             # Always add ethical practices declaration if user is distributor
-            doc = {
-                "key": "distributor_declaration_ethical_practices",
-                "name": "Distributor Declaration - Ethical Practices & Compliance",
-                "requires_declaration": True,
-                "uploadable": True
-            }
-            document_types.append(doc)
-            uploadable_documents.append(doc)
+            # COMMENTED OUT: Removed "Distributor Declaration - Ethical Practices & Compliance" from preview
+            # doc = {
+            #     "key": "distributor_declaration_ethical_practices",
+            #     "name": "Distributor Declaration - Ethical Practices & Compliance",
+            #     "requires_declaration": True,
+            #     "uploadable": True
+            # }
+            # document_types.append(doc)
+            # uploadable_documents.append(doc)
 
             # Add policy documents based on divisions (download-only)
             if has_endo:

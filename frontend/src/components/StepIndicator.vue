@@ -107,7 +107,6 @@ const props = defineProps({
         id: 1,
         title: 'Certify',
         description: 'Review and certify documents',
-        statusMessage: 'Please review the compliance documents and provide your certification.'
       },
       {
         id: 2,

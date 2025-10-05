@@ -283,6 +283,11 @@ const initializeWorkflow = async () => {
       })
     }
 
+    // Set certification status from backend response
+    if (submissionResponse.is_certified !== undefined) {
+      state.certification.isCompleted = submissionResponse.is_certified
+    }
+
     // Set required documents based on enabled flags
     await updateRequiredDocuments()
 
@@ -420,27 +425,51 @@ const detectEndoDivisionsFromCompanyTable = async (companyTable) => {
 }
 
 const determineInitialStep = () => {
+  // Check if user has completed certification step
+  const isCertified = state.certification.isCompleted
+
   // If documents are already submitted, go to completion step
   if (isAllDocumentsUploaded.value) {
     state.currentStep = 4
     state.certification.isCompleted = true
     state.downloads.isStepCompleted = true
     state.uploads.isStepCompleted = true
-  } else if (state.uploadedDocuments.size > 0) {
-    // Some documents uploaded, go to upload step
+  } else if (state.uploadedDocuments.size > 0 && isCertified) {
+    // Some documents uploaded and user is certified, go to upload step
     state.currentStep = 3
     state.certification.isCompleted = true
     state.downloads.isStepCompleted = true
+  } else if (isCertified) {
+    // User is certified but no documents uploaded, go to download step
+    state.currentStep = 2
+    state.certification.isCompleted = true
   } else {
-    // Start from beginning
+    // Start from beginning - certification step
     state.currentStep = 1
   }
 }
 
-const completeCertification = (name, date) => {
+const completeCertification = async (name, date) => {
   state.certification.name = name
   state.certification.date = date
   state.certification.isCompleted = true
+
+  // Call backend to persist certification status
+  try {
+    const response = await call("lms.overrides.documents.complete_certification", {
+      course: state.courseName,
+      name: name,
+      date: date
+    })
+
+    if (!response.success) {
+      console.error('Failed to save certification status:', response.message)
+      // Don't revert the frontend state as user has completed the step
+    }
+  } catch (error) {
+    console.error('Error saving certification status:', error)
+    // Don't revert the frontend state as user has completed the step
+  }
 }
 
 const markDownloadCompleted = (documentName) => {

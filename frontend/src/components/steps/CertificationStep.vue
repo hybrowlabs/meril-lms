@@ -71,6 +71,23 @@
             <div class="mt-2 text-xs text-gray-500 text-center">
               <span>Preview shows the actual document content as it will appear when downloaded</span>
             </div>
+
+            <!-- Compliance Officer Name Field - positioned after adoption form preview -->
+            <div v-if="docType === 'Meril Distributor Compliance Policy Adoption Form'" class="mt-4 max-w-md">
+              <label for="compliance-officer-name-dynamic" class="block text-sm font-medium text-gray-700 mb-1">
+                Compliance Officer Nominee Name <span class="text-red-500">*</span>
+              </label>
+              <TextInput
+                id="compliance-officer-name-dynamic"
+                v-model="localName"
+                type="text"
+                placeholder="Compliance officer nominee name"
+                class="w-full"
+                required
+                :min-length="3"
+              />
+              <p v-if="nameError" class="text-sm text-red-600 mt-1">{{ nameError }}</p>
+            </div>
           </div>
         </template>
 
@@ -104,7 +121,7 @@
       <!-- Static Fallback for Distributor Declaration -->
       <div v-else-if="userRole === 'Distributor'" class="space-y-6">
         <!-- Policy Adoption Form Declaration -->
-        <div v-if="showDeclaration('Meril Distributor Compliance Policy Adoption Form')" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <div v-if="showDeclaration('Meril Distributor Compliance Policy Adoption Form') || useStaticPreview" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <h4 class="text-center font-semibold mb-4">
             Meril Distributor - Compliance Policy Adoption Form
           </h4>
@@ -122,7 +139,7 @@
               Nomination of Compliance Officer:
             </p>
             <p class="text-justify">
-              {{ localName || certificationData.name || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
+              {{ localName || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
             </p>
             <div class="mt-6 space-y-1">
               <p class="text-justify">Authorized representative of {{ declarationInfo?.distributor_company_name || 'Company Name' }}</p>
@@ -131,9 +148,26 @@
               <p class="text-justify">Email Id: {{ declarationInfo?.distributor_email_address || 'Email' }}</p>
               <p class="text-justify">Contact number: {{ declarationInfo?.distributor_contact_number || 'Contact' }}</p>
               <p class="text-justify">
-                Sign and Seal: <span>&lt;Compliance officer nominee name&gt;</span>
+                Sign and Seal: 
               </p>
             </div>
+          </div>
+
+          <!-- Compliance Officer Name Field - positioned below adoption form -->
+          <div class="mt-4 max-w-md">
+            <label for="compliance-officer-name" class="block text-sm font-medium text-gray-700 mb-1">
+              Compliance Officer Nominee Name <span class="text-red-500">*</span>
+            </label>
+            <TextInput
+              id="compliance-officer-name"
+              v-model="localName"
+              type="text"
+              placeholder="Compliance officer nominee name"
+              class="w-full"
+              required
+              :min-length="3"
+            />
+            <p v-if="nameError" class="text-sm text-red-600 mt-1">{{ nameError }}</p>
           </div>
         </div>
 
@@ -277,7 +311,8 @@
 
     <!-- Certification Form -->
     <div class="max-w-md mx-auto space-y-4">
-      <div>
+      <!-- Name field for non-compliance forms -->
+      <div v-if="!showDeclaration('Meril Distributor Compliance Policy Adoption Form')">
         <label for="certification-name" class="block text-sm font-medium text-gray-700 mb-1">
           Name <span class="text-red-500">*</span>
         </label>
@@ -439,9 +474,13 @@ const fetchDocumentConfiguration = async () => {
           if (docsWithDeclaration.length > 0) {
             fetchDocumentPreview()
           }
+          // Now handle pre-filling logic after configuration is loaded
+          handleNamePreFilling()
         } else {
           configurationError.value = data.message || 'Failed to load document configuration'
           useStaticPreview.value = true
+          // Handle pre-filling for static preview
+          handleNamePreFilling()
         }
         configurationLoading.value = false
       },
@@ -449,6 +488,8 @@ const fetchDocumentConfiguration = async () => {
         console.error('Error fetching document configuration:', error)
         configurationError.value = 'Failed to load document configuration'
         useStaticPreview.value = true
+        // Handle pre-filling for static preview
+        handleNamePreFilling()
         configurationLoading.value = false
       }
     })
@@ -458,6 +499,8 @@ const fetchDocumentConfiguration = async () => {
     console.error('Error in fetchDocumentConfiguration:', error)
     configurationError.value = 'Failed to load document configuration'
     useStaticPreview.value = true
+    // Handle pre-filling for static preview
+    handleNamePreFilling()
     configurationLoading.value = false
   }
 }
@@ -528,6 +571,21 @@ const showDeclaration = (documentType) => {
   return docConfig && docConfig.requires_declaration
 }
 
+// Handle name pre-filling logic after configuration is loaded
+const handleNamePreFilling = () => {
+  // Pre-fill name if available from declaration info (except for compliance policy adoption form)
+  const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
+    (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
+
+  if (!isCompliancePolicyForm) {
+    if (props.declarationInfo?.attendee_name && !localName.value) {
+      localName.value = props.declarationInfo.attendee_name
+    } else if (props.declarationInfo?.employee_name && !localName.value) {
+      localName.value = props.declarationInfo.employee_name
+    }
+  }
+}
+
 const validateName = () => {
   nameError.value = ''
   if (localName.value.trim().length < 3) {
@@ -550,7 +608,11 @@ const handleCertify = () => {
 
 // Watch for changes in certification data from parent
 watch(() => props.certificationData, (newData) => {
-  if (newData.name && !localName.value) {
+  // Check if this is a compliance policy adoption form before pre-filling name
+  const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
+    (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
+
+  if (newData.name && !localName.value && !isCompliancePolicyForm) {
     localName.value = newData.name
   }
   if (newData.date && !localDate.value) {
@@ -572,13 +634,6 @@ watch(localName, (newName) => {
 onMounted(() => {
   // Set current date/time
   localDate.value = new Date().toISOString().slice(0, 16)
-
-  // Pre-fill name if available from declaration info
-  if (props.declarationInfo?.attendee_name && !localName.value) {
-    localName.value = props.declarationInfo.attendee_name
-  } else if (props.declarationInfo?.employee_name && !localName.value) {
-    localName.value = props.declarationInfo.employee_name
-  }
 
   // Fetch document configuration first, which will then fetch previews
   fetchDocumentConfiguration()
