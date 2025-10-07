@@ -1,6 +1,7 @@
 import { reactive, computed } from 'vue'
 import { call } from 'frappe-ui'
 import { safeApiCall, handleApiError, createDegradedModeResponse } from '../utils/api-error-handler'
+import { resetCourseCompletion } from '../stores/course_completion.js'
 
 const state = reactive({
   // Modal and workflow state
@@ -121,6 +122,7 @@ const openModal = (courseName) => {
 const closeModal = () => {
   state.isOpen = false
   resetState()
+  resetCourseCompletion()
 }
 
 const nextStep = () => {
@@ -169,6 +171,7 @@ const resetState = () => {
     uploadProgress: {},
     isStepCompleted: false
   }
+
 
   resetErrors()
 }

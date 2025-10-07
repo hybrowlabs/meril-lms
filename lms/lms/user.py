@@ -390,7 +390,8 @@ def create_user_from_distributor(distributor_id):
 				)
 				# Also send a system notification using Notification Log
 				frappe.get_doc({
-					"doctype": "Notification Log"+ " - Ethics & Compliance Training on HCP/HCO Interactions",
+					"doctype": "Notification Log",
+					"subject": subject,
 					"email_content": message,
 					"for_user": email,
 					"type": "Alert"
