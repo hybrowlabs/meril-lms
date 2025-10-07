@@ -1600,6 +1600,21 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
                 as_pdf=False,  # Get HTML instead of PDF
                 no_letterhead=1
             )
+            # hide elements with the print-hide class
+            from bs4 import BeautifulSoup
+
+            # Parse the HTML content
+            soup = BeautifulSoup(html_content, 'html.parser')
+
+            # Find all elements with 'print-hide' class and hide them
+            print_hide_elements = soup.find_all(class_='print-hide')
+            for element in print_hide_elements:
+                element['style'] = element.get('style', '') + '; display: none !important;'
+
+            # Convert back to string
+            html_content = str(soup)
+
+
 
             return {
                 "success": True,
