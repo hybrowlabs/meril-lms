@@ -371,7 +371,6 @@ def create_user_from_distributor(distributor_id):
 					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
 					<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
 					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
-					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
 					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
 
 
@@ -388,13 +387,6 @@ def create_user_from_distributor(distributor_id):
 					message=message,
 					now=True
 				)
-				# Also send a system notification using Notification Log
-				frappe.get_doc({
-					"doctype": "Notification Log"+ " - Ethics & Compliance Training on HCP/HCO Interactions",
-					"email_content": message,
-					"for_user": email,
-					"type": "Alert"
-				}).insert(ignore_permissions=True)
 				
 				# Send email notification to admins about new distributor creation
 				admins = frappe.get_all("User", 

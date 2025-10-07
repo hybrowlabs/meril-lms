@@ -68,17 +68,11 @@
               theme="gray"
               variant="outline"
               size="md"
+              icon="download"
               @click="downloadDocument(document)"
               :disabled="downloadingDocuments.has(document.name)"
               class="flex items-center justify-center min-w-[140px] px-6 py-3 h-12 bg-white border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 transition-all duration-200 text-sm"
             >
-              <Spinner v-if="downloadingDocuments.has(document.name)" class="w-4 h-4 mr-2 flex-shrink-0" />
-              <svg v-else class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" />
-              </svg>
-              <span class="whitespace-nowrap">
-                {{ downloadingDocuments.has(document.name) ? 'Downloading...' : 'Download' }}
-              </span>
             </Button>
           </div>
         </div>
