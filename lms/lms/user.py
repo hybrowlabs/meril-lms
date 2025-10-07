@@ -43,6 +43,13 @@ def generate_and_save_otp():
 
 @frappe.whitelist()
 def create_user_from_employee(employee_id, _method):
+	# Check if automatic user creation is enabled when called as hook
+	if _method == "after_insert":  # Called as hook from Employee creation
+		lms_settings = frappe.get_single("LMS Settings")
+		if not getattr(lms_settings, "auto_create_employee_users", False):
+			frappe.logger().info(f"Automatic user creation is disabled for employee: {employee_id}")
+			return
+
 	frappe.only_for(["Supervisor", "System User"])
 
 	employee_doc = frappe.get_doc("Employee", employee_id)
@@ -1283,6 +1290,12 @@ def send_manual_course_reminder(enrollment_id):
 
 def create_user_from_distributor_hook(doc, _method):
 	try:
+		# Check if automatic user creation is enabled
+		lms_settings = frappe.get_single("LMS Settings")
+		if not getattr(lms_settings, "auto_create_distributor_users", False):
+			frappe.logger().info(f"Automatic user creation is disabled for distributor: {doc.name}")
+			return
+
 		# doc is a Distributor document; pass its name to the API
 		create_user_from_distributor(doc.name)
 	except Exception as e:

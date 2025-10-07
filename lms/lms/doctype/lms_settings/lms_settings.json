@@ -70,7 +70,11 @@
   "meril_distributor_compliance_policy_adoption_form_column",
   "distributor_self_declaration",
   "meril_distributor_compliance_code_of_conduct",
-  "meril_distributor_compliance_policy_adoption_form"
+  "meril_distributor_compliance_policy_adoption_form",
+  "user_creation_settings_section",
+  "auto_create_distributor_users",
+  "column_break_user_creation",
+  "auto_create_employee_users"
  ],
  "fields": [
   {
@@ -438,6 +442,29 @@
    "fieldname": "meril_distributor_compliance_policy_adoption_form",
    "fieldtype": "Check",
    "label": "Meril Distributor Compliance Policy Adoption Form"
+  },
+  {
+   "fieldname": "user_creation_settings_section",
+   "fieldtype": "Section Break",
+   "label": "User Creation Settings"
+  },
+  {
+   "default": "0",
+   "description": "Automatically create user accounts when new distributors are created. When disabled, use the manual 'Send Email' button in the Distributor list view.",
+   "fieldname": "auto_create_distributor_users",
+   "fieldtype": "Check",
+   "label": "Auto Create Users for New Distributors"
+  },
+  {
+   "fieldname": "column_break_user_creation",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Automatically create user accounts when new employees are created. When disabled, use the manual user creation functions.",
+   "fieldname": "auto_create_employee_users",
+   "fieldtype": "Check",
+   "label": "Auto Create Users for New Employees"
   }
  ],
  "grid_page_length": 50,
