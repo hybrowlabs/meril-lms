@@ -31,7 +31,11 @@
   "column_break_completion",
   "completed_on",
   "re_enrolled_by",
-  "re_enrolled_on"
+  "re_enrolled_on",
+  "re_enrollment_count",
+  "lesson_timer_data",
+  "original_enrollment_date",
+  "enrollment_version"
  ],
  "fields": [
   {
@@ -105,8 +109,7 @@
   {
    "fieldname": "progress",
    "fieldtype": "Float",
-   "label": "Progress",
-   "read_only": 1
+   "label": "Progress"
   },
   {
    "fieldname": "cohort",
@@ -201,12 +204,38 @@
    "fieldname": "course_reminder_count",
    "fieldtype": "Int",
    "label": "Course Reminder Count"
+  },
+  {
+   "default": "0",
+   "fieldname": "re_enrollment_count",
+   "fieldtype": "Int",
+   "label": "Re-enrollment Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lesson_timer_data",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "Lesson Timer Data"
+  },
+  {
+   "fieldname": "original_enrollment_date",
+   "fieldtype": "Datetime",
+   "label": "Original Enrollment Date",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enrollment_version",
+   "fieldtype": "Int",
+   "label": "Enrollment Version",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-17 19:20:47.467995",
+ "modified": "2025-10-13 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Enrollment",

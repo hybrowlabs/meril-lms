@@ -72,22 +72,6 @@
               <span>Preview shows the actual document content as it will appear when downloaded</span>
             </div>
 
-            <!-- Compliance Officer Name Field - positioned after adoption form preview -->
-            <div v-if="docType === 'Meril Distributor Compliance Policy Adoption Form'" class="mt-4 max-w-md">
-              <label for="compliance-officer-name-dynamic" class="block text-sm font-medium text-gray-700 mb-1">
-                Compliance Officer Nominee Name <span class="text-red-500">*</span>
-              </label>
-              <TextInput
-                id="compliance-officer-name-dynamic"
-                v-model="localName"
-                type="text"
-                placeholder="Compliance officer nominee name"
-                class="w-full"
-                required
-                :min-length="3"
-              />
-              <p v-if="nameError" class="text-sm text-red-600 mt-1">{{ nameError }}</p>
-            </div>
           </div>
         </template>
 
@@ -139,7 +123,7 @@
               Nomination of Compliance Officer:
             </p>
             <p class="text-justify">
-              {{ localName || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
+              {{ complianceOfficerName || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
             </p>
             <div class="mt-6 space-y-1">
               <p class="text-justify">Authorized representative of {{ declarationInfo?.distributor_company_name || 'Company Name' }}</p>
@@ -153,22 +137,6 @@
             </div>
           </div>
 
-          <!-- Compliance Officer Name Field - positioned below adoption form -->
-          <div class="mt-4 max-w-md">
-            <label for="compliance-officer-name" class="block text-sm font-medium text-gray-700 mb-1">
-              Compliance Officer Nominee Name <span class="text-red-500">*</span>
-            </label>
-            <TextInput
-              id="compliance-officer-name"
-              v-model="localName"
-              type="text"
-              placeholder="Compliance officer nominee name"
-              class="w-full"
-              required
-              :min-length="3"
-            />
-            <p v-if="nameError" class="text-sm text-red-600 mt-1">{{ nameError }}</p>
-          </div>
         </div>
 
         <!-- Self Declaration -->
@@ -383,6 +351,10 @@ const props = defineProps({
   documentType: {
     type: String,
     default: null
+  },
+  complianceOfficerName: {
+    type: String,
+    default: ''
   }
 })
 
@@ -526,7 +498,7 @@ const fetchDocumentPreview = (specificDocType = null) => {
       params: {
         course: props.course,
         document_type: docType,
-        compliance_officer_name: localName.value || props.certificationData?.name || props.declarationInfo?.attendee_name
+        compliance_officer_name: props.complianceOfficerName || localName.value || props.certificationData?.name || props.declarationInfo?.attendee_name
       },
       onSuccess: (data) => {
         if (data.success && data.html_content) {
@@ -577,6 +549,7 @@ const handleNamePreFilling = () => {
   const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
     (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
 
+  // Do not auto-fill for compliance policy adoption form since compliance officer name comes from previous step
   if (!isCompliancePolicyForm) {
     if (props.declarationInfo?.attendee_name && !localName.value) {
       localName.value = props.declarationInfo.attendee_name
@@ -584,6 +557,7 @@ const handleNamePreFilling = () => {
       localName.value = props.declarationInfo.employee_name
     }
   }
+  // For compliance policy forms, the compliance officer name comes from the previous step (props.complianceOfficerName)
 }
 
 const validateName = () => {
@@ -612,6 +586,7 @@ watch(() => props.certificationData, (newData) => {
   const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
     (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
 
+  // Do not auto-fill name for compliance policy adoption form (compliance officer field should be empty)
   if (newData.name && !localName.value && !isCompliancePolicyForm) {
     localName.value = newData.name
   }

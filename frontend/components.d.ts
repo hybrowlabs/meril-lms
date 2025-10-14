@@ -36,6 +36,7 @@ declare module 'vue' {
     CodeEditor: typeof import('./src/components/Controls/CodeEditor.vue')['default']
     CollapseSidebar: typeof import('./src/components/Icons/CollapseSidebar.vue')['default']
     CompletionStep: typeof import('./src/components/steps/CompletionStep.vue')['default']
+    ComplianceOfficerStep: typeof import('./src/components/steps/ComplianceOfficerStep.vue')['default']
     CourseCard: typeof import('./src/components/CourseCard.vue')['default']
     CourseCardOverlay: typeof import('./src/components/CourseCardOverlay.vue')['default']
     CourseInstructors: typeof import('./src/components/CourseInstructors.vue')['default']

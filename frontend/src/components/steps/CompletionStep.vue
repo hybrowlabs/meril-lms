@@ -15,21 +15,6 @@
       </p>
     </div>
 
-    <!-- Summary Statistics -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-blue-600">{{ uploadedDocuments.length }}</div>
-        <div class="text-sm text-blue-700">Documents Uploaded</div>
-      </div>
-      <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-green-600">{{ totalDocuments }}</div>
-        <div class="text-sm text-green-700">Total Available</div>
-      </div>
-      <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
-        <div class="text-2xl font-bold text-purple-600">100%</div>
-        <div class="text-sm text-purple-700">Completion Rate</div>
-      </div>
-    </div>
 
     <!-- Document List -->
     <div class="space-y-4">
@@ -256,10 +241,10 @@ const downloadSystemDocument = async (documentName) => {
 
     // Handle compliance policy documents
     if (documentName === "Meril Distributor Compliance Policy") {
-      const url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_nonendo_file`
+      const url = `${baseUrl}/api/method/lms.overrides.documents.download_nonendo_file`
       await directDownload(url, "Meril_Distributor_Compliance_Policy.pdf")
     } else if (documentName === "Meril Distributor Compliance Policy for Endo") {
-      const url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`
+      const url = `${baseUrl}/api/method/lms.overrides.documents.download_endo_file`
       await directDownload(url, "Meril_Distributor_Compliance_Policy_Endo.pdf")
     } else {
       // Use print format for other documents

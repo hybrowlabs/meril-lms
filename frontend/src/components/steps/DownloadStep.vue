@@ -209,7 +209,7 @@ const downloadDocument = async (document) => {
       try {
         // Get the base URL for API endpoint
         const baseUrl = window.frappe?.boot?.frappe_base_url || window.location.origin
-        const url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_nonendo_file`
+        const url = `${baseUrl}/api/method/lms.overrides.documents.download_nonendo_file`
 
         // Fetch the document directly
         const fileResponse = await fetch(url, {
@@ -237,7 +237,7 @@ const downloadDocument = async (document) => {
       try {
         // Get the base URL for API endpoint
         const baseUrl = window.frappe?.boot?.frappe_base_url || window.location.origin
-        const url = `${baseUrl}/api/method/lms.overrides.documents.downlaod_endo_file`
+        const url = `${baseUrl}/api/method/lms.overrides.documents.download_endo_file`
 
         // Fetch the document directly
         const fileResponse = await fetch(url, {

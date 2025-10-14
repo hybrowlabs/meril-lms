@@ -14,7 +14,12 @@
   "signature_style",
   "submission_datetime",
   "section_break_knpr",
-  "document_upload_datetime"
+  "document_upload_datetime",
+  "enrollment_reference",
+  "enrollment_version",
+  "is_current_enrollment",
+  "section_break_ttbt",
+  "meril_company_table"
  ],
  "fields": [
   {
@@ -74,12 +79,40 @@
    "fieldtype": "Table",
    "label": "Document Upload Datetime",
    "options": "Distributor Document Upload Timdate"
+  },
+  {
+   "fieldname": "enrollment_reference",
+   "fieldtype": "Link",
+   "label": "Enrollment Reference",
+   "options": "LMS Enrollment"
+  },
+  {
+   "default": "1",
+   "fieldname": "enrollment_version",
+   "fieldtype": "Int",
+   "label": "Enrollment Version"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_current_enrollment",
+   "fieldtype": "Check",
+   "label": "Is Current Enrollment"
+  },
+  {
+   "fieldname": "section_break_ttbt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "meril_company_table",
+   "fieldtype": "Table",
+   "label": "Meril Company Table",
+   "options": "Meril Distributor Division Child"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-09-23 18:26:47.308216",
+ "modified": "2025-10-13 18:49:02.059303",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor Course Documents",

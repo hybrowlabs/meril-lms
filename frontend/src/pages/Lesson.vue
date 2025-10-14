@@ -291,6 +291,7 @@ import {
 	Button,
 	Tooltip,
 	usePageMeta,
+	call,
 } from 'frappe-ui'
 import {
 	computed,
@@ -340,6 +341,10 @@ const { brand } = sessionStore()
 let timerFrame
 let timerPaused = false
 let savedTimerKey = null
+let timerSaveInterval = null
+let currentEnrollmentVersion = ref(null)
+let isReEnrollment = ref(false)
+let enrollmentId = ref(null)
 
 // --- Video completion logic ---
 const videoFiles = ref([]) // List of video URLs in the lesson
@@ -390,7 +395,11 @@ onMounted(() => {
 	})
 	window.addEventListener('video-completed', handleVideoCompleted)
 	window.addEventListener("message", handleMessage )
-	console.log(lesson.data)
+
+	// Check enrollment status when component mounts
+	if (user.data) {
+		checkEnrollmentStatus()
+	}
 })
 
 const handleMessage = (data) =>{
@@ -413,6 +422,8 @@ onBeforeUnmount(() => {
 	document.removeEventListener('fullscreenchange', attachFullscreenEvent)
 	window.removeEventListener('video-completed', handleVideoCompleted)
 	if (timerFrame) cancelAnimationFrame(timerFrame)
+	if (timerSaveInterval) clearInterval(timerSaveInterval)
+	saveTimerToBackend() // Final save before unmounting
 })
 
 const lesson = createResource({
@@ -656,21 +667,31 @@ const breadcrumbs = computed(() => {
 
 watch(
 	[() => route.params.chapterNumber, () => route.params.lessonNumber],
-	(
+	async (
 		[newChapterNumber, newLessonNumber],
 		[oldChapterNumber, oldLessonNumber]
 	) => {
 		if (newChapterNumber || newLessonNumber) {
 			editor.value = null
 			allowDiscussions.value = false
+
+			// Save current lesson timer state before switching
+			await saveTimerState()
+			if (timerFrame) cancelAnimationFrame(timerFrame)
+			if (timerSaveInterval) clearInterval(timerSaveInterval)
+
 			lesson.submit({
 				chapter: newChapterNumber,
 				lesson: newLessonNumber,
 			})
-			// Save current lesson timer state before switching
-			saveTimerState()
-			if (timerFrame) cancelAnimationFrame(timerFrame)
+
 			timer.value = 0
+
+			// Check enrollment status for the new lesson
+			if (user.data) {
+				await checkEnrollmentStatus()
+			}
+
 			startTimer()
 			enablePlyr()
 		}
@@ -679,9 +700,15 @@ watch(
 
 watch(
   () => lesson.data,
-  (data) => {
+  async (data) => {
     if (data) {
       setupLesson(data)
+
+      // Check enrollment status when lesson loads
+      if (user.data) {
+        await checkEnrollmentStatus()
+      }
+
       // Start timer after lesson setup if duration is available
       if (data.duration && videoFiles.value.length === 0) {
         startTimer()
@@ -739,13 +766,119 @@ function extractVideoFiles(blocks) {
   return files
 }
 
-// Helper functions for timer persistence
-const getTimerKey = () => {
-  if (!lesson.data?.name || !props.courseName || !props.chapterNumber || !props.lessonNumber) return null
-  return `lesson_timer_${props.courseName}_${props.chapterNumber}_${props.lessonNumber}`
+// Enrollment and Re-enrollment functions
+const checkEnrollmentStatus = async () => {
+	if (!user.data || !props.courseName) return
+
+	try {
+		const response = await call('lms.lms.doctype.lms_enrollment.lms_enrollment.get_current_enrollment', {
+			course: props.courseName
+		})
+
+		if (response.success) {
+			const enrollment = response.enrollment
+			currentEnrollmentVersion.value = enrollment.enrollment_version
+			enrollmentId.value = enrollment.name
+
+			// Check if this is a re-enrollment
+			if (enrollment.enrollment_version > 1 && enrollment.progress === 0) {
+				isReEnrollment.value = true
+				showReEnrollmentNotification()
+			}
+
+			// Load timer data from backend
+			await loadTimerFromBackend()
+		}
+	} catch (error) {
+		console.error('Error checking enrollment status:', error)
+	}
 }
 
-const saveTimerState = () => {
+const showReEnrollmentNotification = () => {
+	// Show a notification that the user has been re-enrolled
+	if (window.frappe && window.frappe.show_alert) {
+		window.frappe.show_alert({
+			message: 'You have been re-enrolled in this course. Your progress has been reset.',
+			indicator: 'blue'
+		}, 5)
+	}
+}
+
+// Backend timer persistence functions
+const saveTimerToBackend = async () => {
+	if (!user.data || !props.courseName || !lesson.data?.name) return
+
+	const lessonId = `${props.chapterNumber}.${props.lessonNumber}`
+	const duration = lesson.data?.duration || 30
+	const completed = timer.value >= duration
+
+	try {
+		await call('lms.lms.doctype.lms_enrollment.lms_enrollment.save_lesson_timer_progress_by_course', {
+			course: props.courseName,
+			lesson_id: lessonId,
+			current_time: timer.value,
+			duration: duration,
+			completed: completed
+		})
+	} catch (error) {
+		console.error('Error saving timer to backend:', error)
+		// Fallback to localStorage on error
+		saveTimerStateLocal()
+	}
+}
+
+const loadTimerFromBackend = async () => {
+	if (!user.data || !props.courseName) return 0
+
+	const lessonId = `${props.chapterNumber}.${props.lessonNumber}`
+
+	try {
+		const response = await call('lms.lms.doctype.lms_enrollment.lms_enrollment.get_lesson_timer_progress_by_course', {
+			course: props.courseName,
+			lesson_id: lessonId
+		})
+
+		if (response.success && response.timer_data) {
+			const timerData = response.timer_data
+
+			// Check if enrollment version changed (re-enrollment occurred)
+			if (response.enrollment_version !== currentEnrollmentVersion.value && currentEnrollmentVersion.value !== null) {
+				// Reset timer for new enrollment
+				currentEnrollmentVersion.value = response.enrollment_version
+				return 0
+			}
+
+			if (timerData.current_time !== undefined) {
+				return timerData.current_time || 0
+			}
+		}
+	} catch (error) {
+		console.error('Error loading timer from backend:', error)
+	}
+
+	// Fallback to localStorage if backend fails
+	return loadTimerStateLocal()
+}
+
+// Setup periodic timer saving
+const setupTimerAutoSave = () => {
+	if (timerSaveInterval) clearInterval(timerSaveInterval)
+
+	// Save timer every 5 seconds
+	timerSaveInterval = setInterval(() => {
+		if (!timerPaused && timer.value > 0) {
+			saveTimerToBackend()
+		}
+	}, 5000)
+}
+
+// Local storage fallback functions (renamed from original)
+const getTimerKey = () => {
+  if (!lesson.data?.name || !props.courseName || !props.chapterNumber || !props.lessonNumber) return null
+  return `lesson_timer_${props.courseName}_${props.chapterNumber}_${props.lessonNumber}_v${currentEnrollmentVersion.value || 1}`
+}
+
+const saveTimerStateLocal = () => {
   const key = getTimerKey()
   if (!key || timer.value === 0) return
 
@@ -753,12 +886,13 @@ const saveTimerState = () => {
     elapsed: timer.value,
     timestamp: Date.now(),
     lessonName: lesson.data?.name,
-    duration: lesson.data?.duration
+    duration: lesson.data?.duration,
+    enrollmentVersion: currentEnrollmentVersion.value
   }
   localStorage.setItem(key, JSON.stringify(timerState))
 }
 
-const loadTimerState = () => {
+const loadTimerStateLocal = () => {
   const key = getTimerKey()
   if (!key) return 0
 
@@ -767,8 +901,9 @@ const loadTimerState = () => {
 
   try {
     const timerState = JSON.parse(savedState)
-    // Check if it's the same lesson
-    if (timerState.lessonName !== lesson.data?.name) {
+    // Check if it's the same lesson and enrollment version
+    if (timerState.lessonName !== lesson.data?.name ||
+        timerState.enrollmentVersion !== currentEnrollmentVersion.value) {
       localStorage.removeItem(key)
       return 0
     }
@@ -794,8 +929,19 @@ const clearTimerState = () => {
   }
 }
 
+// Combined save function that saves to both backend and localStorage
+const saveTimerState = () => {
+  saveTimerToBackend()
+  saveTimerStateLocal()
+}
+
+// Combined load function that prioritizes backend
+const loadTimerState = async () => {
+  return await loadTimerFromBackend()
+}
+
 // --- Update startTimer to skip timer if videos exist ---
-const startTimer = () => {
+const startTimer = async () => {
   if (timerFrame) cancelAnimationFrame(timerFrame)
 
   console.log("duration", lesson.data?.duration);
@@ -811,8 +957,8 @@ const startTimer = () => {
     return
   }
 
-  // Load saved timer state
-  const savedTime = loadTimerState()
+  // Load saved timer state from backend
+  const savedTime = await loadTimerState()
   timer.value = savedTime
 
   // If lesson was already completed previously
@@ -821,6 +967,9 @@ const startTimer = () => {
     markProgress()
     return
   }
+
+  // Setup auto-save interval
+  setupTimerAutoSave()
 
   let startTimestamp = null
   let baseElapsed = savedTime // Start from saved time
@@ -836,9 +985,9 @@ const startTimer = () => {
 
     if (elapsed > timer.value) {
       timer.value = elapsed
-      // Save state periodically (every second)
+      // Local save every second for immediate persistence
       if (elapsed % 1 === 0) {
-        saveTimerState()
+        saveTimerStateLocal()
       }
     }
 
@@ -847,6 +996,7 @@ const startTimer = () => {
       saveTimerState()
       clearTimerState() // Clear saved state after completion
       markProgress()
+      if (timerSaveInterval) clearInterval(timerSaveInterval)
       return
     }
     timerFrame = requestAnimationFrame(tick)

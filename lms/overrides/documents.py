@@ -356,14 +356,35 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
         user_doc = frappe.get_doc("User", user)
         roles = [role.role for role in user_doc.roles]
 
+        # Get the current enrollment
+        if enrollment_name:
+            enrollment = frappe.get_doc("LMS Enrollment", enrollment_name)
+        else:
+            # Get the most recent enrollment
+            current_enrollment = frappe.get_all(
+                "LMS Enrollment",
+                filters={"course": course, "member": user},
+                fields=["name", "enrollment_version"],
+                order_by="enrollment_version desc",
+                limit=1
+            )
+            if current_enrollment:
+                enrollment = frappe.get_doc("LMS Enrollment", current_enrollment[0].name)
+            else:
+                enrollment = None
+
         # Handle Distributor
         if "Distributor" in roles:
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
 
-            # Check if document already exists
+            # Check if document already exists for this enrollment version
             existing = frappe.db.exists(
                 "Distributor Course Documents",
-                {"distributor": distributor_doc.name, "course": course}
+                {
+                    "distributor": distributor_doc.name,
+                    "course": course,
+                    "enrollment_version": enrollment.enrollment_version if enrollment else 1
+                }
             )
 
             doc = None
@@ -433,6 +454,9 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                     "doctype": "Distributor Course Documents",
                     "distributor": distributor_doc.name,
                     "course": course,
+                    "enrollment": enrollment.name if enrollment else None,
+                    "enrollment_version": enrollment.enrollment_version if enrollment else 1,
+                    "is_current_enrollment": 1,
                     "has_submitted_documents": 0,
                     "submission_date": frappe.utils.now_datetime(),
                     "entered_name": distributor_doc.attendee_name or user_doc.full_name or ""
@@ -498,10 +522,14 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
         elif "Employee" in roles:
             employee_doc = frappe.get_doc("Employee", {"user_id": user})
 
-            # Check if document already exists
+            # Check if document already exists for this enrollment version
             existing = frappe.db.exists(
                 "Employee Course Documents",
-                {"employee": employee_doc.name, "course": course}
+                {
+                    "employee": employee_doc.name,
+                    "course": course,
+                    "enrollment_version": enrollment.enrollment_version if enrollment else 1
+                }
             )
 
             if not existing:
@@ -510,6 +538,9 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                     "doctype": "Employee Course Documents",
                     "employee": employee_doc.name,
                     "course": course,
+                    "enrollment": enrollment.name if enrollment else None,
+                    "enrollment_version": enrollment.enrollment_version if enrollment else 1,
+                    "is_current_enrollment": 1,
                     "submission_date": frappe.utils.now_datetime()
                 })
                 doc.insert(ignore_permissions=True)
@@ -1345,7 +1376,7 @@ def get_public_signature_font_styles():
         return []
 
 @frappe.whitelist(allow_guest=False)
-def downlaod_nonendo_file():
+def download_nonendo_file():
     user = frappe.session.user
 
     # Check if user has Distributor role
@@ -1392,7 +1423,7 @@ def downlaod_nonendo_file():
     return {"success": False, "message": "Distributor can not access this resource"}
 
 @frappe.whitelist(allow_guest=False)
-def downlaod_endo_file():
+def download_endo_file():
     user = frappe.session.user
 
     # Check if user has Distributor role

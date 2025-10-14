@@ -62,20 +62,29 @@
 
         <!-- Step Content -->
         <div class="mt-8">
-          <!-- Step 1: Certification -->
-          <CertificationStep
+          <!-- Step 1: Compliance Officer Nomination -->
+          <ComplianceOfficerStep
             v-if="state.currentStep === 1"
+            :compliance-officer-name="state.complianceOfficerName"
+            @officer-nominated="handleOfficerNominated"
+            @validation-changed="handleOfficerValidationChanged"
+          />
+
+          <!-- Step 2: Certification -->
+          <CertificationStep
+            v-else-if="state.currentStep === 2"
             :user-role="state.userRole"
             :declaration-info="state.declarationInfo"
             :certification-data="state.certification"
             :course="state.courseName"
+            :compliance-officer-name="state.complianceOfficerName"
             :document-type="state.documentType || 'Meril Distributor Compliance Policy Adoption Form'"
             @certification-complete="handleCertificationComplete"
           />
 
-          <!-- Step 2: Download -->
+          <!-- Step 3: Download -->
           <DownloadStep
-            v-else-if="state.currentStep === 2"
+            v-else-if="state.currentStep === 3"
             :required-documents="state.requiredDocuments"
             :certification-data="state.certification"
             :course-name="state.courseName"
@@ -83,9 +92,9 @@
             @download-complete="handleDownloadComplete"
           />
 
-          <!-- Step 3: Upload -->
+          <!-- Step 4: Upload -->
           <UploadStep
-            v-else-if="state.currentStep === 3"
+            v-else-if="state.currentStep === 4"
             :required-documents="state.requiredDocuments"
             :uploaded-documents="state.uploadedDocuments"
             :current-document="currentDocumentToUpload"
@@ -95,9 +104,9 @@
             @upload-progress="handleUploadProgress"
           />
 
-          <!-- Step 4: Completion -->
+          <!-- Step 5: Completion -->
           <CompletionStep
-            v-else-if="state.currentStep === 4"
+            v-else-if="state.currentStep === 5"
             :uploaded-documents="state.uploadedDocumentsList"
             :documents-list="state.documentsList"
             :course-name="state.courseName"
@@ -144,6 +153,7 @@
 import { computed, onMounted } from 'vue'
 import { Spinner } from 'frappe-ui'
 import StepIndicator from './StepIndicator.vue'
+import ComplianceOfficerStep from './steps/ComplianceOfficerStep.vue'
 import CertificationStep from './steps/CertificationStep.vue'
 import DownloadStep from './steps/DownloadStep.vue'
 import UploadStep from './steps/UploadStep.vue'
@@ -165,25 +175,32 @@ import {
 const stepDefinitions = computed(() => [
   {
     id: 1,
-    title: 'Certify',
-    statusMessage: state.userRole === 'Employee'
-      ? 'Please review the Employee Declaration and provide your information.'
-      : ''
+    title: 'Nominate Officer',
+    description: 'Compliance Officer Nomination',
+    statusMessage: 'Please nominate the compliance officer for your organization.'
   },
   {
     id: 2,
+    title: 'Certify',
+    description: 'Review and certify documents',
+    statusMessage: state.userRole === 'Employee'
+      ? 'Please review the Employee Declaration and provide your information.'
+      : 'Review the compliance documents and provide certification.'
+  },
+  {
+    id: 3,
     title: 'Download',
     description: 'Download required documents',
     statusMessage: 'Download the generated documents for signing and completion.'
   },
   {
-    id: 3,
+    id: 4,
     title: 'Upload',
     description: 'Upload completed documents',
     statusMessage: 'Upload your signed and completed documents.'
   },
   {
-    id: 4,
+    id: 5,
     title: 'Complete',
     description: 'Process completed',
     statusMessage: 'All documents have been successfully processed.'
@@ -192,21 +209,33 @@ const stepDefinitions = computed(() => [
 
 const getStepTitle = () => {
   const titles = {
-    1: 'Document Certification',
-    2: 'Download Documents',
-    3: 'Upload Documents',
-    4: 'Process Complete'
+    1: 'Nominate Compliance Officer',
+    2: 'Document Certification',
+    3: 'Download Documents',
+    4: 'Upload Documents',
+    5: 'Process Complete'
   }
   return titles[state.currentStep] || 'Document Workflow'
 }
 
 const getNextButtonText = () => {
   const texts = {
-    1: 'Proceed to Download',
-    2: 'Proceed to Upload',
-    3: 'Complete Process'
+    1: 'Proceed to Certification',
+    2: 'Proceed to Download',
+    3: 'Proceed to Upload',
+    4: 'Complete Process'
   }
   return texts[state.currentStep] || 'Next'
+}
+
+const handleOfficerNominated = (officerData) => {
+  // This will be handled by the store
+  state.complianceOfficerName = officerData.name
+  state.complianceOfficerValid = officerData.isValid
+}
+
+const handleOfficerValidationChanged = (isValid) => {
+  state.complianceOfficerValid = isValid
 }
 
 const handleCertificationComplete = async (certificationData) => {

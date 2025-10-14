@@ -10,7 +10,10 @@
   "column_break_ymyl",
   "singature_style",
   "signature",
-  "submission_datetime"
+  "submission_datetime",
+  "enrollment_reference",
+  "enrollment_version",
+  "is_current_enrollment"
  ],
  "fields": [
   {
@@ -44,12 +47,30 @@
   {
    "fieldname": "column_break_ymyl",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enrollment_reference",
+   "fieldtype": "Link",
+   "label": "Enrollment Reference",
+   "options": "LMS Enrollment"
+  },
+  {
+   "default": "1",
+   "fieldname": "enrollment_version",
+   "fieldtype": "Int",
+   "label": "Enrollment Version"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_current_enrollment",
+   "fieldtype": "Check",
+   "label": "Is Current Enrollment"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-08-19 12:22:04.910595",
+ "modified": "2025-10-13 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Course Documents",

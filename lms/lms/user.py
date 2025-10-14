@@ -1387,3 +1387,56 @@ def send_bulk_creation_summary_email(results, filters):
 	)
 
 
+@frappe.whitelist()
+def send_re_enrollment_email(user_email, partner_name, user_id="123", password="234"):
+	"""
+	Send re-enrollment email notification to a user.
+	This function sends the specific re-enrollment email with the provided content.
+	"""
+	try:
+		# Get the user document to generate reset password link
+		user_doc = frappe.get_doc("User", user_email)
+
+		# Generate reset password link for the user (same as in initial email)
+		reset_password_link = user_doc.reset_password(send_email=False)
+
+		# Email content as specified by the user
+		subject = "Re-enrolled in Ethics & Compliance Training on HCP/HCO Interactions"
+
+		message = f'''<p>Dear {partner_name},</p>
+
+		<p>In line with our mandatory training, you have been <span style="font-weight: bold;">Re-enrolled</span> for the <span style="font-weight: bold;">Ethics & Compliance Training on HCPs/HCOs Interactions</span>. This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+
+		<p style="font-weight: bold;">Login Credentials:</p>
+		<p>Please click on the below link to log in:</p>
+		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
+		<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;">User ID: <span style="font-weight:normal;">{user_id}</span></p>
+		<p style="margin-left:10px; margin-top: 0;font-weight: bold;">Password: <span style="font-weight:normal;">{password}</span> <a href="{reset_password_link}">(Reset password)</a></p>
+
+		<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
+
+		<p>Best regards,</p>
+		<p>Meril</p>
+		'''
+
+		# Send email
+		frappe.sendmail(
+			recipients=[user_email],
+			sender=get_default_sender(),
+			subject=subject,
+			message=message
+		)
+
+		return {
+			"status": "success",
+			"message": f"Re-enrollment email sent to {user_email}"
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Failed to send re-enrollment email to {user_email}: {str(e)}", "Re-enrollment Email Error")
+		return {
+			"status": "error",
+			"message": str(e)
+		}
+
+
