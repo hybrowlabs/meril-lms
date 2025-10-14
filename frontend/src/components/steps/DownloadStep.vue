@@ -188,14 +188,14 @@ const getDocumentDescription = (documentName) => {
   return descriptions[documentName] || 'Required compliance document'
 }
 
-const downloadDocument = async (document) => {
-  if (downloadingDocuments.value.has(document.name)) return
+const downloadDocument = async (docItem) => {
+  if (downloadingDocuments.value.has(docItem.name)) return
 
   try {
-    downloadingDocuments.value.add(document.name)
+    downloadingDocuments.value.add(docItem.name)
     downloadError.value = ''
 
-    console.log('Starting download for document:', document.name)
+    console.log('Starting download for document:', docItem.name)
     console.log('Props data:', {
       certificationData: props.certificationData,
       courseName: props.courseName
@@ -204,58 +204,50 @@ const downloadDocument = async (document) => {
     let response
 
     // Handle special cases for Endo/Non-Endo compliance policy documents
-    if (document.name === "Meril Distributor Compliance Policy") {
+    if (docItem.name === "Meril Distributor Compliance Policy") {
       console.log('Downloading Non-Endo compliance policy')
       try {
         // Get the base URL for API endpoint
         const baseUrl = window.frappe?.boot?.frappe_base_url || window.location.origin
         const url = `${baseUrl}/api/method/lms.overrides.documents.download_nonendo_file`
 
-        // Fetch the document directly
-        const fileResponse = await fetch(url, {
-          method: 'GET',
-          credentials: 'include'
-        })
+        // Create a temporary link to trigger download
+        const link = document.createElement('a')
+        link.href = url
+        link.download = 'Meril_Distributor_Compliance_Policy.pdf'
+        link.style.display = 'none'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
 
-        if (!fileResponse.ok) {
-          throw new Error('Failed to download Non-Endo compliance policy')
-        }
-
-        const blob = await fileResponse.blob()
-        const base64 = await blobToBase64(blob)
-
-        response = {
-          file_content: base64,
-          file_name: 'Meril_Distributor_Compliance_Policy.pdf'
-        }
+        // Mark as downloaded (no response content needed for direct downloads)
+        emit('download-complete', docItem.name)
+        toast.success(`${docItem.name} download started`)
+        return
       } catch (error) {
         console.error('Error downloading Non-Endo policy:', error)
         throw new Error('Failed to download compliance policy document')
       }
-    } else if (document.name === "Meril Distributor Compliance Policy for Endo") {
+    } else if (docItem.name === "Meril Distributor Compliance Policy for Endo") {
       console.log('Downloading Endo compliance policy')
       try {
         // Get the base URL for API endpoint
         const baseUrl = window.frappe?.boot?.frappe_base_url || window.location.origin
         const url = `${baseUrl}/api/method/lms.overrides.documents.download_endo_file`
 
-        // Fetch the document directly
-        const fileResponse = await fetch(url, {
-          method: 'GET',
-          credentials: 'include'
-        })
+        // Create a temporary link to trigger download
+        const link = document.createElement('a')
+        link.href = url
+        link.download = 'Meril_Distributor_Compliance_Policy_Endo.pdf'
+        link.style.display = 'none'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
 
-        if (!fileResponse.ok) {
-          throw new Error('Failed to download Endo compliance policy')
-        }
-
-        const blob = await fileResponse.blob()
-        const base64 = await blobToBase64(blob)
-
-        response = {
-          file_content: base64,
-          file_name: 'Meril_Distributor_Compliance_Policy_Endo.pdf'
-        }
+        // Mark as downloaded (no response content needed for direct downloads)
+        emit('download-complete', docItem.name)
+        toast.success(`${docItem.name} download started`)
+        return
       } catch (error) {
         console.error('Error downloading Endo policy:', error)
         throw new Error('Failed to download compliance policy document')
@@ -263,7 +255,7 @@ const downloadDocument = async (document) => {
     } else {
       // Use the proper Frappe backend API for other document generation
       try {
-        console.log('Generating document using Frappe print format:', document.name)
+        console.log('Generating document using Frappe print format:', docItem.name)
 
         // Call the generate_dynamic_docx API with print format enabled
         // This will generate PDF from the appropriate print format
@@ -271,7 +263,7 @@ const downloadDocument = async (document) => {
           name: props.certificationData?.name || 'User',
           course: props.courseName,
           font_path: null,
-          document_type: document.name,
+          document_type: docItem.name,
           use_print_format: true
         })
 
@@ -282,7 +274,7 @@ const downloadDocument = async (document) => {
         // Handle the error and check its type
         const errorResult = handleApiError(apiError, {
           showToast: false,
-          context: `Generating ${document.name}`
+          context: `Generating ${docItem.name}`
         })
 
         if (errorResult.isPermissionError) {
@@ -296,7 +288,7 @@ const downloadDocument = async (document) => {
             name: props.certificationData?.name || 'User',
             course: null,
             font_path: null,
-            document_type: document.name,
+            document_type: docItem.name,
             use_print_format: true
           })
           console.log('Standalone generation response:', response)
@@ -306,7 +298,7 @@ const downloadDocument = async (document) => {
           // Handle the standalone error
           const standaloneErrorResult = handleApiError(standaloneError, {
             showToast: false,
-            context: `Standalone generation of ${document.name}`
+            context: `Standalone generation of ${docItem.name}`
           })
 
           throw new Error(standaloneErrorResult.message)
@@ -319,22 +311,22 @@ const downloadDocument = async (document) => {
       toast.success("Processing document...")
 
       // Determine file name and type from response or defaults
-      const fileName = response.file_name || `${document.name.replace(/\s+/g, '_')}.pdf`
+      const fileName = response.file_name || `${docItem.name.replace(/\s+/g, '_')}.pdf`
 
       // Download the file using the existing directDownload function
       await directDownload(response.file_content, fileName)
 
       // Mark as downloaded
-      emit('download-complete', document.name)
+      emit('download-complete', docItem.name)
 
-      toast.success(`${document.name} downloaded successfully`)
+      toast.success(`${docItem.name} downloaded successfully`)
     } else if (response?.success === false) {
       // Handle API error response
-      const errorMsg = response.message || response.error || `Failed to generate ${document.name}`
+      const errorMsg = response.message || response.error || `Failed to generate ${docItem.name}`
       throw new Error(errorMsg)
     } else {
       // If no valid response, throw error
-      throw new Error(`Failed to generate ${document.name}. Please ensure you have completed the course and all required information is available.`)
+      throw new Error(`Failed to generate ${docItem.name}. Please ensure you have completed the course and all required information is available.`)
     }
   } catch (error) {
     console.error('Download error:', error)
@@ -353,10 +345,10 @@ const downloadDocument = async (document) => {
       errorMessage = 'You do not have permission to download this document. Please contact support.'
     }
 
-    downloadError.value = `Failed to download ${document.name}: ${errorMessage}`
+    downloadError.value = `Failed to download ${docItem.name}: ${errorMessage}`
     toast.error(errorMessage)
   } finally {
-    downloadingDocuments.value.delete(document.name)
+    downloadingDocuments.value.delete(docItem.name)
   }
 }
 

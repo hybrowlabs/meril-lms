@@ -599,7 +599,9 @@ def upload_distributor_document_with_datetime(
         valid_types = [
             "Meril Distributor Compliance Policy Adoption Form",
             "Distributor Self Declaration",
-            "Meril Distributor Compliance Code of Conduct"
+            "Meril Distributor Compliance Code of Conduct",
+            "Meril Distributor Compliance Policy",
+            "Meril Distributor Compliance Policy for Endo"
         ]
         if uploadDocumentName not in valid_types:
             # Try to get from DocType if the hardcoded list fails
@@ -1043,16 +1045,20 @@ def get_signature_image(
 @frappe.whitelist(allow_guest=True)
 def get_upload_download_docuemtn_enabled():
     """
-    Returns the boolean values of three check fields from LMS Settings:
+    Returns the boolean values of document enable fields from LMS Settings:
     - distributor_self_declaration
     - meril_distributor_compliance_code_of_conduct
     - meril_distributor_compliance_policy_adoption_form
+    - meril_distributor_compliance_policy
+    - meril_distributor_compliance_policy_for_endo
 
     Returns:
         dict: {
             "distributor_self_declaration": bool,
             "meril_distributor_compliance_code_of_conduct": bool,
-            "meril_distributor_compliance_policy_adoption_form": bool
+            "meril_distributor_compliance_policy_adoption_form": bool,
+            "meril_distributor_compliance_policy": bool,
+            "meril_distributor_compliance_policy_for_endo": bool
         }
     """
     user = frappe.session.user
@@ -1075,7 +1081,9 @@ def get_upload_download_docuemtn_enabled():
         "success": True,
         "distributor_self_declaration": bool(getattr(lms_settings, "distributor_self_declaration", False)),
         "meril_distributor_compliance_code_of_conduct": bool(getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False)),
-        "meril_distributor_compliance_policy_adoption_form": bool(getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False))
+        "meril_distributor_compliance_policy_adoption_form": bool(getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False)),
+        "meril_distributor_compliance_policy": bool(getattr(lms_settings, "meril_distributor_compliance_policy", False)),
+        "meril_distributor_compliance_policy_for_endo": bool(getattr(lms_settings, "meril_distributor_compliance_policy_for_endo", False))
     }
 
 
@@ -1399,12 +1407,27 @@ def download_nonendo_file():
     for company in distributor_doc.meril_company_table:
         name = (company.division or "").lower()
         if "endo" not in name:
-            # Use the direct file path as requested
+            # Try multiple file name patterns for policy files
             file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy.pdf"})
             if not file_docname:
-                frappe.local.response["message"] = "File not found"
+                # Try alternative naming patterns
+                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy.pdf"})
+            if not file_docname:
+                # Try searching with LIKE pattern
+                files = frappe.db.sql("""
+                    SELECT name, file_name, file_url FROM tabFile
+                    WHERE file_name LIKE '%Compliance%policy%'
+                    AND file_name NOT LIKE '%Endo%'
+                    AND file_name NOT LIKE '%endo%'
+                    LIMIT 1
+                """, as_dict=True)
+                if files:
+                    file_docname = files[0].name
+
+            if not file_docname:
+                frappe.local.response["message"] = "Policy file not found"
                 frappe.local.response["http_status_code"] = 200  # Return 200 with error message
-                return {"success": False, "message": "File not found"}
+                return {"success": False, "message": "Policy file not found"}
 
             file_doc = frappe.get_doc("File", file_docname)
             file_path = get_file_path(file_doc.file_url)
@@ -1446,12 +1469,39 @@ def download_endo_file():
     for company in distributor_doc.meril_company_table:
         name = (company.division or "").lower()
         if "endo" in name:
-            # Use the direct file path as requested
+            # Try multiple file name patterns for Endo policy files
             file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy for Endo.pdf"})
             if not file_docname:
-                frappe.local.response["message"] = "File not found"
+                # Try alternative naming patterns
+                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy for Endo.pdf"})
+            if not file_docname:
+                # Try searching with LIKE pattern for Endo files
+                files = frappe.db.sql("""
+                    SELECT name, file_name, file_url FROM tabFile
+                    WHERE file_name LIKE '%Compliance%policy%'
+                    AND (file_name LIKE '%Endo%' OR file_name LIKE '%endo%')
+                    LIMIT 1
+                """, as_dict=True)
+                if files:
+                    file_docname = files[0].name
+
+            # If still no Endo-specific file, fallback to general policy file
+            if not file_docname:
+                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy.pdf"})
+                if not file_docname:
+                    # Try searching for any policy file as fallback
+                    files = frappe.db.sql("""
+                        SELECT name, file_name, file_url FROM tabFile
+                        WHERE file_name LIKE '%Compliance%policy%'
+                        LIMIT 1
+                    """, as_dict=True)
+                    if files:
+                        file_docname = files[0].name
+
+            if not file_docname:
+                frappe.local.response["message"] = "Endo policy file not found"
                 frappe.local.response["http_status_code"] = 200  # Return 200 with error message
-                return {"success": False, "message": "File not found"}
+                return {"success": False, "message": "Endo policy file not found"}
 
             file_doc = frappe.get_doc("File", file_docname)
             file_path = get_file_path(file_doc.file_url)
@@ -1771,6 +1821,8 @@ def get_document_configuration(course=None):
                 "distributor_self_declaration": enabled_flags.get("distributor_self_declaration", False),
                 "meril_distributor_compliance_code_of_conduct": enabled_flags.get("meril_distributor_compliance_code_of_conduct", False),
                 "meril_distributor_compliance_policy_adoption_form": enabled_flags.get("meril_distributor_compliance_policy_adoption_form", False),
+                "meril_distributor_compliance_policy": enabled_flags.get("meril_distributor_compliance_policy", False),
+                "meril_distributor_compliance_policy_for_endo": enabled_flags.get("meril_distributor_compliance_policy_for_endo", False),
                 "distributor_declaration_ethical_practices": enabled_flags.get("distributor_declaration_ethical_practices", True)  # Default to true if not in settings
             }
 
@@ -1848,26 +1900,26 @@ def get_document_configuration(course=None):
             # document_types.append(doc)
             # uploadable_documents.append(doc)
 
-            # Add policy documents based on divisions (download-only)
-            if has_endo:
+            # Add policy documents based on divisions and feature flags
+            if has_endo and enabled_flags.get("meril_distributor_compliance_policy_for_endo"):
                 doc = {
                     "key": "meril_distributor_compliance_policy_endo",
                     "name": "Meril Distributor Compliance Policy for Endo",
                     "requires_declaration": False,
-                    "uploadable": False
+                    "uploadable": True  # Allow uploads as alternative to download
                 }
                 document_types.append(doc)
-                download_only_documents.append(doc)
+                uploadable_documents.append(doc)
 
-            if has_non_endo:
+            if has_non_endo and enabled_flags.get("meril_distributor_compliance_policy"):
                 doc = {
                     "key": "meril_distributor_compliance_policy",
                     "name": "Meril Distributor Compliance Policy",
                     "requires_declaration": False,
-                    "uploadable": False
+                    "uploadable": True  # Allow uploads as alternative to download
                 }
                 document_types.append(doc)
-                download_only_documents.append(doc)
+                uploadable_documents.append(doc)
 
             result["document_types"] = document_types
             result["uploadable_documents"] = uploadable_documents

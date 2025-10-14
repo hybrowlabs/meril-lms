@@ -71,6 +71,8 @@
   "distributor_self_declaration",
   "meril_distributor_compliance_code_of_conduct",
   "meril_distributor_compliance_policy_adoption_form",
+  "meril_distributor_compliance_policy",
+  "meril_distributor_compliance_policy_for_endo",
   "user_creation_settings_section",
   "auto_create_distributor_users",
   "column_break_user_creation",
@@ -442,6 +444,18 @@
    "fieldname": "meril_distributor_compliance_policy_adoption_form",
    "fieldtype": "Check",
    "label": "Meril Distributor Compliance Policy Adoption Form"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_policy",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Policy"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_policy_for_endo",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Policy for Endo"
   },
   {
    "fieldname": "user_creation_settings_section",
