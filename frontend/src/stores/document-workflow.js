@@ -7,7 +7,7 @@ const state = reactive({
   // Modal and workflow state
   isOpen: false,
   currentStep: 1,
-  totalSteps: 5,
+  totalSteps: 4,
   courseName: null,
 
   // User and role information
@@ -100,15 +100,13 @@ const progressPercentage = computed(() => {
 
 const canProceedToNextStep = computed(() => {
   switch (state.currentStep) {
-    case 1: // Compliance Officer step
-      return state.complianceOfficerValid && state.complianceOfficerName.trim().length >= 3
-    case 2: // Certification step
-      return state.certification.isCompleted && state.certification.name.trim().length >= 3
-    case 3: // Download step
+    case 1: // Certification step (includes compliance officer nomination)
+      return state.certification.isCompleted && state.certification.name.trim().length >= 3 && state.complianceOfficerName.trim().length >= 3
+    case 2: // Download step
       return state.downloads.isStepCompleted
-    case 4: // Upload step
+    case 3: // Upload step
       return state.uploads.isStepCompleted || isAllDocumentsUploaded.value
-    case 5: // Completion step
+    case 4: // Completion step
       return true
     default:
       return false
@@ -454,7 +452,7 @@ const determineInitialStep = () => {
     state.currentStep = 2
     state.certification.isCompleted = true
   } else {
-    // Start from beginning - certification step
+    // Start from beginning - certification step (now includes nomination)
     state.currentStep = 1
   }
 }

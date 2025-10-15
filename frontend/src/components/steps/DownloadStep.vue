@@ -181,7 +181,7 @@ const getDocumentDescription = (documentName) => {
     'Meril Distributor Compliance Code of Conduct': 'Code of conduct acknowledgment and agreement',
     'Distributor Completion Certificate': 'Certificate of course completion',
     'Meril Distributor Compliance Policy for Endo': 'Compliance policy document for Endo division',
-    'Meril Distributor Compliance Policy': 'General compliance policy document',
+    'Meril Distributor Compliance Policy': 'Non-Endo compliance policy document',
     'Employee Declaration Form': 'Employee declaration and acknowledgment form',
     'Employee Completion Certificate': 'Employee course completion certificate'
   }
@@ -222,7 +222,7 @@ const downloadDocument = async (docItem) => {
 
         // Mark as downloaded (no response content needed for direct downloads)
         emit('download-complete', docItem.name)
-        toast.success(`${docItem.name} download started`)
+        toast.success('Non-Endo compliance policy download started')
         return
       } catch (error) {
         console.error('Error downloading Non-Endo policy:', error)
@@ -246,7 +246,7 @@ const downloadDocument = async (docItem) => {
 
         // Mark as downloaded (no response content needed for direct downloads)
         emit('download-complete', docItem.name)
-        toast.success(`${docItem.name} download started`)
+        toast.success('Endo compliance policy download started')
         return
       } catch (error) {
         console.error('Error downloading Endo policy:', error)

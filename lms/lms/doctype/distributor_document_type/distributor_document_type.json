@@ -19,6 +19,7 @@
    "fieldname": "name1",
    "fieldtype": "Data",
    "label": "name",
+   "length": 255,
    "unique": 1
   }
  ],

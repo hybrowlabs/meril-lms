@@ -42,36 +42,55 @@
 
         <!-- Show previews for all document types that require declaration -->
         <template v-else>
-          <div v-for="docType in getAllDocumentTypes()" :key="docType" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <h4 class="text-center font-semibold mb-4">{{ docType }} - Preview</h4>
-            <div v-if="documentPreviews[docType]"
-                 class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
-                 style="max-height: 400px; min-height: 200px;"
-                 v-html="getSanitizedPreview(docType)">
-            </div>
-            <div v-else-if="previewLoading[docType]" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
-              <div class="flex items-center">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-3"></div>
-                <span class="text-gray-600">Loading preview...</span>
+          <div v-for="(docType, index) in getAllDocumentTypes()" :key="docType">
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+              <h4 class="text-center font-semibold mb-4">{{ docType }} - Preview</h4>
+              <div v-if="documentPreviews[docType]"
+                   class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
+                   style="max-height: 400px; min-height: 200px;"
+                   v-html="getSanitizedPreview(docType)">
               </div>
-            </div>
-            <div v-else-if="previewErrors[docType]" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4" style="min-height: 200px;">
-              <div class="text-center text-red-600">
-                <p>{{ previewErrors[docType] }}</p>
-                <button @click="fetchDocumentPreview(docType)" class="mt-2 text-sm text-blue-600 hover:text-blue-800">
-                  Retry Loading Preview
+              <div v-else-if="previewLoading[docType]" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
+                <div class="flex items-center">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-3"></div>
+                  <span class="text-gray-600">Loading preview...</span>
+                </div>
+              </div>
+              <div v-else-if="previewErrors[docType]" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4" style="min-height: 200px;">
+                <div class="text-center text-red-600">
+                  <p>{{ previewErrors[docType] }}</p>
+                  <button @click="fetchDocumentPreview(docType)" class="mt-2 text-sm text-blue-600 hover:text-blue-800">
+                    Retry Loading Preview
+                  </button>
+                </div>
+              </div>
+              <div v-else class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
+                <button @click="fetchDocumentPreview(docType)" class="text-blue-600 hover:text-blue-800">
+                  Load Preview
                 </button>
               </div>
-            </div>
-            <div v-else class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
-              <button @click="fetchDocumentPreview(docType)" class="text-blue-600 hover:text-blue-800">
-                Load Preview
-              </button>
-            </div>
-            <div class="mt-2 text-xs text-gray-500 text-center">
-              <span>Preview shows the actual document content as it will appear when downloaded</span>
+              <div class="mt-2 text-xs text-gray-500 text-center">
+                <span>Preview shows the actual document content as it will appear when downloaded</span>
+              </div>
             </div>
 
+            <!-- Compliance Officer Nomination Field (appears after adoption form preview) -->
+            <div v-if="docType === 'Meril Distributor Compliance Policy Adoption Form' && userRole === 'Distributor'" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+              <label for="compliance-officer-name-dynamic" class="block text-sm font-medium text-gray-700 mb-2">
+                Compliance Officer Name <span class="text-red-500">*</span>
+              </label>
+              <TextInput
+                id="compliance-officer-name-dynamic"
+                v-model="localComplianceOfficerName"
+                type="text"
+                placeholder="Enter compliance officer name"
+                class="w-full"
+                required
+                :min-length="3"
+              />
+              <p v-if="complianceOfficerError" class="text-sm text-red-600 mt-1">{{ complianceOfficerError }}</p>
+              <p class="text-xs text-gray-500 mt-1">This person will be nominated as the compliance officer for your organization.</p>
+            </div>
           </div>
         </template>
 
@@ -123,7 +142,7 @@
               Nomination of Compliance Officer:
             </p>
             <p class="text-justify">
-              {{ complianceOfficerName || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
+              {{ localComplianceOfficerName || complianceOfficerName || 'Name' }} is nominated as Compliance Officer of our organization with effect from {{ currentDate }}
             </p>
             <div class="mt-6 space-y-1">
               <p class="text-justify">Authorized representative of {{ declarationInfo?.distributor_company_name || 'Company Name' }}</p>
@@ -132,11 +151,28 @@
               <p class="text-justify">Email Id: {{ declarationInfo?.distributor_email_address || 'Email' }}</p>
               <p class="text-justify">Contact number: {{ declarationInfo?.distributor_contact_number || 'Contact' }}</p>
               <p class="text-justify">
-                Sign and Seal: 
+                Sign and Seal:
               </p>
             </div>
           </div>
+        </div>
 
+        <!-- Compliance Officer Nomination Field (appears right after adoption form) -->
+        <div v-if="showDeclaration('Meril Distributor Compliance Policy Adoption Form') && userRole === 'Distributor'" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <label for="compliance-officer-name" class="block text-sm font-medium text-gray-700 mb-2">
+            Compliance Officer Name <span class="text-red-500">*</span>
+          </label>
+          <TextInput
+            id="compliance-officer-name"
+            v-model="localComplianceOfficerName"
+            type="text"
+            placeholder="Enter compliance officer name"
+            class="w-full"
+            required
+            :min-length="3"
+          />
+          <p v-if="complianceOfficerError" class="text-sm text-red-600 mt-1">{{ complianceOfficerError }}</p>
+          <p class="text-xs text-gray-500 mt-1">This person will be nominated as the compliance officer for your organization.</p>
         </div>
 
         <!-- Self Declaration -->
@@ -358,11 +394,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['certification-complete'])
+const emit = defineEmits(['certification-complete', 'officer-nominated', 'validation-changed'])
 
 const localName = ref('')
 const localDate = ref('')
 const nameError = ref('')
+const localComplianceOfficerName = ref('')
+const complianceOfficerError = ref('')
 const documentPreviews = ref({})
 const previewLoading = ref({})
 const previewErrors = ref({})
@@ -391,7 +429,17 @@ const currentDateTime = computed(() => {
 })
 
 const isValid = computed(() => {
-  return localName.value.trim().length >= 3
+  const isNameValid = localName.value.trim().length >= 3
+  // For adoption form (distributors), also check compliance officer name
+  const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
+    (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
+
+  if (isCompliancePolicyForm && props.userRole === 'Distributor') {
+    const isOfficerValid = localComplianceOfficerName.value.trim().length >= 3
+    return isNameValid && isOfficerValid
+  }
+
+  return isNameValid
 })
 
 const getSanitizedPreview = (docType) => {
@@ -498,7 +546,7 @@ const fetchDocumentPreview = (specificDocType = null) => {
       params: {
         course: props.course,
         document_type: docType,
-        compliance_officer_name: props.complianceOfficerName || localName.value || props.certificationData?.name || props.declarationInfo?.attendee_name
+        compliance_officer_name: localComplianceOfficerName.value || props.complianceOfficerName || localName.value || props.certificationData?.name || props.declarationInfo?.attendee_name
       },
       onSuccess: (data) => {
         if (data.success && data.html_content) {
@@ -569,9 +617,33 @@ const validateName = () => {
   return true
 }
 
+const validateComplianceOfficer = () => {
+  complianceOfficerError.value = ''
+  if (localComplianceOfficerName.value.trim().length < 3) {
+    complianceOfficerError.value = 'Compliance officer name must be at least 3 characters long'
+    return false
+  }
+  return true
+}
+
 const handleCertify = () => {
   if (!validateName()) {
     return
+  }
+
+  // For adoption form, also validate compliance officer
+  const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
+    (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
+
+  if (isCompliancePolicyForm && props.userRole === 'Distributor') {
+    if (!validateComplianceOfficer()) {
+      return
+    }
+    // Emit compliance officer nominated event
+    emit('officer-nominated', {
+      name: localComplianceOfficerName.value.trim(),
+      isValid: true
+    })
   }
 
   emit('certification-complete', {
@@ -605,6 +677,27 @@ watch(localName, (newName) => {
     }, 500)
   }
 })
+
+// Watch for compliance officer changes
+watch(localComplianceOfficerName, (newName) => {
+  const isValid = newName.trim().length >= 3
+  emit('validation-changed', isValid)
+
+  if (newName && Object.keys(documentPreviews.value).length > 0) {
+    // Debounce the preview update
+    clearTimeout(window.previewUpdateTimeout)
+    window.previewUpdateTimeout = setTimeout(() => {
+      fetchDocumentPreview()
+    }, 500)
+  }
+})
+
+// Watch for changes in compliance officer prop
+watch(() => props.complianceOfficerName, (newName) => {
+  if (newName && !localComplianceOfficerName.value) {
+    localComplianceOfficerName.value = newName
+  }
+}, { immediate: true })
 
 onMounted(() => {
   // Set current date/time

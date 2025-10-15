@@ -590,12 +590,22 @@ def upload_distributor_document_with_datetime(
         if not document_name:
             return {"success": False, "message": "Document name is required"}
 
+        # Truncate document_name to prevent length issues
+        if len(document_name) > 140:  # Standard Data field limit
+            document_name = document_name[:140]
+
         if not filename or not base64_file_data:
             return {"success": False, "message": "File data is required"}
 
         # Check that uploadDocumentName is a valid document type
         if not uploadDocumentName:
             return {"success": False, "message": "Document type (uploadDocumentName) is required."}
+
+        # Truncate the document name if it's too long to prevent CharacterLengthExceededError
+        max_length = 255
+        if len(uploadDocumentName) > max_length:
+            uploadDocumentName = uploadDocumentName[:max_length]
+
         valid_types = [
             "Meril Distributor Compliance Policy Adoption Form",
             "Distributor Self Declaration",
@@ -603,6 +613,20 @@ def upload_distributor_document_with_datetime(
             "Meril Distributor Compliance Policy",
             "Meril Distributor Compliance Policy for Endo"
         ]
+
+        # Create the document type record if it doesn't exist
+        try:
+            if not frappe.db.exists("Distributor Document Type", uploadDocumentName):
+                doc_type = frappe.get_doc({
+                    "doctype": "Distributor Document Type",
+                    "name1": uploadDocumentName
+                })
+                doc_type.insert(ignore_permissions=True)
+                frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Error creating document type: {str(e)}")
+            # Continue with existing logic if creation fails
+
         if uploadDocumentName not in valid_types:
             # Try to get from DocType if the hardcoded list fails
             try:
@@ -662,8 +686,13 @@ def upload_distributor_document_with_datetime(
             frappe.log_error(f"Base64 decode failed: {str(e)}")
             return {"success": False, "message": "Invalid file data format. Please try uploading the file again."}
 
-        # Sanitize filename
+        # Sanitize filename and truncate if necessary
         filename_ascii = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode("ascii")
+        if len(filename_ascii) > 140:  # Standard Data field limit
+            # Keep the file extension
+            name_part, ext = filename_ascii.rsplit('.', 1) if '.' in filename_ascii else (filename_ascii, '')
+            max_name_length = 140 - len(ext) - 1 if ext else 139
+            filename_ascii = name_part[:max_name_length] + ('.' + ext if ext else '')
 
         # Update parent with metadata (no file attachment on parent)
         doc.document_name = document_name
@@ -675,7 +704,9 @@ def upload_distributor_document_with_datetime(
             elif hasattr(doc, "signature_style"):
                 doc.signature_style = signature_type
         if name and hasattr(doc, "entered_name"):
-            doc.entered_name = name
+            # Truncate name to prevent character length errors
+            truncated_name = name[:140] if len(name) > 140 else name
+            doc.entered_name = truncated_name
 
         # Append upload record in child table with document name, datetime, and file link
         try:
