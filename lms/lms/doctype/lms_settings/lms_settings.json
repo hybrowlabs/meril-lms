@@ -73,6 +73,10 @@
   "meril_distributor_compliance_policy_adoption_form",
   "meril_distributor_compliance_policy",
   "meril_distributor_compliance_policy_for_endo",
+  "employee_documents_section",
+  "employee_declaration_form",
+  "column_break_employee_docs",
+  "employee_completion_certificate",
   "user_creation_settings_section",
   "auto_create_distributor_users",
   "column_break_user_creation",
@@ -456,6 +460,27 @@
    "fieldname": "meril_distributor_compliance_policy_for_endo",
    "fieldtype": "Check",
    "label": "Meril Distributor Compliance Policy for Endo"
+  },
+  {
+   "fieldname": "employee_documents_section",
+   "fieldtype": "Section Break",
+   "label": "Employee Documents"
+  },
+  {
+   "default": "0",
+   "fieldname": "employee_declaration_form",
+   "fieldtype": "Check",
+   "label": "Employee Declaration Form"
+  },
+  {
+   "fieldname": "column_break_employee_docs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "employee_completion_certificate",
+   "fieldtype": "Check",
+   "label": "Employee Completion Certificate"
   },
   {
    "fieldname": "user_creation_settings_section",

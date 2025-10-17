@@ -168,6 +168,10 @@ const props = defineProps({
   doctype: {
     type: String,
     default: 'Distributor Course Documents'
+  },
+  userRole: {
+    type: String,
+    default: 'Distributor'
   }
 })
 
@@ -252,8 +256,14 @@ const downloadSystemDocument = async (documentName) => {
         throw new Error("Course document record ID not found")
       }
 
+      // Determine the correct doctype based on document name
+      let doctype = props.doctype
+      if (documentName.includes('Employee') || documentName.includes('employee')) {
+        doctype = 'Employee Course Documents'
+      }
+
       const params = new URLSearchParams({
-        doctype: props.doctype,
+        doctype: doctype,
         name: props.courseDocumentsRecordId,
         format: documentName,
         no_letterhead: '1',

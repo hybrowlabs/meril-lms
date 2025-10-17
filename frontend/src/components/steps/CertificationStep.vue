@@ -94,31 +94,6 @@
           </div>
         </template>
 
-        <!-- Show preview for Employee documents -->
-        <template v-if="userRole === 'Employee'">
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <h4 class="text-center font-semibold mb-4">Employee Declaration Form - Preview</h4>
-            <div v-if="documentPreviews['Employee Declaration Form']"
-                 class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
-                 style="max-height: 600px; min-height: 200px;"
-                 v-html="getSanitizedPreview('Employee Declaration Form')">
-            </div>
-            <div v-else-if="previewLoading['Employee Declaration Form']" class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
-              <div class="flex items-center">
-                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-3"></div>
-                <span class="text-gray-600">Loading preview...</span>
-              </div>
-            </div>
-            <div v-else class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 flex items-center justify-center" style="min-height: 200px;">
-              <button @click="fetchDocumentPreview('Employee Declaration Form')" class="text-blue-600 hover:text-blue-800">
-                Load Preview
-              </button>
-            </div>
-            <div class="mt-2 text-xs text-gray-500 text-center">
-              <span>Preview shows the actual document content as it will appear when downloaded</span>
-            </div>
-          </div>
-        </template>
       </div>
 
       <!-- Static Fallback for Distributor Declaration -->
@@ -261,16 +236,6 @@
         </div>
       </div>
 
-      <!-- Dynamic Preview Content for Employee -->
-      <div v-else-if="dynamicPreviewContent && !useStaticPreview && userRole === 'Employee'" class="space-y-6">
-        <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <div
-            class="bg-white border-2 border-dotted border-gray-300 rounded-lg p-4 overflow-auto"
-            style="max-height: 600px;"
-            v-html="sanitizedPreviewContent"
-          ></div>
-        </div>
-      </div>
 
       <!-- Static Fallback for Employee Declaration -->
       <div v-else-if="userRole === 'Employee'" class="bg-gray-50 border border-gray-200 rounded-lg p-6">
@@ -315,8 +280,8 @@
 
     <!-- Certification Form -->
     <div class="max-w-md mx-auto space-y-4">
-      <!-- Name field for non-compliance forms -->
-      <div v-if="!showDeclaration('Meril Distributor Compliance Policy Adoption Form')">
+      <!-- Name field for non-compliance forms and non-employee users -->
+      <div v-if="!showDeclaration('Meril Distributor Compliance Policy Adoption Form') && userRole !== 'Employee'">
         <label for="certification-name" class="block text-sm font-medium text-gray-700 mb-1">
           Name <span class="text-red-500">*</span>
         </label>
@@ -352,7 +317,7 @@
         @click="handleCertify"
         :disabled="!isValid"
       >
-        I Certify
+        {{ userRole === 'Employee' ? 'Certify' : 'I Certify' }}
       </Button>
     </div>
   </div>
@@ -429,6 +394,11 @@ const currentDateTime = computed(() => {
 })
 
 const isValid = computed(() => {
+  // For employees, no name validation required (comes from Employee doctype)
+  if (props.userRole === 'Employee') {
+    return true
+  }
+
   const isNameValid = localName.value.trim().length >= 3
   // For adoption form (distributors), also check compliance officer name
   const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
@@ -463,6 +433,15 @@ const getDocumentTypes = () => {
   if (!documentConfiguration.value || !documentConfiguration.value.document_types) {
     return []
   }
+
+  // For employees, only get employee-specific documents that require declaration
+  if (props.userRole === 'Employee') {
+    return documentConfiguration.value.document_types
+      .filter(doc => doc.requires_declaration && (doc.name.includes('Employee') || doc.key === 'employee_declaration_form'))
+      .map(doc => doc.name)
+  }
+
+  // For distributors, get uploadable documents that require declaration
   return documentConfiguration.value.document_types
     .filter(doc => doc.requires_declaration && doc.uploadable)
     .map(doc => doc.name)
@@ -472,6 +451,15 @@ const getAllDocumentTypes = () => {
   if (!documentConfiguration.value || !documentConfiguration.value.document_types) {
     return []
   }
+
+  // For employees, only return employee-specific documents
+  if (props.userRole === 'Employee') {
+    return documentConfiguration.value.document_types
+      .filter(doc => doc.name.includes('Employee') || doc.key === 'employee_declaration_form')
+      .map(doc => doc.name)
+  }
+
+  // For distributors, return all document types
   return documentConfiguration.value.document_types.map(doc => doc.name)
 }
 
@@ -627,7 +615,8 @@ const validateComplianceOfficer = () => {
 }
 
 const handleCertify = () => {
-  if (!validateName()) {
+  // Skip name validation for employees
+  if (props.userRole !== 'Employee' && !validateName()) {
     return
   }
 
@@ -646,8 +635,13 @@ const handleCertify = () => {
     })
   }
 
+  // For employees, use employee name from declaration info; for others use local name
+  const certificationName = props.userRole === 'Employee'
+    ? (props.declarationInfo?.employee_name || props.declarationInfo?.attendee_name || 'Employee')
+    : localName.value.trim()
+
   emit('certification-complete', {
-    name: localName.value.trim(),
+    name: certificationName,
     date: localDate.value
   })
 }

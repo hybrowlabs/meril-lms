@@ -1065,6 +1065,52 @@ def apply_country_based_course_filtering(filters):
 	return filters
 
 
+def apply_role_based_course_filtering(filters):
+	"""Apply role-based filtering for courses based on user role."""
+	if filters is None:
+		filters = {}
+
+	# Skip filtering for privileged users
+	if has_privileged_role():
+		return filters
+
+	# Get user's roles
+	user_roles = frappe.get_roles(frappe.session.user)
+
+	if not user_roles:
+		# If user has no roles, they won't see any courses
+		filters["name"] = ["in", []]
+		return filters
+
+	# Get courses that are assigned to user's roles or "All"
+	# Build the query to check custom_assigned_to_role field
+	role_placeholders = ",".join(["%s"] * len(user_roles))
+	query_params = tuple(user_roles) + ("All",)
+
+	assigned_courses = frappe.db.sql(f"""
+		SELECT DISTINCT name
+		FROM `tabLMS Course`
+		WHERE (custom_assigned_to_role IN ({role_placeholders}) OR custom_assigned_to_role = %s)
+		AND published = 1
+	""", query_params, as_list=True)
+
+	course_names = [course[0] for course in assigned_courses] if assigned_courses else []
+
+	# Apply filter to show only courses assigned to user's roles
+	if course_names:
+		if "name" in filters and isinstance(filters["name"], list) and filters["name"][0] == "in":
+			# If there's already a name filter, intersect with it
+			existing_courses = set(filters["name"][1])
+			filters["name"] = ["in", list(existing_courses.intersection(set(course_names)))]
+		else:
+			filters["name"] = ["in", course_names]
+	else:
+		# No courses assigned to user's roles
+		filters["name"] = ["in", []]
+
+	return filters
+
+
 @frappe.whitelist(allow_guest=False)
 def get_courses(filters=None, start=0, page_length=20):
 	"""Returns the list of courses."""
@@ -1074,6 +1120,9 @@ def get_courses(filters=None, start=0, page_length=20):
 
 	# Apply country-based filtering for non-privileged users
 	filters = apply_country_based_course_filtering(filters)
+
+	# Apply role-based filtering for non-privileged users
+	filters = apply_role_based_course_filtering(filters)
 
 	filters, or_filters, show_featured = update_course_filters(filters)
 	fields = get_course_fields()
@@ -1237,6 +1286,19 @@ def get_course_details(course):
 					frappe.throw(_("You do not have access to view this course."))
 			else:
 				frappe.throw(_("Please set your country in your user profile to access courses."))
+
+			# Check if course is assigned to user's role
+			user_roles = frappe.get_roles(frappe.session.user)
+			course_assigned_role = frappe.db.get_value("LMS Course", course, "custom_assigned_to_role")
+
+			# Allow access if course is assigned to "All" or if user has the assigned role
+			has_role_access = (
+				course_assigned_role == "All" or
+				course_assigned_role in user_roles
+			)
+
+			if not has_role_access:
+				frappe.throw(_("You do not have the required role to access this course."))
 
 	course_details = frappe.db.get_value(
 		"LMS Course",

@@ -1,7 +1,7 @@
 {
  "absolute_value": 0,
  "align_labels_right": 0,
- "creation": "2025-09-10 10:33:05.014791",
+ "creation": "2025-10-17 10:51:44.942885",
  "css": "*{\r\n  font-family: sans-serif;\r\n  font-size: 15px;\r\n  box-sizing: border-box;\r\n  text-align: justify;\r\n  padding: 0;\r\n  margin: 0;\r\n}\r\n\r\n.sign {\r\n  font-family: SignFont,DefaultSign, \"Sans-serif\";\r\n  font-weight: bolder !important;\r\n  font-size: 1.3rem;\r\n  position: relative;\r\n  z-index: 2;\r\n}\r\n\r\narticle{\r\n  width: 100%;\r\n  height: 29.7cm;\r\n  padding: 0 .5cm;\r\n  page-break-after: always;\r\n}\r\n\r\n@media screen{\r\n    article{\r\n  width: 100%;\r\n  height: 29.7cm;\r\n  padding: 0 1.9cm;\r\n  page-break-after: always;\r\n}\r\n}\r\n\r\n\r\n\r\n.title{\r\n  text-align: center;\r\n  font-size: 20px;\r\n  width: 12cm;\r\n  margin: auto;\r\n  text-decoration: underline;\r\n}\r\n\r\nimg[alt=\"meril-logo\"]{\r\n  display: block;\r\n  margin-left: auto;\r\n  width: 3cm;\r\n}\r\n\r\np{\r\n  padding-top: 0.4cm;\r\n}\r\n\r\n.info:nth-of-type(1){\r\n  margin-top: 0.9cm;\r\n}\r\n.info{\r\n  margin-top: 0.3cm;\r\n}\r\n\r\n.print-format{\r\n    margin: 0;\r\n    padding: 0;\r\n}\r\n\r\nol{\r\n    padding-left: 1cm;\r\n}\r\n*::-webkit-scrollbar {\r\n    width: 0 !important;\r\n    height: 0 !important;\r\n}\r\n\r\n@page {\r\n        size: A5 portrait;\r\n        margin: 0;\r\n}",
  "custom_format": 1,
  "default_print_language": "en",
@@ -17,7 +17,7 @@
  "margin_left": 15.0,
  "margin_right": 15.0,
  "margin_top": 15.0,
- "modified": "2025-09-10 12:13:41.787359",
+ "modified": "2025-10-17 13:48:58.268470",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Declaration Form",

@@ -216,7 +216,8 @@
 							:quizId="lesson.data.quiz_id"
 						/>
 					</div>
-					<div class="mt-20" ref="discussionsContainer">
+					<!-- Questions/Discussion section commented out - removed from lesson page -->
+					<!-- <div class="mt-20" ref="discussionsContainer">
 						<Discussions
 							v-if="allowDiscussions"
 							:title="'Questions'"
@@ -224,7 +225,7 @@
 							:docname="lesson.data.name"
 							:key="lesson.data.name"
 						/>
-					</div>
+					</div> -->
 				</div>
 			</div>
 			<div class="sticky top-10">
@@ -314,7 +315,8 @@ import {
 	MessageCircleQuestion,
 	CheckCircle,
 } from 'lucide-vue-next'
-import Discussions from '@/components/Discussions.vue'
+// Discussions component import commented out - Questions section removed
+// import Discussions from '@/components/Discussions.vue'
 import { getEditorTools, enablePlyr } from '@/utils'
 import { sessionStore } from '@/stores/session'
 import EditorJS from '@editorjs/editorjs'
@@ -335,7 +337,8 @@ const lessonProgress = ref(0)
 const lessonContainer = ref(null)
 const zenModeEnabled = ref(false)
 const hasQuiz = ref(false)
-const discussionsContainer = ref(null)
+// Discussions container ref commented out - Questions section removed
+// const discussionsContainer = ref(null)
 const timer = ref(0)
 const { brand } = sessionStore()
 let timerFrame
@@ -1107,19 +1110,20 @@ const showDiscussionsInZenMode = () => {
 		allowDiscussions.value = false
 	} else {
 		allowDiscussions.value = true
-		scrollDiscussionsIntoView()
+		// scrollDiscussionsIntoView() // Commented out - Questions section removed
 	}
 }
 
-const scrollDiscussionsIntoView = () => {
-	nextTick(() => {
-		discussionsContainer.value?.scrollIntoView({
-			behavior: 'smooth',
-			block: 'center',
-			inline: 'nearest',
-		})
-	})
-}
+// Scroll discussions function commented out - Questions section removed
+// const scrollDiscussionsIntoView = () => {
+// 	nextTick(() => {
+// 		discussionsContainer.value?.scrollIntoView({
+// 			behavior: 'smooth',
+// 			block: 'center',
+// 			inline: 'nearest',
+// 		})
+// 	})
+// }
 
 const redirectToLogin = () => {
 	window.location.href = `/login?redirect-to=/lms/courses/${props.courseName}`

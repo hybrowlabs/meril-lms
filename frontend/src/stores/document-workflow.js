@@ -7,7 +7,6 @@ const state = reactive({
   // Modal and workflow state
   isOpen: false,
   currentStep: 1,
-  totalSteps: 4,
   courseName: null,
 
   // User and role information
@@ -18,7 +17,9 @@ const state = reactive({
   enabledDocuments: {
     distributor_self_declaration: false,
     meril_distributor_compliance_code_of_conduct: false,
-    meril_distributor_compliance_policy_adoption_form: false
+    meril_distributor_compliance_policy_adoption_form: false,
+    employee_declaration_form: false,
+    employee_completion_certificate: false
   },
 
   // Endo division detection
@@ -74,6 +75,11 @@ const state = reactive({
 })
 
 // Computed properties
+const totalSteps = computed(() => {
+  // Both Employee and Distributor workflows: 4 steps (Certify → Download → Upload → Complete)
+  return 4
+})
+
 const isAllDocumentsUploaded = computed(() => {
   // Only count uploadable documents, not download-only ones
   const uploadableDocuments = state.requiredDocuments.filter(doc => !doc.downloadOnly)
@@ -94,14 +100,20 @@ const currentDocumentToUpload = computed(() => {
 })
 
 const progressPercentage = computed(() => {
-  if (state.totalSteps === 0) return 0
-  return Math.round((state.currentStep / state.totalSteps) * 100)
+  if (totalSteps.value === 0) return 0
+  return Math.round((state.currentStep / totalSteps.value) * 100)
 })
 
 const canProceedToNextStep = computed(() => {
   switch (state.currentStep) {
-    case 1: // Certification step (includes compliance officer nomination)
-      return state.certification.isCompleted && state.certification.name.trim().length >= 3 && state.complianceOfficerName.trim().length >= 3
+    case 1: // Certification step
+      if (state.userRole === 'Employee') {
+        // Employees: no compliance officer needed, just certification completion
+        return state.certification.isCompleted
+      } else {
+        // Distributors: need compliance officer nomination
+        return state.certification.isCompleted && state.certification.name.trim().length >= 3 && state.complianceOfficerName.trim().length >= 3
+      }
     case 2: // Download step
       return state.downloads.isStepCompleted
     case 3: // Upload step
@@ -129,7 +141,7 @@ const closeModal = () => {
 }
 
 const nextStep = () => {
-  if (canProceedToNextStep.value && state.currentStep < state.totalSteps) {
+  if (canProceedToNextStep.value && state.currentStep < totalSteps.value) {
     state.currentStep++
   }
 }
@@ -141,7 +153,7 @@ const previousStep = () => {
 }
 
 const goToStep = (step) => {
-  if (step >= 1 && step <= state.totalSteps) {
+  if (step >= 1 && step <= totalSteps.value) {
     state.currentStep = step
   }
 }
@@ -218,7 +230,9 @@ const initializeWorkflow = async () => {
       state.enabledDocuments = {
         distributor_self_declaration: !!enabledResponse.distributor_self_declaration,
         meril_distributor_compliance_code_of_conduct: !!enabledResponse.meril_distributor_compliance_code_of_conduct,
-        meril_distributor_compliance_policy_adoption_form: !!enabledResponse.meril_distributor_compliance_policy_adoption_form
+        meril_distributor_compliance_policy_adoption_form: !!enabledResponse.meril_distributor_compliance_policy_adoption_form,
+        employee_declaration_form: !!enabledResponse.employee_declaration_form,
+        employee_completion_certificate: !!enabledResponse.employee_completion_certificate
       }
 
       if (enabledResponse.degradedMode) {
@@ -329,12 +343,22 @@ const updateRequiredDocuments = async () => {
 
     if (response && response.success) {
       // Convert the API response to the store format
-      const documents = response.document_types.map(doc => ({
+      let documents = response.document_types.map(doc => ({
         key: doc.key,
         name: doc.name,
         requiresDeclaration: doc.requires_declaration,
         downloadOnly: !doc.uploadable
       }))
+
+      // Filter documents based on user role
+      if (state.userRole === 'Employee') {
+        // For employees, only include employee-specific documents
+        documents = documents.filter(doc =>
+          doc.name.includes('Employee') ||
+          doc.key === 'employee_declaration_form' ||
+          doc.key === 'employee_completion_certificate'
+        )
+      }
 
       state.requiredDocuments = documents
 
@@ -349,9 +373,8 @@ const updateRequiredDocuments = async () => {
 
       console.log('Updated documents from API:', {
         documents: documents.length,
-        hasEndo: state.distributorDivisions.hasEndo,
-        hasNonEndo: state.distributorDivisions.hasNonEndo,
-        userRole: state.userRole
+        userRole: state.userRole,
+        documentNames: documents.map(d => d.name)
       })
     } else {
       console.error('Failed to get document configuration:', response?.message)
@@ -436,7 +459,7 @@ const determineInitialStep = () => {
   // Check if user has completed certification step
   const isCertified = state.certification.isCompleted
 
-  // If documents are already submitted, go to completion step
+  // Both Employee and Distributor workflows (4 steps: Certify → Download → Upload → Complete)
   if (isAllDocumentsUploaded.value) {
     state.currentStep = 4
     state.certification.isCompleted = true
@@ -452,7 +475,7 @@ const determineInitialStep = () => {
     state.currentStep = 2
     state.certification.isCompleted = true
   } else {
-    // Start from beginning - certification step (now includes nomination)
+    // Start from beginning - certification step
     state.currentStep = 1
   }
 }
@@ -525,6 +548,7 @@ const getDownloadableDocuments = () => {
 
 export {
   state,
+  totalSteps,
   isAllDocumentsUploaded,
   currentDocumentToUpload,
   progressPercentage,

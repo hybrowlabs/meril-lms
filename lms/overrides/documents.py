@@ -295,7 +295,12 @@ def has_user_submited_document(course=None):
             )
             # If 'Employee Course Documents' does not exist, create it.
 
-            documents_list = ["Employee Declaration Form", "Employee Completion Certificate"]
+            # Get document types from Employee Document Type master
+            employee_doc_types = frappe.get_all(
+                "Employee Document Type",
+                fields=["name1"]
+            )
+            documents_list = [doc.name1 for doc in employee_doc_types] if employee_doc_types else ["Employee Declaration Form", "Employee Completion Certificate"]
 
             if not exists:
                 return {
@@ -1082,6 +1087,8 @@ def get_upload_download_docuemtn_enabled():
     - meril_distributor_compliance_policy_adoption_form
     - meril_distributor_compliance_policy
     - meril_distributor_compliance_policy_for_endo
+    - employee_declaration_form
+    - employee_completion_certificate
 
     Returns:
         dict: {
@@ -1089,7 +1096,9 @@ def get_upload_download_docuemtn_enabled():
             "meril_distributor_compliance_code_of_conduct": bool,
             "meril_distributor_compliance_policy_adoption_form": bool,
             "meril_distributor_compliance_policy": bool,
-            "meril_distributor_compliance_policy_for_endo": bool
+            "meril_distributor_compliance_policy_for_endo": bool,
+            "employee_declaration_form": bool,
+            "employee_completion_certificate": bool
         }
     """
     user = frappe.session.user
@@ -1114,7 +1123,9 @@ def get_upload_download_docuemtn_enabled():
         "meril_distributor_compliance_code_of_conduct": bool(getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False)),
         "meril_distributor_compliance_policy_adoption_form": bool(getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False)),
         "meril_distributor_compliance_policy": bool(getattr(lms_settings, "meril_distributor_compliance_policy", False)),
-        "meril_distributor_compliance_policy_for_endo": bool(getattr(lms_settings, "meril_distributor_compliance_policy_for_endo", False))
+        "meril_distributor_compliance_policy_for_endo": bool(getattr(lms_settings, "meril_distributor_compliance_policy_for_endo", False)),
+        "employee_declaration_form": bool(getattr(lms_settings, "employee_declaration_form", False)),
+        "employee_completion_certificate": bool(getattr(lms_settings, "employee_completion_certificate", False))
     }
 
 
@@ -1172,81 +1183,133 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
 
-    if not name:
+    roles = [role.role for role in user_doc.roles]
+    user_role = None
+    if "Distributor" in roles:
+        user_role = "Distributor"
+    elif "Employee" in roles:
+        user_role = "Employee"
+    else:
+        return {
+            "success": False,
+            "message": "This document can only be generated for Distributor or Employee users."
+        }
+
+    # For employees, name is not required (comes from employee record)
+    if user_role == "Distributor" and not name:
         return {
             "success": False,
             "message": "No compliance officer name provided"
         }
 
-    roles = [role.role for role in user_doc.roles]
-    if "Distributor" not in roles:
+    # Get user-specific document based on role
+    try:
+        if user_role == "Distributor":
+            user_doc_record = frappe.get_doc("Distributor", {"user_id": user})
+        else:  # Employee
+            user_doc_record = frappe.get_doc("Employee", {"user_id": user})
+    except frappe.DoesNotExistError:
         return {
             "success": False,
-            "message": "This document can only be generated for Distributor users."
+            "error": f"No {user_role} record found for user {user}. Please contact administrator."
         }
-
-    distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
 
     # If course is provided, generate PDF using print format
     if course or use_print_format:
         try:
-            # Check for required fields and throw error if missing
-            if not distributor_doc.meril_company_table or not distributor_doc.meril_company_table[0].meril_company_name:
-                frappe.throw("Meril company name is missing in distributor document.")
-            if not distributor_doc.distributor_company_name:
-                frappe.throw("Distributor company name is missing in distributor document.")
-            if not distributor_doc.attendee_name:
-                frappe.throw("Attendee name is missing in distributor document.")
-            if not distributor_doc.designation:
-                frappe.throw("Designation is missing in distributor document.")
-            if not distributor_doc.distributor_email_address and not user_doc.email:
-                frappe.throw("Email address is missing in distributor and user document.")
-            if not distributor_doc.distributor_contact_number and not user_doc.mobile_no:
-                frappe.throw("Contact number is missing in distributor and user document.")
+            if user_role == "Distributor":
+                # Check for required fields and throw error if missing
+                if not user_doc_record.meril_company_table or not user_doc_record.meril_company_table[0].meril_company_name:
+                    frappe.throw("Meril company name is missing in distributor document.")
+                if not user_doc_record.distributor_company_name:
+                    frappe.throw("Distributor company name is missing in distributor document.")
+                if not user_doc_record.attendee_name:
+                    frappe.throw("Attendee name is missing in distributor document.")
+                if not user_doc_record.designation:
+                    frappe.throw("Designation is missing in distributor document.")
+                if not user_doc_record.distributor_email_address and not user_doc.email:
+                    frappe.throw("Email address is missing in distributor and user document.")
+                if not user_doc_record.distributor_contact_number and not user_doc.mobile_no:
+                    frappe.throw("Contact number is missing in distributor and user document.")
+            # Employee role - different validation logic
+            elif user_role == "Employee":
+                print(f"Employee validation - employee_name: {getattr(user_doc_record, 'employee_name', 'MISSING')}")
+                print(f"Employee validation - company: {getattr(user_doc_record, 'company', 'MISSING')}")
+                if not user_doc_record.employee_name:
+                    frappe.throw("Employee name is missing in employee document.")
+                if not user_doc_record.company:
+                    frappe.throw("Company is missing in employee document.")
 
-            # Get or create Distributor Course Documents record
+            # Get or create Course Documents record based on user role
             doc_name = None
+            doctype = "Distributor Course Documents" if user_role == "Distributor" else "Employee Course Documents"
+            user_field = "distributor" if user_role == "Distributor" else "employee"
+
+            print(f"Document generation - doctype: {doctype}, user_field: {user_field}, user_doc_record.name: {user_doc_record.name}")
+
             if course:
+                print(f"Looking for existing document: {doctype} with {user_field}: {user_doc_record.name}, course: {course}")
                 doc_name = frappe.db.exists(
-                    "Distributor Course Documents",
-                    {"distributor": distributor_doc.name, "course": course}
+                    doctype,
+                    {user_field: user_doc_record.name, "course": course}
                 )
+                print(f"Existing document found: {doc_name}")
 
             if doc_name:
-                doc = frappe.get_doc("Distributor Course Documents", doc_name)
+                doc = frappe.get_doc(doctype, doc_name)
             elif course:
-                doc = frappe.get_doc({
-                    "doctype": "Distributor Course Documents",
-                    "distributor": distributor_doc.name,
+                doc_data = {
+                    "doctype": doctype,
+                    user_field: user_doc_record.name,
                     "course": course,
-                    "has_submitted_documents": 0
-                })
+                    "submission_datetime": now_datetime()
+                }
+                if user_role == "Distributor":
+                    doc_data["has_submitted_documents"] = 0
+                    doc_data["entered_name"] = name
+                else:  # Employee
+                    # Set default values for employee documents
+                    doc_data["has_submitted_documents"] = 0
+                    doc_data["entered_name"] = user_doc_record.employee_name
+
+                doc = frappe.get_doc(doc_data)
                 doc.insert(ignore_permissions=True)
             else:
                 # Create a temporary document for print format generation
-                doc = frappe.get_doc({
-                    "doctype": "Distributor Course Documents",
-                    "distributor": distributor_doc.name,
+                doc_data = {
+                    "doctype": doctype,
+                    user_field: user_doc_record.name,
                     "course": "",
-                    "has_submitted_documents": 0,
-                    "entered_name": name,
                     "submission_datetime": now_datetime()
-                })
+                }
+                if user_role == "Distributor":
+                    doc_data["has_submitted_documents"] = 0
+                    doc_data["entered_name"] = name
+                else:  # Employee
+                    # Set default values for employee documents
+                    doc_data["has_submitted_documents"] = 0
+                    doc_data["entered_name"] = user_doc_record.employee_name
+
+                doc = frappe.get_doc(doc_data)
                 # Don't save temporary document
                 doc.name = "temp-" + frappe.generate_hash(length=10)
 
-            # Update the entered_name field with the compliance officer name
-            doc.entered_name = name
+            # Update fields based on user role
+            if user_role == "Distributor":
+                doc.entered_name = name
             doc.submission_datetime = now_datetime()
             if course:  # Only save if course is provided
                 doc.save(ignore_permissions=True)
 
-            # Determine which print format to use based on document_type
-            print_format_name = document_type or "Meril Distributor Compliance Policy Adoption Form"
+            # Determine which print format to use based on document_type and user role
+            if user_role == "Employee":
+                print_format_name = document_type or "Employee Declaration Form"
+            else:
+                print_format_name = document_type or "Meril Distributor Compliance Policy Adoption Form"
 
             # Generate PDF using the print format
             pdf_content = frappe.get_print(
-                doctype="Distributor Course Documents",
+                doctype=doctype,
                 name=doc.name if course else None,
                 doc=doc if not course else None,  # Pass doc object if temporary
                 print_format=print_format_name,
@@ -1256,8 +1319,12 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
 
             pdf_content_base64 = base64.b64encode(pdf_content).decode('utf-8')
 
-            # Generate appropriate filename based on document type
-            file_name = (document_type or "Meril_Distributor_Compliance_Policy_Adoption_Form").replace(" ", "_") + ".pdf"
+            # Generate appropriate filename based on document type and user role
+            if user_role == "Employee":
+                default_name = "Employee_Declaration_Form"
+            else:
+                default_name = "Meril_Distributor_Compliance_Policy_Adoption_Form"
+            file_name = (document_type or default_name).replace(" ", "_") + ".pdf"
 
             return {
                 "success": True,
@@ -1266,10 +1333,34 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
                 "document_id": doc.name if course else None
             }
         except Exception as e:
-            frappe.log_error(f"Error generating PDF from print format: {str(e)}")
+            error_msg = str(e)
+            print(f"Error generating PDF from print format: {error_msg}")
+            print(f"Exception type: {type(e).__name__}")
+            print(f"Exception args: {e.args}")
+            print(f"Document type: {document_type}")
+            print(f"User role: {user_role}")
+            print(f"Print format name: {print_format_name if 'print_format_name' in locals() else 'Not set'}")
+            print(f"Course: {course}")
+            print(f"Doctype: {doctype if 'doctype' in locals() else 'Not set'}")
+            print(f"Document name: {doc.name if 'doc' in locals() and hasattr(doc, 'name') else 'Not set'}")
+
+            # Print full traceback for debugging
+            import traceback
+            print("Full traceback:")
+            traceback.print_exc()
+
+            frappe.log_error(f"Error generating PDF from print format: {error_msg}")
             return {
                 "success": False,
-                "error": str(e)
+                "error": error_msg,
+                "debug_info": {
+                    "document_type": document_type,
+                    "user_role": user_role,
+                    "print_format_name": print_format_name if 'print_format_name' in locals() else 'Not set',
+                    "course": course,
+                    "doctype": doctype if 'doctype' in locals() else 'Not set',
+                    "exception_type": type(e).__name__
+                }
             }
 
     # Original DOCX generation with signature
@@ -1572,60 +1663,12 @@ def get_declaration_info():
         return {"success": False, "message": "User is not a Distributor or Employee"}
 
 
-@frappe.whitelist(allow_guest=False)
-def get_employee_signature(signature, signature_font_type, course):
-    user = frappe.session.user
-
-    # Validate user and course
-    if not course:
-        return {"success": False, "message": "Course is required."}
-
-    # Check course exists
-    if not frappe.db.exists("LMS Course", course):
-        return {"success": False, "message": "Course does not exist."}
-
-    # Check enrollment and completion
-    enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
-    if not enrollment:
-        return {"success": False, "message": "User is not enrolled in this course.", "enrollment_required": True}
-    enrollment_name, progress = enrollment
-    if not progress or int(progress) < 100:
-        return {"success": False, "message": "Course progress is not completed.", "progress": progress or 0}
-
-    # Get employee record
-    try:
-        employee_doc = frappe.get_doc("Employee", {"user_id": user})
-    except frappe.DoesNotExistError:
-        return {"success": False, "message": "Employee record not found."}
-
-    # Check if Employee Course Documents exists for this employee and course
-    employee_course_doc_name = frappe.db.exists(
-        "Employee Course Documents",
-        {"employee": employee_doc.name, "course": course}
-    )
-
-    if not employee_course_doc_name:
-        # Create the Employee Course Documents record if not exists
-        employee_course_doc = frappe.get_doc({
-            "doctype": "Employee Course Documents",
-            "employee": employee_doc.name,
-            "course": course,
-        })
-        employee_course_doc.insert(ignore_permissions=True)
-        employee_course_doc_name = employee_course_doc.name
-
-    # Check if signature already taken
-    employee_course_doc = frappe.get_doc("Employee Course Documents", employee_course_doc_name)
-    if employee_course_doc.signature and employee_course_doc.singature_style:
-        return {"success": False, "message": "Signature already taken for this course.", "already_signed": True}
-
-    # Save signature, font type, and submission datetime
-    employee_course_doc.signature = signature
-    employee_course_doc.singature_style = signature_font_type
-    employee_course_doc.submission_datetime = now_datetime()
-    employee_course_doc.save(ignore_permissions=True)
-
-    return {"success": True, "message": "Signature taken successfully."}
+# Employee signature functionality removed - no longer required
+# @frappe.whitelist(allow_guest=False)
+# def get_employee_signature(signature, signature_font_type, course):
+#     # This function has been disabled as signature functionality
+#     # is no longer required for employee documents
+#     return {"success": False, "message": "Signature functionality is no longer available for employees."}
 
 
 @frappe.whitelist(allow_guest=False)
@@ -1751,17 +1794,25 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
 
             if not doc:
                 # Create a temporary document for preview
-                doc = frappe.get_doc({
+                doc_data = {
                     "doctype": "Employee Course Documents",
                     "employee": employee_doc.name,
                     "course": course or "",
-                    "submission_datetime": now_datetime()
-                })
+                    "submission_datetime": now_datetime(),
+                    "entered_name": employee_doc.employee_name,
+                    "has_submitted_documents": 0
+                }
+
+
+                doc = frappe.get_doc(doc_data)
                 # Generate a temporary name without saving
                 doc.name = "preview-" + frappe.generate_hash(length=10)
 
-            # Use Employee Declaration Form print format
-            print_format_name = "Employee Declaration Form"
+            # Determine print format based on document type or use default
+            if document_type and document_type in ["Employee Declaration Form", "Employee Completion Certificate"]:
+                print_format_name = document_type
+            else:
+                print_format_name = "Employee Declaration Form"  # Default
 
             # Generate HTML using the print format
             html_content = frappe.get_print(
@@ -1776,7 +1827,7 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
             return {
                 "success": True,
                 "html_content": html_content,
-                "document_type": "Employee Declaration Form",
+                "document_type": document_type or "Employee Declaration Form",
                 "print_format": print_format_name
             }
 
@@ -1787,10 +1838,13 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
             }
 
     except Exception as e:
-        frappe.log_error(f"Error generating document preview: {str(e)}")
+        error_msg = str(e)
+        # Truncate error message for logging to avoid CharacterLengthExceededError
+        log_msg = error_msg[:100] + "..." if len(error_msg) > 100 else error_msg
+        frappe.log_error(f"Error generating document preview: {log_msg}")
         return {
             "success": False,
-            "message": f"Error generating preview: {str(e)}"
+            "message": f"Error generating preview: {error_msg}"
         }
 
 @frappe.whitelist(allow_guest=False)
@@ -1957,17 +2011,53 @@ def get_document_configuration(course=None):
             result["download_only_documents"] = download_only_documents
 
         elif user_role == "Employee":
-            # For employees, only show employee declaration form
-            doc = {
-                "key": "employee_declaration_form",
-                "name": "Employee Declaration Form",
-                "requires_declaration": True,
-                "uploadable": True
-            }
-            result["document_types"] = [doc]
-            result["uploadable_documents"] = [doc]
+            # Get enabled employee document flags from LMS Settings
+            enabled_flags = get_upload_download_docuemtn_enabled()
+            if not enabled_flags.get("success"):
+                return {
+                    "success": False,
+                    "message": "Unable to read LMS Settings"
+                }
+
+            document_types = []
+            uploadable_documents = []
+
+            # Get employee document types from Employee Document Type master
+            employee_doc_types = frappe.get_all(
+                "Employee Document Type",
+                fields=["name1"]
+            )
+
+            for doc_type in employee_doc_types:
+                doc_name = doc_type.name1
+
+                # Map document names to configuration flags
+                if doc_name == "Employee Declaration Form" and enabled_flags.get("employee_declaration_form", False):
+                    doc = {
+                        "key": "employee_declaration_form",
+                        "name": doc_name,
+                        "requires_declaration": True,
+                        "uploadable": True  # Employees can upload documents in 4-step workflow
+                    }
+                    document_types.append(doc)
+                    uploadable_documents.append(doc)
+
+                elif doc_name == "Employee Completion Certificate" and enabled_flags.get("employee_completion_certificate", False):
+                    doc = {
+                        "key": "employee_completion_certificate",
+                        "name": doc_name,
+                        "requires_declaration": False,
+                        "uploadable": False  # Certificates are download-only
+                    }
+                    document_types.append(doc)
+
+            result["document_types"] = document_types
+            result["uploadable_documents"] = uploadable_documents
             result["download_only_documents"] = []
-            result["enabled_documents"] = {"employee_declaration_form": True}
+            result["enabled_documents"] = {
+                "employee_declaration_form": enabled_flags.get("employee_declaration_form", False),
+                "employee_completion_certificate": enabled_flags.get("employee_completion_certificate", False)
+            }
             result["division_info"] = {"has_endo": False, "has_non_endo": False, "divisions": []}
 
         return result

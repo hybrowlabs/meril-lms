@@ -53,7 +53,7 @@
         <div class="relative mb-6">
           <StepIndicator
             :current-step="state.currentStep"
-            :total-steps="state.totalSteps"
+            :total-steps="totalSteps"
             :steps="stepDefinitions"
             :allow-navigation="true"
             @step-click="goToStep"
@@ -106,6 +106,7 @@
             :course-name="state.courseName"
             :course-documents-record-id="state.courseDocumentsRecordId"
             :doctype="state.doctype"
+            :user-role="state.userRole"
           />
         </div>
 
@@ -122,7 +123,7 @@
 
           <div class="flex space-x-3">
             <button
-              v-if="state.currentStep < state.totalSteps"
+              v-if="state.currentStep < totalSteps"
               @click="nextStep"
               :disabled="!canProceedToNextStep"
               class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -153,6 +154,7 @@ import UploadStep from './steps/UploadStep.vue'
 import CompletionStep from './steps/CompletionStep.vue'
 import {
   state,
+  totalSteps,
   currentDocumentToUpload,
   canProceedToNextStep,
   closeModal,
@@ -165,34 +167,38 @@ import {
   setUploadProgress
 } from '../stores/document-workflow.js'
 
-const stepDefinitions = computed(() => [
-  {
-    id: 1,
-    title: 'Certify',
-    description: 'Review and certify documents',
-    statusMessage: state.userRole === 'Employee'
-      ? 'Please review the Employee Declaration and provide your information.'
-      : 'Review the compliance documents, provide certification, and nominate compliance officer.'
-  },
-  {
-    id: 2,
-    title: 'Download',
-    description: 'Download required documents',
-    statusMessage: 'Download the generated documents for signing and completion.'
-  },
-  {
-    id: 3,
-    title: 'Upload',
-    description: 'Upload completed documents',
-    statusMessage: 'Upload your signed and completed documents.'
-  },
-  {
-    id: 4,
-    title: 'Complete',
-    description: 'Process completed',
-    statusMessage: 'All documents have been successfully processed.'
-  }
-])
+const stepDefinitions = computed(() => {
+  return [
+    {
+      id: 1,
+      title: 'Certify',
+      description: 'Review and certify documents',
+      statusMessage: state.userRole === 'Employee'
+        ? 'Please review the Employee Declaration and provide your certification.'
+        : 'Review the compliance documents, provide certification, and nominate compliance officer.'
+    },
+    {
+      id: 2,
+      title: 'Download',
+      description: 'Download required documents',
+      statusMessage: 'Download the generated documents for signing and completion.'
+    },
+    {
+      id: 3,
+      title: 'Upload',
+      description: 'Upload completed documents',
+      statusMessage: 'Upload your signed and completed documents.'
+    },
+    {
+      id: 4,
+      title: 'Complete',
+      description: 'Process completed',
+      statusMessage: state.userRole === 'Employee'
+        ? 'Your employee documents have been successfully processed.'
+        : 'All documents have been successfully processed.'
+    }
+  ]
+})
 
 const getStepTitle = () => {
   const titles = {
