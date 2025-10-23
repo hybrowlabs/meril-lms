@@ -39,9 +39,9 @@
       >
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1 min-w-0">
-            <h4 class="text-sm font-medium text-gray-900 break-words">{{ document.name }}</h4>
+            <h4 class="text-sm font-medium text-gray-900 break-words">{{ getDocumentLabel(document) }}</h4>
             <p class="text-sm text-gray-500 mt-1 break-words">
-              {{ getDocumentDescription(document.name) }}
+              {{ getDocumentDescription(getDocumentLabel(document)) }}
             </p>
 
             <!-- Special instruction for Policy Adoption Form -->
@@ -175,6 +175,9 @@ const hasDocumentRequiringLetterhead = computed(() => {
 })
 
 const getDocumentDescription = (documentName) => {
+  if (documentName && documentName.toLowerCase().includes('employee declaration')) {
+    return 'Employee declaration and acknowledgment form'
+  }
   const descriptions = {
     'Meril Distributor Compliance Policy Adoption Form': 'Company compliance policy adoption with letterhead requirement',
     'Distributor Self Declaration': 'Self-declaration of compliance understanding',
@@ -183,10 +186,13 @@ const getDocumentDescription = (documentName) => {
     'Meril Distributor Compliance Policy for Endo': 'Compliance policy document for Endo division',
     'Meril Distributor Compliance Policy': 'Non-Endo compliance policy document',
     'Employee Declaration Form': 'Employee declaration and acknowledgment form',
-    'Employee Completion Certificate': 'Employee course completion certificate'
+    'Employee Completion Certificate': 'Employee course completion certificate',
+    'International Completion Certificate': 'Employee course completion certificate with company and country details'
   }
   return descriptions[documentName] || 'Required compliance document'
 }
+
+const getDocumentLabel = (document) => document?.label || document?.name
 
 const downloadDocument = async (docItem) => {
   if (downloadingDocuments.value.has(docItem.name)) return
@@ -195,7 +201,8 @@ const downloadDocument = async (docItem) => {
     downloadingDocuments.value.add(docItem.name)
     downloadError.value = ''
 
-    console.log('Starting download for document:', docItem.name)
+    const documentLabel = getDocumentLabel(docItem)
+    console.log('Starting download for document:', documentLabel)
     console.log('Props data:', {
       certificationData: props.certificationData,
       courseName: props.courseName
@@ -267,7 +274,7 @@ const downloadDocument = async (docItem) => {
           use_print_format: true
         })
 
-        console.log('Document generation response:', response)
+    console.log('Document generation response:', response)
       } catch (apiError) {
         console.error('Error generating document:', apiError)
 
@@ -319,14 +326,14 @@ const downloadDocument = async (docItem) => {
       // Mark as downloaded
       emit('download-complete', docItem.name)
 
-      toast.success(`${docItem.name} downloaded successfully`)
+      toast.success(`${documentLabel} downloaded successfully`)
     } else if (response?.success === false) {
       // Handle API error response
-      const errorMsg = response.message || response.error || `Failed to generate ${docItem.name}`
+      const errorMsg = response.message || response.error || `Failed to generate ${documentLabel}`
       throw new Error(errorMsg)
     } else {
       // If no valid response, throw error
-      throw new Error(`Failed to generate ${docItem.name}. Please ensure you have completed the course and all required information is available.`)
+      throw new Error(`Failed to generate ${documentLabel}. Please ensure you have completed the course and all required information is available.`)
     }
   } catch (error) {
     console.error('Download error:', error)
@@ -345,7 +352,7 @@ const downloadDocument = async (docItem) => {
       errorMessage = 'You do not have permission to download this document. Please contact support.'
     }
 
-    downloadError.value = `Failed to download ${docItem.name}: ${errorMessage}`
+    downloadError.value = `Failed to download ${documentLabel}: ${errorMessage}`
     toast.error(errorMessage)
   } finally {
     downloadingDocuments.value.delete(docItem.name)

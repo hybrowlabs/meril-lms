@@ -346,6 +346,8 @@ const updateRequiredDocuments = async () => {
       let documents = response.document_types.map(doc => ({
         key: doc.key,
         name: doc.name,
+        label: doc.label || doc.name,
+        printFormat: doc.print_format || null,
         requiresDeclaration: doc.requires_declaration,
         downloadOnly: !doc.uploadable
       }))
@@ -354,7 +356,6 @@ const updateRequiredDocuments = async () => {
       if (state.userRole === 'Employee') {
         // For employees, only include employee-specific documents
         documents = documents.filter(doc =>
-          doc.name.includes('Employee') ||
           doc.key === 'employee_declaration_form' ||
           doc.key === 'employee_completion_certificate'
         )

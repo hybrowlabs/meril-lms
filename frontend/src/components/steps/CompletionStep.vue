@@ -36,7 +36,7 @@
                 </svg>
               </div>
               <div>
-                <p class="text-sm font-medium text-gray-900">{{ document.name }}</p>
+                <p class="text-sm font-medium text-gray-900">{{ getLabelForName(document.name) }}</p>
                 <p class="text-xs text-gray-500">
                   Uploaded: {{ formatDateTime(document.upload_datetime) }}
                 </p>
@@ -74,7 +74,7 @@
                 </svg>
               </div>
               <div>
-                <p class="text-sm font-medium text-gray-900">{{ document }}</p>
+                <p class="text-sm font-medium text-gray-900">{{ getLabelForName(document) }}</p>
                 <p class="text-xs text-gray-500">System generated document</p>
               </div>
             </div>
@@ -153,6 +153,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  requiredDocuments: {
+    type: Array,
+    default: () => []
+  },
   documentsList: {
     type: Array,
     default: () => []
@@ -189,6 +193,30 @@ const availableDocuments = computed(() => {
   return props.documentsList.filter(doc => !uploadedNames.has(doc))
 })
 
+const getDocumentLabel = (document) => document?.label || document?.name
+
+const requiredDocumentLabelMap = computed(() => {
+  const map = new Map()
+  props.requiredDocuments.forEach(doc => {
+    map.set(doc.name, getDocumentLabel(doc))
+  })
+  return map
+})
+
+const getLabelForName = (name) => requiredDocumentLabelMap.value.get(name) || name
+
+const requiredDocumentPrintFormatMap = computed(() => {
+  const map = new Map()
+  props.requiredDocuments.forEach(doc => {
+    const printFormat = doc.printFormat || doc.name
+    map.set(doc.name, printFormat)
+    if (doc.label) {
+      map.set(doc.label, printFormat)
+    }
+  })
+  return map
+})
+
 const formatDateTime = (dateString) => {
   if (!dateString) return 'Unknown'
   try {
@@ -204,6 +232,7 @@ const downloadDocument = async (document) => {
   try {
     downloadingDocuments.value.add(document.name)
     downloadError.value = ''
+    const documentLabel = getLabelForName(document.name)
 
     if (document.file_url) {
       // Direct download of uploaded file
@@ -224,11 +253,12 @@ const downloadDocument = async (document) => {
       throw new Error('Document file URL not available')
     }
 
-    toast.success(`${document.name} downloaded successfully`)
+    toast.success(`${documentLabel} downloaded successfully`)
   } catch (error) {
     console.error('Download error:', error)
-    downloadError.value = `Failed to download ${document.name}: ${error.message}`
-    toast.error(`Failed to download ${document.name}`)
+    const documentLabel = getLabelForName(document.name)
+    downloadError.value = `Failed to download ${documentLabel}: ${error.message}`
+    toast.error(`Failed to download ${documentLabel}`)
   } finally {
     downloadingDocuments.value.delete(document.name)
   }
@@ -240,6 +270,8 @@ const downloadSystemDocument = async (documentName) => {
   try {
     downloadingDocuments.value.add(documentName)
     downloadError.value = ''
+    const documentLabel = getLabelForName(documentName)
+    const printFormat = requiredDocumentPrintFormatMap.value.get(documentName) || documentName
 
     const baseUrl = window.location.origin
 
@@ -265,25 +297,26 @@ const downloadSystemDocument = async (documentName) => {
       const params = new URLSearchParams({
         doctype: doctype,
         name: props.courseDocumentsRecordId,
-        format: documentName,
+        format: printFormat,
         no_letterhead: '1',
         letterhead: 'No Letterhead',
         settings: '{}',
         _lang: 'en',
-        custom_filename: documentName,
+        custom_filename: documentLabel,
         custom_type: 'download'
       })
 
       const url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`
-      const fileName = documentName.endsWith('.pdf') ? documentName : `${documentName}.pdf`
+      const fileName = documentLabel.endsWith('.pdf') ? documentLabel : `${documentLabel}.pdf`
       await directDownload(url, fileName)
     }
 
-    toast.success(`${documentName} downloaded successfully`)
+    toast.success(`${documentLabel} downloaded successfully`)
   } catch (error) {
     console.error('Download error:', error)
-    downloadError.value = `Failed to download ${documentName}: ${error.message}`
-    toast.error(`Failed to download ${documentName}`)
+    const documentLabel = getLabelForName(documentName)
+    downloadError.value = `Failed to download ${documentLabel}: ${error.message}`
+    toast.error(`Failed to download ${documentLabel}`)
   } finally {
     downloadingDocuments.value.delete(documentName)
   }

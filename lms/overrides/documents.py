@@ -14,6 +14,237 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops
 import requests
 from frappe.utils.file_manager import get_file_path
 
+
+def _normalize_course_name(course_name: str | None) -> str:
+    if not course_name:
+        return ""
+    return "".join(course_name.lower().split())
+
+
+def _is_row_course(course_name: str | None) -> bool:
+    normalized = _normalize_course_name(course_name)
+    return normalized.startswith("row1") or normalized.startswith("row2")
+
+
+def get_employee_completion_certificate_name(employee_doc, course_name: str | None = None, course_title: str | None = None) -> str:
+    """Decide which completion certificate print format to use for an employee."""
+    if _is_row_course(course_name) or _is_row_course(course_title):
+        return "Employee Completion Certificate"
+
+    country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
+    if country == "india":
+        return "Employee Completion Certificate"
+
+    return "International Completion Certificate"
+
+
+def _normalize_text(value: str | None) -> str:
+    if not value:
+        return ""
+    return unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii").lower()
+
+
+def get_employee_declaration_template(employee_doc, course_name: str | None = None, course_title: str | None = None):
+    """Return metadata describing which declaration template to use for an employee."""
+
+    country_raw = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip()
+    country_key = _normalize_text(country_raw).replace(" ", "")
+
+    course_identifier = (course_title or course_name or "")
+    course_key = _normalize_text(course_identifier)
+    course_key_compact = "".join(course_key.split())
+
+    region = "default"
+
+    if course_key_compact.startswith("row1") or course_key_compact.startswith("row2"):
+        region = "row1_2"
+    elif "italy" in country_key:
+        region = "italy"
+    elif "germany" in country_key:
+        region = "germany"
+    elif "poland" in country_key:
+        region = "poland"
+    elif "spain" in country_key:
+        region = "spain"
+    elif "brazil" in country_key or "brasil" in country_key:
+        region = "brazil"
+    elif "turkey" in country_key or "turkiye" in country_key:
+        region = "turkey"
+    elif "southafrica" in country_key or country_key in {"rsa", "south-africa"}:
+        region = "south_africa"
+    elif "sweden" in country_key or "nordic" in country_key:
+        region = "sweden"
+    elif any(key in country_key for key in ["unitedkingdom", "greatbritain", "england", "uk"]):
+        region = "uk"
+
+    templates = {
+        "italy": {
+            "display_name": "Italy Employee Declaration",
+            "company": "Meril Italy Srl",
+            "relationship_company": "Meril Italy Srl",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "Codice etico (Decree 231/2001)",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "germany": {
+            "display_name": "Germany Employee Declaration",
+            "company": "Meril GmbH",
+            "relationship_company": "Meril GmbH",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "BVMed, Spectaris code of conduct",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "poland": {
+            "display_name": "Poland Employee Declaration",
+            "company": "Meril Poland Sp. z o.o.",
+            "relationship_company": "Meril Poland Sp. z o.o.",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "IZBY POLMED: Code of Ethics",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "spain": {
+            "display_name": "Spain Employee Declaration",
+            "company": "Meril Healthcare Spain SL",
+            "relationship_company": "Meril Healthcare Spain SL",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "FENIN Code of Conduct (Spain)",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "brazil": {
+            "display_name": "Brazil Employee Declaration",
+            "company": "Doc Med Comercio Importacao Exportacao Ltda.",
+            "relationship_company": "Doc Med Comercio Importacao Exportacao Ltda.",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "ANVISA & ABIMED standards",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "turkey": {
+            "display_name": "Turkey Employee Declaration",
+            "company": "Meril Tibbi Cihazlar Imalat ve Tic. A.S.",
+            "relationship_company": "Meril Tibbi Cihazlar Imalat ve Tic. A.S.",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "Regulation on Promotion and Sale of Medical Devices; Guidelines of Turkish MoH for Promotion Regulation; Article 252 of the Turkish Criminal Code; Regulation on the Ethical Conduct of Public Officers; Law on Prevention of Bribery and Corruption",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "south_africa": {
+            "display_name": "South Africa Employee Declaration",
+            "company": "Meril SA Pty. Ltd. & Meril Cardiology Pty. Ltd.",
+            "relationship_company": "Meril SA Pty. Ltd. & Meril Cardiology Pty. Ltd.",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "SAMED - Medical Device Code of Ethical Marketing and Business Practice",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "PRECCA (Prevention and Combating of Corrupt Activities Act)",
+            ],
+        },
+        "sweden": {
+            "display_name": "Nordic (Sweden) Employee Declaration",
+            "company": "Meril Nordic AB",
+            "relationship_company": "Meril Nordic AB",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "Swiss Medtech Code of Conduct",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "uk": {
+            "display_name": "UK Employee Declaration",
+            "company": "Meril UK Limited",
+            "relationship_company": "Meril UK Limited",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "UK Bribery Act, ABPI Code of Practice, and ABHI Code of Business Practice",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+        "row1_2": {
+            "display_name": "Row1 & Row2 Employee Declaration",
+            "company": employee_doc.company or "Meril",
+            "relationship_company": employee_doc.company or "Meril",
+            "bullets": [
+                "Anti Bribery and Anti Corruption Policy",
+                "Export Controls and Trade Sanctions Policy",
+                "HCP & HCO Compliance framework",
+                "Medtech Europe-Code of ethical business practices",
+                "AdvaMed, Sunshine Act, MedTech, SAMED, IMEDA, APORMED, SKMED, MTAA, Austromed Kodex, SEIB, Swiss Medtech, SNITEM Code & APACMed Code of Conduct",
+                "FCPA (Foreign Corrupt Practices Act)",
+                "Prevention of Money Laundering",
+            ],
+        },
+    }
+
+    template = templates.get(region, {})
+
+    default_bullets = [
+        "Anti Bribery and Anti Corruption Policy",
+        "Export Controls and Trade Sanctions Policy",
+        "HCP & HCO Compliance framework",
+        "National Pharmaceutical Pricing Authority norms for capping of maximum retail price & maximum trade margin across all trade channels",
+        "FCPA (Foreign Corrupt Practices Act)",
+    ]
+
+    display_name = template.get("display_name") or "Employee Declaration Form"
+    print_format = "Employee Declaration Form International" if region != "default" else "Employee Declaration Form"
+    company_name = template.get("company") or (employee_doc.company or "Meril")
+    relationship_company = template.get("relationship_company") or company_name
+    bullets = template.get("bullets") or default_bullets
+
+    return {
+        "region": region,
+        "display_name": display_name,
+        "print_format": print_format,
+        "country": country_raw,
+        "company": company_name,
+        "relationship_company": relationship_company,
+        "bullets": bullets,
+    }
+
 @frappe.whitelist(allow_guest=False)
 def get_next_distributor_document(course=None):
     """
@@ -288,6 +519,8 @@ def has_user_submited_document(course=None):
         # Employee logic
         elif "Employee" in roles:
             employee_doc = frappe.get_doc("Employee", {"user_id": user})
+            course_title = frappe.db.get_value("LMS Course", course, "title") if course else ""
+            declaration_template = get_employee_declaration_template(employee_doc, course, course_title)
             # Check if a submitted document exists for this employee and course
             exists = frappe.db.exists(
                 "Employee Course Documents",
@@ -300,7 +533,16 @@ def has_user_submited_document(course=None):
                 "Employee Document Type",
                 fields=["name1"]
             )
+            certificate_label = get_employee_completion_certificate_name(employee_doc, course)
             documents_list = [doc.name1 for doc in employee_doc_types] if employee_doc_types else ["Employee Declaration Form", "Employee Completion Certificate"]
+            documents_list = [
+                certificate_label if doc_name == "Employee Completion Certificate" else doc_name
+                for doc_name in documents_list
+            ]
+            documents_list = [
+                declaration_template["display_name"] if doc_name == "Employee Declaration Form" else doc_name
+                for doc_name in documents_list
+            ]
 
             if not exists:
                 return {
@@ -1303,9 +1545,41 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
 
             # Determine which print format to use based on document_type and user role
             if user_role == "Employee":
-                print_format_name = document_type or "Employee Declaration Form"
+                effective_course_name = doc.course or course
+                course_title = None
+                if effective_course_name:
+                    course_title = frappe.db.get_value("LMS Course", effective_course_name, "title")
+                certificate_display_name = get_employee_completion_certificate_name(
+                    user_doc_record, effective_course_name, course_title
+                )
+                declaration_template = get_employee_declaration_template(
+                    user_doc_record, effective_course_name, course_title
+                )
+                employee_certificate_options = {"Employee Completion Certificate", "International Completion Certificate"}
+                declaration_aliases = {
+                    declaration_template["display_name"],
+                    "Employee Declaration Form",
+                    "Employee Declaration Form International",
+                }
+
+                if document_type in employee_certificate_options:
+                    selected_document_type = certificate_display_name
+                    print_format_name = certificate_display_name
+                elif document_type in declaration_aliases or not document_type:
+                    selected_document_type = declaration_template["display_name"]
+                    print_format_name = declaration_template["print_format"]
+                else:
+                    selected_document_type = document_type
+                    print_format_name = (
+                        declaration_template["print_format"]
+                        if document_type == "Employee Declaration Form International"
+                        else document_type
+                    )
+                document_type = selected_document_type
             else:
-                print_format_name = document_type or "Meril Distributor Compliance Policy Adoption Form"
+                selected_document_type = document_type or "Meril Distributor Compliance Policy Adoption Form"
+                print_format_name = selected_document_type
+                document_type = selected_document_type
 
             # Generate PDF using the print format
             pdf_content = frappe.get_print(
@@ -1324,7 +1598,7 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
                 default_name = "Employee_Declaration_Form"
             else:
                 default_name = "Meril_Distributor_Compliance_Policy_Adoption_Form"
-            file_name = (document_type or default_name).replace(" ", "_") + ".pdf"
+            file_name = (selected_document_type or default_name).replace(" ", "_") + ".pdf"
 
             return {
                 "success": True,
@@ -1382,6 +1656,8 @@ def download_user_print_format_logic(document, user=None):
     roles = [role.role for role in user_doc.roles]
 
     # Determine doctype and print_format based on document name
+    employee_documents = {"Employee Declaration Form", "Employee Declaration Form International", "Employee Completion Certificate", "International Completion Certificate"}
+
     if "Distributor" in document:
         doctype = "Distributor"
         # Find distributor doc for this user
@@ -1390,11 +1666,24 @@ def download_user_print_format_logic(document, user=None):
         print_format = document
         if distributor.user_id != user:
             frappe.throw("You are not allowed to access this Distributor document.")
-    elif "Employee" in document:
+    elif "Employee" in document or document in employee_documents:
         doctype = "Employee"
         employee = frappe.get_doc("Employee", {"user_id": user})
         docname = employee.name
-        print_format = document
+        certificate_display = get_employee_completion_certificate_name(employee)
+        declaration_template = get_employee_declaration_template(employee)
+        declaration_aliases = {
+            declaration_template["display_name"],
+            "Employee Declaration Form",
+            "Employee Declaration Form International",
+        }
+
+        if document in {"Employee Completion Certificate", "International Completion Certificate", certificate_display}:
+            print_format = certificate_display
+        elif document in declaration_aliases:
+            print_format = declaration_template["print_format"]
+        else:
+            print_format = document
         if employee.user_id != user:
             frappe.throw("You are not allowed to access this Employee document.")
     else:
@@ -1781,6 +2070,12 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
         # Handle Employee documents
         elif "Employee" in roles:
             employee_doc = frappe.get_doc("Employee", {"user_id": user})
+            course_title = None
+            if course:
+                course_title = frappe.db.get_value("LMS Course", course, "title")
+            certificate_display_name = get_employee_completion_certificate_name(employee_doc, course, course_title)
+            declaration_template = get_employee_declaration_template(employee_doc, course, course_title)
+            employee_certificate_options = {"Employee Completion Certificate", "International Completion Certificate"}
 
             # Get or create Employee Course Documents record
             doc = None
@@ -1809,10 +2104,24 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
                 doc.name = "preview-" + frappe.generate_hash(length=10)
 
             # Determine print format based on document type or use default
-            if document_type and document_type in ["Employee Declaration Form", "Employee Completion Certificate"]:
-                print_format_name = document_type
+            if document_type in employee_certificate_options:
+                print_format_name = certificate_display_name
+                selected_document_name = certificate_display_name
+            elif document_type in {
+                declaration_template["display_name"],
+                "Employee Declaration Form International",
+                "Employee Declaration Form",
+                None,
+            }:
+                print_format_name = declaration_template["print_format"]
+                selected_document_name = declaration_template["display_name"]
             else:
-                print_format_name = "Employee Declaration Form"  # Default
+                print_format_name = (
+                    declaration_template["print_format"]
+                    if document_type == "Employee Declaration Form International"
+                    else document_type
+                )
+                selected_document_name = document_type
 
             # Generate HTML using the print format
             html_content = frappe.get_print(
@@ -1827,7 +2136,7 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
             return {
                 "success": True,
                 "html_content": html_content,
-                "document_type": document_type or "Employee Declaration Form",
+                "document_type": selected_document_name,
                 "print_format": print_format_name
             }
 
@@ -2022,6 +2331,19 @@ def get_document_configuration(course=None):
             document_types = []
             uploadable_documents = []
 
+            try:
+                employee_doc = frappe.get_doc("Employee", {"user_id": user})
+            except frappe.DoesNotExistError:
+                return {
+                    "success": False,
+                    "message": "Employee record not found"
+                }
+
+            course_title = None
+            if course:
+                course_title = frappe.db.get_value("LMS Course", course, "title")
+            declaration_template = get_employee_declaration_template(employee_doc, course, course_title)
+
             # Get employee document types from Employee Document Type master
             employee_doc_types = frappe.get_all(
                 "Employee Document Type",
@@ -2035,17 +2357,22 @@ def get_document_configuration(course=None):
                 if doc_name == "Employee Declaration Form" and enabled_flags.get("employee_declaration_form", False):
                     doc = {
                         "key": "employee_declaration_form",
-                        "name": doc_name,
+                        "name": "Employee Declaration Form",
+                        "label": declaration_template["display_name"],
                         "requires_declaration": True,
                         "uploadable": True  # Employees can upload documents in 4-step workflow
                     }
+                    if declaration_template["print_format"]:
+                        doc["print_format"] = declaration_template["print_format"]
                     document_types.append(doc)
                     uploadable_documents.append(doc)
 
                 elif doc_name == "Employee Completion Certificate" and enabled_flags.get("employee_completion_certificate", False):
+                    display_name = get_employee_completion_certificate_name(employee_doc, course, course_title)
                     doc = {
                         "key": "employee_completion_certificate",
-                        "name": doc_name,
+                        "name": "Employee Completion Certificate",
+                        "label": display_name,
                         "requires_declaration": False,
                         "uploadable": False  # Certificates are download-only
                     }

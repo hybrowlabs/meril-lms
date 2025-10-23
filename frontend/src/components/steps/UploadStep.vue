@@ -47,7 +47,7 @@
     <div v-if="currentDocument" class="bg-white border border-gray-200 rounded-lg p-6">
       <div class="text-center mb-4">
         <h4 class="text-lg font-medium text-gray-900 mb-2">
-          {{ currentDocument.name }}
+          {{ getDocumentLabel(currentDocument) }}
         </h4>
         <p class="text-sm text-gray-600">
           {{ getDocumentUploadInstructions(currentDocument.name) }}
@@ -151,7 +151,7 @@
               <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
             </svg>
             <div>
-              <p class="text-sm font-medium text-green-900">{{ documentName }}</p>
+              <p class="text-sm font-medium text-green-900">{{ getLabelForName(documentName) }}</p>
               <p class="text-xs text-green-700">Successfully uploaded</p>
             </div>
           </div>
@@ -176,7 +176,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <div>
-              <p class="text-sm font-medium text-gray-900">{{ document.name }}</p>
+              <p class="text-sm font-medium text-gray-900">{{ getDocumentLabel(document) }}</p>
               <p class="text-xs text-red-600">Required - Pending upload</p>
             </div>
           </div>
@@ -202,7 +202,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <div>
-              <p class="text-sm font-medium text-gray-900">{{ document.name }}</p>
+              <p class="text-sm font-medium text-gray-900">{{ getDocumentLabel(document) }}</p>
               <p class="text-xs text-red-600">Required - PDF only</p>
             </div>
           </div>
@@ -320,6 +320,18 @@ const remainingDocuments = computed(() => {
 })
 
 // Helper functions
+const getDocumentLabel = (document) => document?.label || document?.name
+
+const documentLabelMap = computed(() => {
+  const map = new Map()
+  props.requiredDocuments.forEach(doc => {
+    map.set(doc.name, getDocumentLabel(doc))
+  })
+  return map
+})
+
+const getLabelForName = (name) => documentLabelMap.value.get(name) || name
+
 const isPolicyDocument = (documentName) => {
   const policyDocTypes = [
     'Meril Distributor Compliance Policy',

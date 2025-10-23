@@ -103,6 +103,7 @@
             v-if="state.currentStep === 4"
             :uploaded-documents="state.uploadedDocumentsList"
             :documents-list="state.documentsList"
+            :required-documents="state.requiredDocuments"
             :course-name="state.courseName"
             :course-documents-record-id="state.courseDocumentsRecordId"
             :doctype="state.doctype"

@@ -82,69 +82,41 @@ def create_user_from_employee(employee_id, _method):
 
 				employee_doc.db_set("user_id", employee_doc.user_id)
 				update_password(email, new_password)
-				
-				# Find LMS Course(s) where custom_assigned_to_role is "Employee" or "All" and Option Country includes employee's country
-				employee_courses = []
-				for course in frappe.get_all(
-					"LMS Course",
-					filters={
-						"custom_assigned_to_role": ["in", ["Employee", "All"]],
-						"published": 1
-					},
-					fields=["name", "title", "short_introduction"]
-				):
-					# Check if employee's country is in the course's assigned countries via Option Country child table
-					assigned_countries = frappe.get_all(
-						"Option Country",
-						filters={
-							"parent": course["name"],
-							"parenttype": "LMS Course",
-							"country": country
-						},
-						pluck="country"
-					)
-					if assigned_countries:
-						employee_courses.append(course)
 
-				# Use the first matching course, or set empty if none found
-				if employee_courses:
-					employee_course = employee_courses[0]["title"]
-					employee_course_intro = employee_courses[0]["short_introduction"]
-				else:
-					employee_course = ""
-					employee_course_intro = ""
+				user_doc = frappe.get_doc("User", email)
+				reset_password_link = user_doc.reset_password(send_email=False)
+				login_url = frappe.utils.get_url("/login")
+				recipient_name = (
+					employee_doc.employee_name or employee_doc.first_name or full_name
+				)
 
-				# Update employee_doc in the database
-				notification_subject = f'{employee_course} on {employee_course_intro}'
-				notification_message = f'''<p>Dear {employee_doc.first_name},</p>
+				subject = "Ethics & Compliance Training on HCP/HCO Interactions."
+				message = f"""<p>Dear {recipient_name},</p>
 
-					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">E{employee_course} on {employee_course_intro}.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+<p>In line with our mandatory training, you have been enrolled for the <span style="font-weight:bold;">Ethics & Compliance Training on HCP/HCO Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
-					<p style="font-weight: bold;">Login Credentials:</p>
-					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
-					(<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>)
-					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
-					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Password: <span style="font-weight:normal;">{new_password}</span></p>
+<p style="font-weight:bold;">Login Credentials:</p>
+<p>Please click on the below link to log in:</p>
+<p>(<a href="{login_url}">{login_url}</a>)</p>
+<p>User ID: {email}</p>
+<p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
 
-					<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
+<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
-					<p>Your cooperation and commitment to compliance are highly appreciated.</p>
+<p>Best regards,</p>
+<p>Meril</p>"""
 
-					<p>Best regards,</p>
-					<p>Meril</p>'''
-
-				# Send email notification
 				frappe.sendmail(
 					recipients=[employee_doc.company_email],
 					sender=get_default_sender(),
-					subject=notification_subject + "- Ethics & Compliance Training on HCP/HCO Interactions",
-					message=notification_message
+					subject=subject,
+					message=message,
 				)
 				# Create a Notification Log to send system notification
 				frappe.get_doc({
 					"doctype": "Notification Log",
-					"subject": notification_subject,
-					"email_content": notification_message,
+					"subject": subject,
+					"email_content": message,
 					"for_user": employee_doc.company_email,
 					"type": "Alert",
 					"document_type": "Employee",
@@ -794,19 +766,19 @@ def send_daily_course_reminders():
 			
 			# Create personalized reminder message
 			subject = f"{subject_prefix}: Complete your course - Ethics & Compliance Training on HCP/HCO Interactions"
-			
+
 			is_distributor = frappe.db.exists("Distributor", {"user_id": user})
 			is_employee = frappe.db.exists("Employee", {"user_id": user})
-			subject = "Course Remainer"
 			for_role = "Administrator"
-		
+			attendee_name = None
+
 			if is_distributor:
 				subject = f"Reminder {new_count} : Ethics & Compliance Training on HCP/HCO Interactions"
 				for_role = "Distributor"
 				# Get attendee_name from Distributor
 				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
 			elif is_employee:
-				subject = f"Reminder {new_count} : Ethics & Compliance Training on HCP/HCO Interactions"
+				subject = f"Reminder {new_count} Ethics & Compliance Training on HCP/HCO Interactions."
 				for_role = "Employee"
 				# Get employee_name from Employee
 				attendee_name = frappe.db.get_value("Employee", {"user_id": user}, "employee_name")
@@ -833,7 +805,7 @@ def send_daily_course_reminders():
 			frappe.sendmail(
 				recipients=[enrollment.user_email],
 				sender=get_default_sender(),
-				subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
+				subject=subject,
 				message=message_content
 			)
 			# Create notification log for the user
@@ -903,19 +875,20 @@ def get_course_reminder_message(for_role, name, course_title, course_introductio
 		<p>Best regards,</p>
 		<p>Meril</p>'''
 	elif for_role == "Employee":
-		return f'''<p>Dear {name},</p>
+		login_url = frappe.utils.get_url("/login")
+		return f"""<p>Dear {name},</p>
 
-		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span> for which you were enrolled earlier. Our records indicate that the training is still pending.</p>
+<p>This is a kind reminder to complete the <span style="font-weight:bold;">Ethics & Compliance Training on HCP/HCO Interactions.</span> Our records indicate that the training is still pending.</p>
 
+<p>For login details, please refer to the email sent to you with the subject line 'Ethics & Compliance Training on HCP/HCO Interactions'.</p>
 
-		<p>We request you to complete the training to ensure adherence to our Ethics Standards. Timely completion is important to meet regulatory requirements and uphold our ethical standards.</p>
+<p>Please click on the below link to log in:</p>
+<p>(<a href="{login_url}">{login_url}</a>)</p>
 
-		<p>If you experience any difficulty accessing the course with your credentials, please use the <span style="font-weight:bold;">‘Forgot Password’</span> option to reset your password and proceed.</p>
+<p>Kindly treat this as a priority and complete the training at your earliest.</p>
 
-		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
-
-		<p>Best regards,</p>
-		<p>Meril</p>'''
+<p>Best regards,</p>
+<p>Meril</p>"""
 
 	base_message = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -1400,24 +1373,25 @@ def send_re_enrollment_email(user_email, partner_name, user_id="123", password="
 		# Generate reset password link for the user (same as in initial email)
 		reset_password_link = user_doc.reset_password(send_email=False)
 
-		# Email content as specified by the user
-		subject = "Re-enrolled in Ethics & Compliance Training on HCP/HCO Interactions"
+		login_url = frappe.utils.get_url("/login")
+		user_identifier = user_id or user_email
 
-		message = f'''<p>Dear {partner_name},</p>
+		subject = "Re-enrolled in Ethics & Compliance Training on HCP/HCO Interactions."
 
-		<p>In line with our mandatory training, you have been <span style="font-weight: bold;">Re-enrolled</span> for the <span style="font-weight: bold;">Ethics & Compliance Training on HCPs/HCOs Interactions</span>. This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+		message = f"""<p>Dear {partner_name},</p>
 
-		<p style="font-weight: bold;">Login Credentials:</p>
-		<p>Please click on the below link to log in:</p>
-		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
-		<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;">User ID: <span style="font-weight:normal;">{user_id}</span></p>
-		<p style="margin-left:10px; margin-top: 0;font-weight: bold;">Password: <span style="font-weight:normal;">{password}</span> <a href="{reset_password_link}">(Reset password)</a></p>
+<p>In line with our mandatory training, you have been Re-enrolled for the <span style="font-weight:bold;">Ethics & Compliance Training on HCP/HCO Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
-		<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
+<p style="font-weight:bold;">Login Credentials:</p>
+<p>Please click on the below link to log in:</p>
+<p>(<a href="{login_url}">{login_url}</a>)</p>
+<p>User ID: {user_identifier}</p>
+<p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
 
-		<p>Best regards,</p>
-		<p>Meril</p>
-		'''
+<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
+
+<p>Best regards,</p>
+<p>Meril</p>"""
 
 		# Send email
 		frappe.sendmail(
@@ -1438,5 +1412,3 @@ def send_re_enrollment_email(user_email, partner_name, user_id="123", password="
 			"status": "error",
 			"message": str(e)
 		}
-
-
