@@ -125,40 +125,120 @@ const canProceedToNextStep = computed(() => {
   }
 })
 
+// State persistence helpers
+const getStorageKey = (courseName) => `document_workflow_${courseName || 'default'}`
+
+const saveStateToStorage = () => {
+  if (state.courseName) {
+    const stateToSave = {
+      currentStep: state.currentStep,
+      courseName: state.courseName,
+      userRole: state.userRole,
+      certification: state.certification,
+      downloads: {
+        ...state.downloads,
+        // Convert Set to Array for JSON serialization
+        completedDownloads: Array.from(state.downloads.completedDownloads)
+      },
+      // Convert uploadedDocuments Set to Array for JSON serialization
+      uploadedDocuments: Array.from(state.uploadedDocuments),
+      complianceOfficerName: state.complianceOfficerName,
+      complianceOfficerValid: state.complianceOfficerValid,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(getStorageKey(state.courseName), JSON.stringify(stateToSave))
+  }
+}
+
+const loadStateFromStorage = (courseName) => {
+  try {
+    const saved = localStorage.getItem(getStorageKey(courseName))
+    if (saved) {
+      const parsedState = JSON.parse(saved)
+      // Only restore if saved within last 24 hours
+      if (Date.now() - parsedState.timestamp < 24 * 60 * 60 * 1000) {
+        return parsedState
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load workflow state from storage:', e)
+  }
+  return null
+}
+
+const clearStoredState = (courseName) => {
+  localStorage.removeItem(getStorageKey(courseName))
+}
+
 // Actions
 const openModal = (courseName) => {
   state.isOpen = true
   state.courseName = courseName
-  state.currentStep = 1
+
+  // Try to restore previous state
+  const savedState = loadStateFromStorage(courseName)
+  if (savedState && savedState.courseName === courseName) {
+    state.currentStep = savedState.currentStep
+    state.userRole = savedState.userRole
+    state.certification = { ...state.certification, ...savedState.certification }
+
+    // Properly restore Set objects for downloads
+    if (savedState.downloads) {
+      state.downloads = { ...state.downloads, ...savedState.downloads }
+      // Convert array back to Set if needed
+      if (Array.isArray(savedState.downloads.completedDownloads)) {
+        state.downloads.completedDownloads = new Set(savedState.downloads.completedDownloads)
+      }
+    }
+
+    // Properly restore uploadedDocuments Set
+    if (Array.isArray(savedState.uploadedDocuments)) {
+      state.uploadedDocuments = new Set(savedState.uploadedDocuments)
+    }
+
+    state.complianceOfficerName = savedState.complianceOfficerName
+    state.complianceOfficerValid = savedState.complianceOfficerValid
+  } else {
+    state.currentStep = 1
+  }
+
   resetErrors()
   initializeWorkflow()
 }
 
 const closeModal = () => {
+  // Save current state before closing
+  saveStateToStorage()
   state.isOpen = false
-  resetState()
-  resetCourseCompletion()
+  // Don't reset state on close - keep it for next time
 }
 
 const nextStep = () => {
   if (canProceedToNextStep.value && state.currentStep < totalSteps.value) {
     state.currentStep++
+    saveStateToStorage()
   }
 }
 
 const previousStep = () => {
   if (state.currentStep > 1) {
     state.currentStep--
+    saveStateToStorage()
   }
 }
 
 const goToStep = (step) => {
   if (step >= 1 && step <= totalSteps.value) {
     state.currentStep = step
+    saveStateToStorage()
   }
 }
 
-const resetState = () => {
+const resetState = (clearStorage = false) => {
+  if (clearStorage && state.courseName) {
+    clearStoredState(state.courseName)
+  }
+
   state.currentStep = 1
   state.courseName = null
   state.userRole = null
@@ -485,6 +565,7 @@ const completeCertification = async (name, date) => {
   state.certification.name = name
   state.certification.date = date
   state.certification.isCompleted = true
+  saveStateToStorage()
 
   // Call backend to persist certification status
   try {
@@ -513,6 +594,7 @@ const markDownloadCompleted = (documentName) => {
   if (state.downloads.completedDownloads.size >= requiredDownloads) {
     state.downloads.isStepCompleted = true
   }
+  saveStateToStorage()
 }
 
 const markDocumentUploaded = (documentName) => {
@@ -525,7 +607,12 @@ const markDocumentUploaded = (documentName) => {
   const uploadableDocuments = state.requiredDocuments.filter(doc => !doc.downloadOnly)
   if (state.uploadedDocuments.size >= uploadableDocuments.length) {
     state.uploads.isStepCompleted = true
+    // Clear storage when workflow is completed
+    if (state.currentStep === 4) {
+      clearStoredState(state.courseName)
+    }
   }
+  saveStateToStorage()
 }
 
 const setUploadProgress = (documentName, progress) => {

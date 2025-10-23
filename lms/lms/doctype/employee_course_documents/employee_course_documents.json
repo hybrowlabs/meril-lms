@@ -12,6 +12,16 @@
   "column_break_ymyl",
   "entered_name",
   "submission_datetime",
+  "section_break_template",
+  "selected_template",
+  "template_version_used",
+  "document_options_json",
+  "section_break_compliance",
+  "compliance_officer",
+  "compliance_review_status",
+  "compliance_review_date",
+  "compliance_review_notes",
+  "workflow_state",
   "section_break_knpr",
   "document_upload_datetime",
   "enrollment_reference",
@@ -47,6 +57,61 @@
    "fieldname": "submission_datetime",
    "fieldtype": "Datetime",
    "label": "Submission datetime"
+  },
+  {
+   "fieldname": "section_break_template",
+   "fieldtype": "Section Break",
+   "label": "Template Information"
+  },
+  {
+   "fieldname": "selected_template",
+   "fieldtype": "Link",
+   "label": "Selected Template",
+   "options": "Document Template Registry"
+  },
+  {
+   "fieldname": "template_version_used",
+   "fieldtype": "Data",
+   "label": "Template Version Used",
+   "length": 20
+  },
+  {
+   "fieldname": "document_options_json",
+   "fieldtype": "JSON",
+   "label": "Document Options"
+  },
+  {
+   "fieldname": "section_break_compliance",
+   "fieldtype": "Section Break",
+   "label": "Compliance Review"
+  },
+  {
+   "fieldname": "compliance_officer",
+   "fieldtype": "Link",
+   "label": "Compliance Officer",
+   "options": "User"
+  },
+  {
+   "fieldname": "compliance_review_status",
+   "fieldtype": "Select",
+   "label": "Compliance Review Status",
+   "options": "\nPending\nIn Review\nApproved\nRejected\nRevision Required"
+  },
+  {
+   "fieldname": "compliance_review_date",
+   "fieldtype": "Datetime",
+   "label": "Compliance Review Date"
+  },
+  {
+   "fieldname": "compliance_review_notes",
+   "fieldtype": "Text",
+   "label": "Compliance Review Notes"
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Data",
+   "label": "Workflow State",
+   "length": 50
   },
   {
    "fieldname": "section_break_knpr",
@@ -89,7 +154,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-10-16 16:00:00.000000",
+ "modified": "2025-10-23 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Employee Course Documents",

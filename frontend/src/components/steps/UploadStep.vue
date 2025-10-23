@@ -254,6 +254,10 @@ const props = defineProps({
   uploadProgress: {
     type: Object,
     default: () => ({})
+  },
+  userRole: {
+    type: String,
+    required: true
   }
 })
 
@@ -411,16 +415,26 @@ const handleUpload = async () => {
       }
     }, 100)
 
-    // Upload the document
-    const response = await call('lms.overrides.documents.upload_distributor_document_with_datetime', {
+    // Upload the document using the appropriate function based on user role
+    const uploadFunction = props.userRole === 'Employee'
+      ? 'lms.overrides.documents.save_user_course_document_with_file'
+      : 'lms.overrides.documents.upload_distributor_document_with_datetime'
+
+    const uploadParams = {
       course: props.courseName,
       document_name: props.currentDocument.name,
       filename: selectedFile.value.name,
       base64_file_data: base64Data,
-      is_private: 1,
-      document_upload_datetime: new Date().toISOString(),
-      uploadDocumentName: props.currentDocument.name
-    })
+      is_private: 1
+    }
+
+    // Add additional parameters for distributor uploads
+    if (props.userRole !== 'Employee') {
+      uploadParams.document_upload_datetime = new Date().toISOString()
+      uploadParams.uploadDocumentName = props.currentDocument.name
+    }
+
+    const response = await call(uploadFunction, uploadParams)
 
     clearInterval(progressInterval)
 

@@ -94,6 +94,7 @@
             :current-document="currentDocumentToUpload"
             :course-name="state.courseName"
             :upload-progress="state.uploads.uploadProgress"
+            :user-role="state.userRole"
             @upload-complete="handleUploadComplete"
             @upload-progress="handleUploadProgress"
           />

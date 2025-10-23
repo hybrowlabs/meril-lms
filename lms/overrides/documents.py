@@ -27,15 +27,42 @@ def _is_row_course(course_name: str | None) -> bool:
 
 
 def get_employee_completion_certificate_name(employee_doc, course_name: str | None = None, course_title: str | None = None) -> str:
-    """Decide which completion certificate print format to use for an employee."""
+    """Automatically determine which completion certificate print format to use for an employee.
+    No user selection required - system automatically detects the correct format.
+    """
+    # Automatic certificate selection logic
     if _is_row_course(course_name) or _is_row_course(course_title):
-        return "Employee Completion Certificate"
+        certificate_format = "Employee Completion Certificate"
+        reason = "ROW1/ROW2 course detected"
+    else:
+        country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
+        if country == "india":
+            certificate_format = "Employee Completion Certificate"
+            reason = "India country detected"
+        else:
+            certificate_format = "International Completion Certificate"
+            reason = f"International country detected: {country or 'Unknown'}"
 
-    country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
-    if country == "india":
-        return "Employee Completion Certificate"
+    # Log the automatic certificate selection
+    try:
+        certificate_info = {
+            "certificate_format": certificate_format,
+            "reason": reason,
+            "country": getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None),
+            "course": course_name,
+            "auto_selected": True,
+            "timestamp": frappe.utils.now()
+        }
+        _log_document_generation(employee_doc, course_name, certificate_info, "Employee Completion Certificate")
 
-    return "International Completion Certificate"
+        # Update the Employee Course Documents record if it exists
+        if hasattr(employee_doc, 'name'):
+            _update_employee_course_document_template(employee_doc.name, course_name, certificate_info)
+    except Exception as e:
+        # Don't fail certificate generation if logging fails
+        frappe.logger().error(f"Failed to log certificate selection: {str(e)}")
+
+    return certificate_format
 
 
 def _normalize_text(value: str | None) -> str:
@@ -43,17 +70,47 @@ def _normalize_text(value: str | None) -> str:
         return ""
     return unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii").lower()
 
+def _log_document_generation(employee_doc, course, template_info, document_type):
+    """Log document generation for audit and analytics purposes."""
+    try:
+        # Create a simple log entry - can be enhanced later
+        frappe.logger().info(f"Document generated: {document_type} for {employee_doc.name} "
+                           f"(Country: {template_info.get('country', 'Unknown')}, "
+                           f"Region: {template_info.get('region', 'default')}, "
+                           f"Course: {course or 'None'})")
+    except Exception as e:
+        # Don't fail document generation if logging fails
+        frappe.logger().error(f"Failed to log document generation: {str(e)}")
 
+def _update_employee_course_document_template(employee_name, course, template_info):
+    """Update the Employee Course Documents record with template information."""
+    try:
+        doc_name = frappe.db.exists("Employee Course Documents",
+                                   {"employee": employee_name, "course": course})
+        if doc_name:
+            doc = frappe.get_doc("Employee Course Documents", doc_name)
+            doc.document_options_json = template_info
+            doc.save(ignore_permissions=True)
+    except Exception as e:
+        frappe.logger().error(f"Failed to update template info: {str(e)}")
+
+
+@frappe.whitelist(allow_guest=False)
 def get_employee_declaration_template(employee_doc, course_name: str | None = None, course_title: str | None = None):
-    """Return metadata describing which declaration template to use for an employee."""
+    """Return metadata describing which declaration template to use for an employee.
+    Automatically detects the correct format based on employee country and course type.
+    """
 
+    # Get employee country information
     country_raw = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip()
     country_key = _normalize_text(country_raw).replace(" ", "")
 
+    # Get course information
     course_identifier = (course_title or course_name or "")
     course_key = _normalize_text(course_identifier)
     course_key_compact = "".join(course_key.split())
 
+    # Automatic region detection logic
     region = "default"
 
     if course_key_compact.startswith("row1") or course_key_compact.startswith("row2"):
@@ -235,7 +292,8 @@ def get_employee_declaration_template(employee_doc, course_name: str | None = No
     relationship_company = template.get("relationship_company") or company_name
     bullets = template.get("bullets") or default_bullets
 
-    return {
+    # Prepare template information
+    template_info = {
         "region": region,
         "display_name": display_name,
         "print_format": print_format,
@@ -243,7 +301,18 @@ def get_employee_declaration_template(employee_doc, course_name: str | None = No
         "company": company_name,
         "relationship_company": relationship_company,
         "bullets": bullets,
+        "auto_selected": True,  # Indicates this was automatically selected
+        "timestamp": frappe.utils.now()
     }
+
+    # Log the automatic template selection
+    _log_document_generation(employee_doc, course_name, template_info, "Employee Declaration")
+
+    # Update the Employee Course Documents record if it exists
+    if hasattr(employee_doc, 'name'):
+        _update_employee_course_document_template(employee_doc.name, course_name, template_info)
+
+    return template_info
 
 @frappe.whitelist(allow_guest=False)
 def get_next_distributor_document(course=None):
@@ -828,8 +897,7 @@ def upload_distributor_document_with_datetime(
         roles = [role.role for role in user_doc.roles]
 
         # Only Distributors can upload
-        if "Distributor" not in roles:
-            return {"success": False, "message": "User is not Distributor"}
+        
 
         if not course:
             return {"success": False, "message": "No course provided"}
@@ -1073,12 +1141,27 @@ def save_user_course_document_with_file(
 ):
     """
     Save user course document with file upload using base64 data.
-    Only Distributors can upload. Only one submission per course per year is allowed.
+    For both employees and distributors. Only one submission per course per year is allowed.
     """
 
     user = frappe.session.user
     user_doc = frappe.get_doc("User", user)
     roles = [role.role for role in user_doc.roles]
+
+    # Check if user is either an Employee or Distributor
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    is_distributor = "Distributor" in roles
+
+    # For non-employees, check if they have a distributor record
+    distributor = None
+    if not employee and is_distributor:
+        distributor = frappe.db.get_value("Distributor", {"user_id": user}, "name")
+
+    if not employee and not distributor:
+        return {
+            "success": False,
+            "message": f"User '{user}' is not linked to an Employee record or Distributor record. User roles: {roles}. Please ensure user has Employee record or Distributor role and record."
+        }
 
     enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
     if not enrollment:
@@ -1097,10 +1180,6 @@ def save_user_course_document_with_file(
             "message": "Course progress is not completed",
             "progress": progress or 0
         }
-
-    # Only Distributors can upload
-    if "Distributor" not in roles:
-        return {"success": False, "message": "User is not Distributor"}
 
     if not course:
         return {"success": False, "message": "No course provided"}
@@ -1124,44 +1203,77 @@ def save_user_course_document_with_file(
     print(f"Base64 data preview: {base64_file_data[:50]}...")
 
     try:
-        distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
-
         # Validate course exists
         if not frappe.db.exists("LMS Course", course):
             return {"success": False, "message": "Course not found"}
 
         from datetime import datetime
 
-        # Check if a document for this distributor, course, and year exists
-        existing_doc_name = frappe.db.exists(
-            "Distributor Course Documents",
-            {
-                "distributor": distributor_doc.name,
-                "course": course,
-            }
-        )
+        # Handle both Employee and Distributor document creation
+        if employee:
+            # For employees, create/update Employee Course Documents
+            existing_doc_name = frappe.db.exists(
+                "Employee Course Documents",
+                {
+                    "employee": employee,
+                    "course": course,
+                }
+            )
+        elif distributor:
+            # For distributors, create/update Distributor Course Documents
+            existing_doc_name = frappe.db.exists(
+                "Distributor Course Documents",
+                {
+                    "distributor": distributor,
+                    "course": course,
+                }
+            )
+        else:
+            return {"success": False, "message": "Unable to determine user type for document creation"}
 
         doc = None
         if existing_doc_name:
-            doc = frappe.get_doc("Distributor Course Documents", existing_doc_name)
-            # If already submitted, do not allow another upload
-            if doc.has_submitted_documents:
-                return {
-                    "success": False,
-                    "message": "Document already submitted. You cannot upload another file for this course."
-                }
+            if employee:
+                doc = frappe.get_doc("Employee Course Documents", existing_doc_name)
+                # If already submitted, do not allow another upload
+                if doc.workflow_state == "Uploaded":
+                    return {
+                        "success": False,
+                        "message": "Document already submitted. You cannot upload another file for this course."
+                    }
+            else:
+                doc = frappe.get_doc("Distributor Course Documents", existing_doc_name)
+                # If already submitted, do not allow another upload
+                if doc.has_submitted_documents:
+                    return {
+                        "success": False,
+                        "message": "Document already submitted. You cannot upload another file for this course."
+                    }
         else:
-            # Create new document for this distributor, course, and year
-            doc = frappe.get_doc({
-                "doctype": "Distributor Course Documents",
-                "distributor": distributor_doc.name,
-                "course": course,
-                "submission_datetime": frappe.utils.now_datetime(),
-                "signature_style": signature_type,
-                "entered_name": name,
-                "has_submitted_documents": 0
-            })
-            doc.insert(ignore_permissions=True)
+            if employee:
+                # Create new document for this employee
+                doc = frappe.get_doc({
+                    "doctype": "Employee Course Documents",
+                    "employee": employee,
+                    "course": course,
+                    "submission_datetime": frappe.utils.now_datetime(),
+                    "workflow_state": "Certify"
+                })
+                doc.insert(ignore_permissions=True)
+            elif distributor:
+                # Create new document for this distributor
+                doc = frappe.get_doc({
+                    "doctype": "Distributor Course Documents",
+                    "distributor": distributor,
+                    "course": course,
+                    "submission_datetime": frappe.utils.now_datetime(),
+                    "signature_style": signature_type,
+                    "entered_name": name,
+                    "has_submitted_documents": 0
+                })
+                doc.insert(ignore_permissions=True)
+            else:
+                return {"success": False, "message": "Unable to create document - user type not determined"}
 
         # Decode the base64 file data robustly
         try:
@@ -1206,23 +1318,37 @@ def save_user_course_document_with_file(
             file_content = file_content.encode('utf-8') if isinstance(file_content, str) else bytes(file_content)
 
         # Save the file using Frappe's file manager
-        file_doc = save_file(
-            fname=filename_ascii,
-            content=file_content,
-            dt="Distributor Course Documents",
-            dn=doc.name,
-            is_private=1
-        )
+        if employee:
+            file_doc = save_file(
+                fname=filename_ascii,
+                content=file_content,
+                dt="Employee Course Documents",
+                dn=doc.name,
+                is_private=1
+            )
+            # Update employee document fields
+            doc.document_file = file_doc.file_url
+            doc.workflow_state = "Uploaded"
+            doc.save(ignore_permissions=True)
+        elif distributor:
+            file_doc = save_file(
+                fname=filename_ascii,
+                content=file_content,
+                dt="Distributor Course Documents",
+                dn=doc.name,
+                is_private=1
+            )
+            # Update distributor document fields
+            doc.document_name = document_name
+            doc.document_file = file_doc.file_url
+            doc.submission_date = now_datetime()
 
-        # Update document fields
-        doc.document_name = document_name
-        doc.document_file = file_doc.file_url
-        doc.submission_date = now_datetime()
-    
-        if signature_type:
-            doc.signature_type = signature_type
+            if signature_type:
+                doc.signature_type = signature_type
 
-        doc.save(ignore_permissions=True)
+            doc.save(ignore_permissions=True)
+        else:
+            return {"success": False, "message": "Unable to save file - user type not determined"}
 
         return {
             "success": True,
