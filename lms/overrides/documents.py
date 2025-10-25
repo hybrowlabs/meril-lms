@@ -1923,11 +1923,13 @@ def get_public_signature_font_styles():
 @frappe.whitelist(allow_guest=False)
 def download_nonendo_file():
     user = frappe.session.user
+    frappe.logger().info(f"download_nonendo_file called by user: {user}")
 
     # Check if user has Distributor role
     user_doc = frappe.get_doc("User", user)
     roles = [role.role for role in user_doc.roles]
     if "Distributor" not in roles:
+        frappe.logger().warning(f"download_nonendo_file: Access denied for user {user} - not a Distributor (roles: {roles})")
         frappe.local.response["message"] = "Only Distributor can download this file"
         frappe.local.response["http_status_code"] = 200  # Return 200 with error message
         return {"success": False, "message": "Only Distributor can download this file"}
@@ -1944,18 +1946,23 @@ def download_nonendo_file():
     for company in distributor_doc.meril_company_table:
         name = (company.division or "").lower()
         if "endo" not in name:
-            # Try multiple file name patterns for policy files
-            file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy.pdf"})
+            # Try exact file name patterns for policy files (prioritize correct case)
+            file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy.pdf"})
             if not file_docname:
-                # Try alternative naming patterns
-                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy.pdf"})
+                # Try alternative case
+                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy.pdf"})
             if not file_docname:
-                # Try searching with LIKE pattern
+                # Try more specific patterns first (exclude adoption forms)
                 files = frappe.db.sql("""
                     SELECT name, file_name, file_url FROM tabFile
-                    WHERE file_name LIKE '%Compliance%policy%'
+                    WHERE file_name LIKE '%Compliance%Policy%'
                     AND file_name NOT LIKE '%Endo%'
                     AND file_name NOT LIKE '%endo%'
+                    AND file_name NOT LIKE '%Adoption%'
+                    AND file_name NOT LIKE '%adoption%'
+                    AND file_name NOT LIKE '%Form%'
+                    AND file_name NOT LIKE '%form%'
+                    ORDER BY creation ASC
                     LIMIT 1
                 """, as_dict=True)
                 if files:
@@ -1967,6 +1974,17 @@ def download_nonendo_file():
                 return {"success": False, "message": "Policy file not found"}
 
             file_doc = frappe.get_doc("File", file_docname)
+
+            # Log which file is being served for debugging
+            frappe.logger().info(f"download_nonendo_file: Serving file {file_doc.file_name} (ID: {file_docname}) from {file_doc.file_url}")
+
+            # Validate that this is actually a policy file, not an adoption form
+            if "adoption" in file_doc.file_name.lower() or "form" in file_doc.file_name.lower():
+                frappe.logger().error(f"download_nonendo_file: ERROR - Attempted to serve adoption form instead of policy: {file_doc.file_name}")
+                frappe.local.response["message"] = "Invalid policy file detected"
+                frappe.local.response["http_status_code"] = 200
+                return {"success": False, "message": "Invalid policy file - adoption form detected instead of policy"}
+
             file_path = get_file_path(file_doc.file_url)
 
             with open(file_path, "rb") as f:
@@ -1985,11 +2003,13 @@ def download_nonendo_file():
 @frappe.whitelist(allow_guest=False)
 def download_endo_file():
     user = frappe.session.user
+    frappe.logger().info(f"download_endo_file called by user: {user}")
 
     # Check if user has Distributor role
     user_doc = frappe.get_doc("User", user)
     roles = [role.role for role in user_doc.roles]
     if "Distributor" not in roles:
+        frappe.logger().warning(f"download_endo_file: Access denied for user {user} - not a Distributor (roles: {roles})")
         frappe.local.response["message"] = "Only Distributor can download this file"
         frappe.local.response["http_status_code"] = 200  # Return 200 with error message
         return {"success": False, "message": "Only Distributor can download this file"}
@@ -2006,30 +2026,40 @@ def download_endo_file():
     for company in distributor_doc.meril_company_table:
         name = (company.division or "").lower()
         if "endo" in name:
-            # Try multiple file name patterns for Endo policy files
-            file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy for Endo.pdf"})
+            # Try exact file name patterns for Endo policy files (prioritize correct case)
+            file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy for Endo.pdf"})
             if not file_docname:
-                # Try alternative naming patterns
-                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy for Endo.pdf"})
+                # Try alternative case
+                file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance policy for Endo.pdf"})
             if not file_docname:
-                # Try searching with LIKE pattern for Endo files
+                # Try more specific patterns for Endo files (exclude adoption forms)
                 files = frappe.db.sql("""
                     SELECT name, file_name, file_url FROM tabFile
-                    WHERE file_name LIKE '%Compliance%policy%'
+                    WHERE file_name LIKE '%Compliance%Policy%'
                     AND (file_name LIKE '%Endo%' OR file_name LIKE '%endo%')
+                    AND file_name NOT LIKE '%Adoption%'
+                    AND file_name NOT LIKE '%adoption%'
+                    AND file_name NOT LIKE '%Form%'
+                    AND file_name NOT LIKE '%form%'
+                    ORDER BY creation ASC
                     LIMIT 1
                 """, as_dict=True)
                 if files:
                     file_docname = files[0].name
 
-            # If still no Endo-specific file, fallback to general policy file
+            # If still no Endo-specific file, fallback to general policy file (with same exclusions)
             if not file_docname:
                 file_docname = frappe.db.get_value("File", {"file_name": "Meril Distributor Compliance Policy.pdf"})
                 if not file_docname:
-                    # Try searching for any policy file as fallback
+                    # Try searching for any policy file as fallback (exclude adoption forms)
                     files = frappe.db.sql("""
                         SELECT name, file_name, file_url FROM tabFile
-                        WHERE file_name LIKE '%Compliance%policy%'
+                        WHERE file_name LIKE '%Compliance%Policy%'
+                        AND file_name NOT LIKE '%Adoption%'
+                        AND file_name NOT LIKE '%adoption%'
+                        AND file_name NOT LIKE '%Form%'
+                        AND file_name NOT LIKE '%form%'
+                        ORDER BY creation ASC
                         LIMIT 1
                     """, as_dict=True)
                     if files:
@@ -2041,6 +2071,17 @@ def download_endo_file():
                 return {"success": False, "message": "Endo policy file not found"}
 
             file_doc = frappe.get_doc("File", file_docname)
+
+            # Log which file is being served for debugging
+            frappe.logger().info(f"download_endo_file: Serving file {file_doc.file_name} (ID: {file_docname}) from {file_doc.file_url}")
+
+            # Validate that this is actually a policy file, not an adoption form
+            if "adoption" in file_doc.file_name.lower() or "form" in file_doc.file_name.lower():
+                frappe.logger().error(f"download_endo_file: ERROR - Attempted to serve adoption form instead of policy: {file_doc.file_name}")
+                frappe.local.response["message"] = "Invalid policy file detected"
+                frappe.local.response["http_status_code"] = 200
+                return {"success": False, "message": "Invalid policy file - adoption form detected instead of policy"}
+
             file_path = get_file_path(file_doc.file_url)
 
             with open(file_path, "rb") as f:
