@@ -1,4 +1,5 @@
 import frappe
+import json
 from frappe import _
 
 @frappe.whitelist(allow_guest=False)
@@ -38,22 +39,49 @@ def get_distributor_dashboard_info():
             d.city                               AS `city`,
             d.region                             AS `region`,
             d.state                              AS `state`,
-            dd.has_submitted_documents           AS `submitted_documents`,
-            dd.submission_datetime               AS `submission_datetime`,
-            dd.name                              AS `docuemnts_id`,
-            le.course                            AS `course_name`,
-            le.progress                          AS `progress`,
-            le.completed_on                      AS `completed_on`,
-            le.completion_status                 AS `completion_status`,
-            IFNULL(le.re_enrollment_count, 0)    AS `re_enrollment_count`,
-            IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`
-        FROM `tabDistributor` AS d
-        LEFT JOIN `tabLMS Enrollment` AS le
-            ON le.member = d.user_id 
-        LEFT JOIN `tabDistributor Course Documents` AS dd
-            ON d.name = dd.distributor AND le.course = dd.course
+            IFNULL(hist.enrollment_history, '[]') AS `enrollment_history`
+        FROM `tabDistributor` d
+        LEFT JOIN (
+            SELECT
+                le.member,
+                JSON_ARRAYAGG(
+                    JSON_OBJECT(
+                        'course', le.course,
+                        'progress', le.progress,
+                        'completed_on', le.completed_on,
+                        'completion_status', le.completion_status,
+                        'enrollment_version', le.enrollment_version,
+                        'documents', JSON_OBJECT(
+                            'submitted', dcd.has_submitted_documents,
+                            'submission_datetime', dcd.submission_datetime,
+                            'docid', dcd.name
+                        )
+                    )
+                ) AS enrollment_history
+            FROM `tabLMS Enrollment` le
+            LEFT JOIN `tabDistributor Course Documents` dcd
+                ON dcd.distributor = (
+                    SELECT name FROM `tabDistributor`
+                    WHERE user_id = le.member LIMIT 1
+                )
+                AND dcd.course = le.course
+            GROUP BY le.member
+        ) hist ON hist.member = d.user_id
+        ORDER BY d.distributor_name
     """
     data = frappe.db.sql(query, as_dict=True)
+
+    # attach enrollment history JSON objects if missing
+    for row in data:
+        history_raw = row.pop('enrollment_history', None)
+        if history_raw:
+            try:
+                row['enrollment_history'] = json.loads(history_raw)
+            except Exception:
+                row['enrollment_history'] = []
+        else:
+            row['enrollment_history'] = []
+
     return data
 
 
