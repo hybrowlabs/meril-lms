@@ -243,6 +243,22 @@ function get_selected_employees_from_dialog() {
 	return selected;
 }
 
+function set_user_country(employee) {
+	if (!employee || !employee.company_email || !employee.custom_country) {
+		return;
+	}
+
+	frappe.call({
+		method: 'frappe.client.set_value',
+		args: {
+			doctype: 'User',
+			name: employee.company_email,
+			fieldname: 'country',
+			value: employee.custom_country
+		}
+	});
+}
+
 function process_bulk_employee_user_creation(employee_ids, filters) {
 	frappe.show_progress(__('Creating Users'), 0, employee_ids.length, __('Starting...'));
 
@@ -279,11 +295,13 @@ function process_bulk_employee_user_creation(employee_ids, filters) {
 					args: {
 						doctype: 'Employee',
 						name: employee_id,
-						fields: ['first_name', 'last_name', 'company_email']
+						fields: ['first_name', 'last_name', 'company_email', 'custom_country']
 					},
 					callback: function(emp_r) {
 						let employee = emp_r.message;
 						let name = [employee.first_name, employee.last_name].filter(Boolean).join(' ');
+
+						set_user_country(employee);
 
 						results.success.push({
 							employee_id: employee_id,
@@ -306,11 +324,13 @@ function process_bulk_employee_user_creation(employee_ids, filters) {
 					args: {
 						doctype: 'Employee',
 						name: employee_id,
-						fields: ['first_name', 'last_name', 'company_email']
+						fields: ['first_name', 'last_name', 'company_email', 'custom_country']
 					},
 					callback: function(emp_r) {
 						let employee = emp_r.message || {};
 						let name = [employee.first_name, employee.last_name].filter(Boolean).join(' ') || employee_id;
+
+						set_user_country(employee);
 
 						// Check if it's because user already exists
 						if (r.message && r.message.includes('already exists')) {
