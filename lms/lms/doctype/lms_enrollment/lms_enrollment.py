@@ -57,7 +57,7 @@ class LMSEnrollment(Document):
 	def is_admin_or_moderator(self):
 		"""Check if the user has admin or moderator roles"""
 		user_roles = frappe.get_roles(self.member)
-		admin_roles = ["System Manager", "Administrator", "Moderator"]
+		admin_roles = ["System Manager", "Administrator", "Supervisor"]
 		return any(role in admin_roles for role in user_roles)
 
 	def can_access_course(self):
@@ -135,7 +135,7 @@ class LMSEnrollment(Document):
 			return True
 			
 		# Moderators can re-enroll distributors and employees
-		if "Moderator" in user_roles:
+		if "Supervisor" in user_roles:
 			return True
 			
 		# Check if user is senior/manager of the enrolled member

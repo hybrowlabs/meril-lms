@@ -47,9 +47,14 @@ def normalize_url(url):
 
 @frappe.whitelist()
 def save_progress(lesson, course, completed_videos=None):
-	membership = frappe.db.exists(
-		"LMS Enrollment", {"course": course, "member": frappe.session.user}
+	latest_enrollment = frappe.get_all(
+		"LMS Enrollment",
+		filters={"course": course, "member": frappe.session.user},
+		fields=["name"],
+		order_by="enrollment_version desc, creation desc",
+		limit=1,
 	)
+	membership = latest_enrollment[0].name if latest_enrollment else None
 	if not membership:
 		return 0
 
