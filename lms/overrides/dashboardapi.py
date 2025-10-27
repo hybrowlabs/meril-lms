@@ -45,6 +45,7 @@ def get_distributor_dashboard_info():
             le.progress                          AS `progress`,
             le.completed_on                      AS `completed_on`,
             le.completion_status                 AS `completion_status`,
+            IFNULL(le.re_enrollment_count, 0)    AS `re_enrollment_count`,
             IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`
         FROM `tabDistributor` AS d
         LEFT JOIN `tabLMS Enrollment` AS le
