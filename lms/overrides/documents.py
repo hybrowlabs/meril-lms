@@ -1564,11 +1564,13 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
         }
 
     # For employees, name is not required (comes from employee record)
+    # For Distributor adoption form, be forgiving: we'll derive a fallback later
     if user_role == "Distributor" and not name:
-        return {
-            "success": False,
-            "message": "No compliance officer name provided"
-        }
+        if document_type and document_type != "Meril Distributor Compliance Policy Adoption Form":
+            return {
+                "success": False,
+                "message": "No compliance officer name provided"
+            }
 
     # Get user-specific document based on role
     try:
@@ -1664,7 +1666,16 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
 
             # Update fields based on user role
             if user_role == "Distributor":
-                doc.entered_name = name
+                # Derive effective name for Distributor, especially for adoption form
+                effective_name = name or getattr(doc, "entered_name", None) or getattr(user_doc_record, "attendee_name", None) or getattr(user_doc, "full_name", None)
+                # If adoption form still has no name, error out clearly
+                if (document_type == "Meril Distributor Compliance Policy Adoption Form") and not effective_name:
+                    return {
+                        "success": False,
+                        "message": "No compliance officer name provided"
+                    }
+                if effective_name:
+                    doc.entered_name = effective_name
             doc.submission_datetime = now_datetime()
             if course:  # Only save if course is provided
                 doc.save(ignore_permissions=True)

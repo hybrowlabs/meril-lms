@@ -38,10 +38,7 @@
                 <label for="input-city">City</label>
                 <input type="text" class="form-control" id="input-city" name="city" value="{{ frappe.session.user_doc.city or '' }}" readonly>
             </div>
-            <div class="form-group col-md-6">
-                <label for="input-distributor_code">Distributor Code</label>
-                <input type="text" class="form-control" id="input-distributor_code" name="distributor_code" value="{{ frappe.session.user_doc.distributor_code or '' }}" readonly>
-            </div>
+            <!-- Distributor code field removed as per instructions -->
 
             <!-- Distributor Company Name (Mandatory) -->
             <div class="form-group col-md-6">

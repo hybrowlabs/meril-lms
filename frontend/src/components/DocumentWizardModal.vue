@@ -82,6 +82,7 @@
             :required-documents="state.requiredDocuments"
             :certification-data="state.certification"
             :course-name="state.courseName"
+            :compliance-officer-name="state.complianceOfficerName"
             :completed-downloads="state.downloads.completedDownloads"
             @download-complete="handleDownloadComplete"
           />

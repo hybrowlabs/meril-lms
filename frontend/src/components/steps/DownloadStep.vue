@@ -151,6 +151,10 @@ const props = defineProps({
   completedDownloads: {
     type: Set,
     default: () => new Set()
+  },
+  complianceOfficerName: {
+    type: String,
+    default: ''
   }
 })
 
@@ -266,8 +270,13 @@ const downloadDocument = async (docItem) => {
 
         // Call the generate_dynamic_docx API with print format enabled
         // This will generate PDF from the appropriate print format
+        const isAdoption = docItem.name === 'Meril Distributor Compliance Policy Adoption Form'
+        const effectiveName = isAdoption
+          ? (props.certificationData?.name || props.complianceOfficerName || 'User')
+          : (props.certificationData?.name || 'User')
+
         response = await call("lms.overrides.documents.generate_dynamic_docx", {
-          name: props.certificationData?.name || 'User',
+          name: effectiveName,
           course: props.courseName,
           font_path: null,
           document_type: docItem.name,
@@ -291,8 +300,12 @@ const downloadDocument = async (docItem) => {
         // If the main API fails, try without the course parameter for standalone generation
         try {
           console.log('Trying standalone document generation without course context')
+          const effectiveName = isAdoption
+            ? (props.certificationData?.name || props.complianceOfficerName || 'User')
+            : (props.certificationData?.name || 'User')
+
           response = await call("lms.overrides.documents.generate_dynamic_docx", {
-            name: props.certificationData?.name || 'User',
+            name: effectiveName,
             course: null,
             font_path: null,
             document_type: docItem.name,

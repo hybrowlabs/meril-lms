@@ -636,9 +636,16 @@ const handleCertify = () => {
   }
 
   // For employees, use employee name from declaration info; for others use local name
-  const certificationName = props.userRole === 'Employee'
-    ? (props.declarationInfo?.employee_name || props.declarationInfo?.attendee_name || 'Employee')
-    : localName.value.trim()
+  const certificationName = (() => {
+    if (props.userRole === 'Employee') {
+      return props.declarationInfo?.employee_name || props.declarationInfo?.attendee_name || 'Employee'
+    }
+    // If adoption form for Distributor, use the nominated compliance officer name
+    if (isCompliancePolicyForm && props.userRole === 'Distributor') {
+      return (localComplianceOfficerName.value || props.complianceOfficerName || '').trim() || localName.value.trim()
+    }
+    return localName.value.trim()
+  })()
 
   emit('certification-complete', {
     name: certificationName,
