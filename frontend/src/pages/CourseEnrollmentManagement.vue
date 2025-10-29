@@ -470,6 +470,15 @@ const reEnrollSingleUser = (enrollment) => {
 const executeSingleReEnrollment = async () => {
 	singleReEnrollLoading.value = true
 	try {
+		// Guard: block if a re-enrollment is already running
+		const guard = await call('lms.lms.api.can_re_enroll_user', {
+			member_email: selectedEnrollmentForReEnroll.value.member,
+			course_name: selectedEnrollmentForReEnroll.value.course
+		})
+		if (guard && guard.can_re_enroll === false && guard.reason === 'already_running') {
+			alert('A re-enrollment is already running. Please finish the current course first.')
+			return
+		}
 		await call('lms.lms.api.admin_re_enroll_user', {
 			course_name: selectedEnrollmentForReEnroll.value.course,
 			member_email: selectedEnrollmentForReEnroll.value.member,
@@ -493,7 +502,24 @@ const executeSingleReEnrollment = async () => {
 const executeBulkReEnrollment = async () => {
 	bulkReEnrollLoading.value = true
 	try {
-		const enrollmentsData = selectedEnrollments.value.map(enrollmentId => {
+		// Guard: check all selected enrollments and skip those already running
+		const checks = await Promise.all(selectedEnrollments.value.map(enrollmentId => {
+			const e = completedEnrollments.value.find(x => x.name === enrollmentId)
+			return call('lms.lms.api.can_re_enroll_user', {
+				member_email: e.member,
+				course_name: e.course
+			}).then(res => ({ id: enrollmentId, ok: !!(res && res.can_re_enroll !== false), reason: res && res.reason }))
+		}))
+
+		const allowedIds = checks.filter(c => c.ok).map(c => c.id)
+		const skipped = checks.filter(c => !c.ok)
+
+		if (allowedIds.length === 0) {
+			alert('All selected users already have an active re-enrollment running.')
+			return
+		}
+
+		const enrollmentsData = allowedIds.map(enrollmentId => {
 			const enrollment = completedEnrollments.value.find(e => e.name === enrollmentId)
 			return {
 				course: enrollment.course,
@@ -511,10 +537,11 @@ const executeBulkReEnrollment = async () => {
 		// Refresh all data after bulk re-enrollment
 		await loadData()
 		
-		// Show results summary
+		// Show results summary (include skipped info if any)
 		const successful = results.filter(r => r.success).length
 		const failed = results.filter(r => !r.success).length
-		alert(`Bulk re-enrollment completed: ${successful} successful, ${failed} failed`)
+		const skippedMsg = skipped.length ? `, ${skipped.length} skipped (already running)` : ''
+		alert(`Bulk re-enrollment completed: ${successful} successful, ${failed} failed${skippedMsg}`)
 		
 	} catch (error) {
 		console.error('Failed to bulk re-enroll:', error)

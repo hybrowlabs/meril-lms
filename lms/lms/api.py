@@ -1,3 +1,42 @@
+from __future__ import annotations
+import frappe
+
+
+@frappe.whitelist(allow_guest=False)
+def can_re_enroll_user(member_email: str | None = None, course_name: str | None = None):
+    """
+    Check if a user can be re-enrolled in a course.
+    Blocks if the latest enrollment is Active/Re-enrolled and progress < 100.
+
+    Returns:
+        { "can_re_enroll": bool, "reason": str | None }
+    """
+    if not member_email or not course_name:
+        return {"can_re_enroll": False, "reason": "missing_params"}
+
+    latest = frappe.db.get_value(
+        "LMS Enrollment",
+        {"member": member_email, "course": course_name},
+        ["name", "progress", "completion_status", "enrollment_version"],
+        as_dict=True,
+        order_by="enrollment_version desc",
+    )
+
+    if not latest:
+        # No enrollment yet; allow re-enroll call to create one per your flow
+        return {"can_re_enroll": True}
+
+    status = (latest.get("completion_status") or "").strip()
+    try:
+        progress = float(latest.get("progress") or 0)
+    except Exception:
+        progress = 0.0
+
+    if status in {"Re-enrolled", "Active"} and progress < 100.0:
+        return {"can_re_enroll": False, "reason": "already_running"}
+
+    return {"can_re_enroll": True}
+
 """API methods for the LMS.
 """
 
