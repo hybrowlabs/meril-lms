@@ -122,7 +122,7 @@ def get_distributor_dashboard_info():
         # Normalize completion from progress
         try:
             prog = float(r.get("progress") or 0)
-            except Exception:
+        except Exception:
             prog = 0.0
         if prog >= 100.0 and r.get("completion_status") != "Completed":
             r["completion_status"] = "Completed"
