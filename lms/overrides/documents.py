@@ -1567,10 +1567,10 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
     # For Distributor adoption form, be forgiving: we'll derive a fallback later
     if user_role == "Distributor" and not name:
         if document_type and document_type != "Meril Distributor Compliance Policy Adoption Form":
-        return {
-            "success": False,
-            "message": "No compliance officer name provided"
-        }
+            return {
+                "success": False,
+                "message": "No compliance officer name provided"
+            }
 
     # Get user-specific document based on role
     try:
