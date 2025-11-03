@@ -1366,6 +1366,222 @@ def save_user_course_document_with_file(
             "message": f"Error saving document: {str(e)}"
         }
 
+
+@frappe.whitelist(allow_guest=False)
+def upload_chunked():
+    """Handle chunked file upload from Dropzone.js"""
+    import os
+    import tempfile
+    import hashlib
+    import json
+
+    try:
+        # Get chunk data from request
+        chunk_data = frappe.form_dict
+
+        # Extract Dropzone parameters
+        uuid = chunk_data.get('dzuuid')
+        chunk_index = int(chunk_data.get('dzchunkindex', 0))
+        total_chunks = int(chunk_data.get('dztotalchunkcount', 1))
+        chunk_size = int(chunk_data.get('dzchunksize', 0))
+        total_size = int(chunk_data.get('dztotalfilesize', 0))
+        filename = chunk_data.get('filename', 'unnamed_file')
+        file_type = chunk_data.get('file_type', 'application/octet-stream')
+
+        # Get the actual file chunk
+        file_chunk = frappe.request.files.get('file')
+        if not file_chunk:
+            return {
+                'success': False,
+                'message': 'No file chunk received'
+            }
+
+        # Create temp directory for chunks if not exists
+        temp_dir = os.path.join(tempfile.gettempdir(), 'frappe_chunks', uuid)
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # Save chunk to temp file
+        chunk_path = os.path.join(temp_dir, f"chunk_{chunk_index}")
+        file_chunk.save(chunk_path)
+
+        # Log chunk receipt
+        frappe.logger().info(f"Received chunk {chunk_index + 1}/{total_chunks} for file {filename}")
+
+        # Check if all chunks have been uploaded
+        uploaded_chunks = []
+        for i in range(total_chunks):
+            chunk_file = os.path.join(temp_dir, f"chunk_{i}")
+            if os.path.exists(chunk_file):
+                uploaded_chunks.append(i)
+
+        if len(uploaded_chunks) == total_chunks:
+            # All chunks received, reassemble the file
+            return _reassemble_chunks(uuid, filename, file_type, total_chunks, temp_dir)
+        else:
+            # Still waiting for more chunks
+            return {
+                'success': True,
+                'message': f'Chunk {chunk_index + 1}/{total_chunks} uploaded successfully',
+                'chunks_received': len(uploaded_chunks),
+                'total_chunks': total_chunks
+            }
+
+    except Exception as e:
+        frappe.log_error(f"Error in chunked upload: {str(e)}")
+        return {
+            'success': False,
+            'message': f'Error uploading chunk: {str(e)}'
+        }
+
+
+def _reassemble_chunks(uuid, filename, file_type, total_chunks, temp_dir):
+    """Reassemble chunks into complete file"""
+    import os
+    import shutil
+
+    try:
+        # Create temporary file for assembled content
+        temp_file_path = os.path.join(temp_dir, f"complete_{filename}")
+
+        # Reassemble chunks in order
+        with open(temp_file_path, 'wb') as complete_file:
+            for i in range(total_chunks):
+                chunk_path = os.path.join(temp_dir, f"chunk_{i}")
+                if not os.path.exists(chunk_path):
+                    raise Exception(f"Missing chunk {i}")
+
+                with open(chunk_path, 'rb') as chunk_file:
+                    complete_file.write(chunk_file.read())
+
+        # Read the complete file
+        with open(temp_file_path, 'rb') as f:
+            file_content = f.read()
+
+        # Save file using Frappe's file system
+        file_doc = frappe.get_doc({
+            "doctype": "File",
+            "file_name": filename,
+            "content": file_content,
+            "is_private": 0,
+            "folder": "Home/LMS Uploads"
+        })
+        file_doc.save(ignore_permissions=True)
+
+        # Clean up temp files
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        frappe.logger().info(f"Successfully reassembled and saved file: {filename}")
+
+        return {
+            'success': True,
+            'message': 'File uploaded successfully',
+            'file_url': file_doc.file_url,
+            'file_name': file_doc.file_name,
+            'file_size': file_doc.file_size
+        }
+
+    except Exception as e:
+        # Clean up on error
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        frappe.log_error(f"Error reassembling chunks: {str(e)}")
+        return {
+            'success': False,
+            'message': f'Error reassembling file: {str(e)}'
+        }
+
+
+@frappe.whitelist(allow_guest=False)
+def finalize_chunked_upload():
+    """Finalize chunked upload after all chunks are received"""
+    import os
+    import tempfile
+    import shutil
+
+    try:
+        # Get parameters
+        uuid = frappe.form_dict.get('uuid')
+        filename = frappe.form_dict.get('filename', 'unnamed_file')
+        file_type = frappe.form_dict.get('file_type', 'application/octet-stream')
+        total_size = int(frappe.form_dict.get('total_size', 0))
+
+        if not uuid:
+            return {
+                'success': False,
+                'message': 'Missing upload UUID'
+            }
+
+        # Get temp directory
+        temp_dir = os.path.join(tempfile.gettempdir(), 'frappe_chunks', uuid)
+
+        if not os.path.exists(temp_dir):
+            return {
+                'success': False,
+                'message': 'Upload session not found or expired'
+            }
+
+        # Find all chunk files
+        chunk_files = []
+        for file in os.listdir(temp_dir):
+            if file.startswith('chunk_'):
+                chunk_index = int(file.split('_')[1])
+                chunk_files.append((chunk_index, file))
+
+        # Sort by chunk index
+        chunk_files.sort(key=lambda x: x[0])
+
+        if not chunk_files:
+            return {
+                'success': False,
+                'message': 'No chunks found'
+            }
+
+        # Reassemble the file
+        total_chunks = len(chunk_files)
+        return _reassemble_chunks(uuid, filename, file_type, total_chunks, temp_dir)
+
+    except Exception as e:
+        frappe.log_error(f"Error finalizing chunked upload: {str(e)}")
+        return {
+            'success': False,
+            'message': f'Error finalizing upload: {str(e)}'
+        }
+
+
+@frappe.whitelist(allow_guest=False)
+def get_chunk_upload_status(uuid):
+    """Get status of chunked upload"""
+    import os
+    import tempfile
+
+    try:
+        temp_dir = os.path.join(tempfile.gettempdir(), 'frappe_chunks', uuid)
+
+        if not os.path.exists(temp_dir):
+            return {
+                'success': False,
+                'message': 'Upload session not found'
+            }
+
+        # Count uploaded chunks
+        chunk_count = 0
+        for file in os.listdir(temp_dir):
+            if file.startswith('chunk_'):
+                chunk_count += 1
+
+        return {
+            'success': True,
+            'chunks_uploaded': chunk_count
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'message': str(e)
+        }
+
+
 def trim_img_whitespace(img):
     """Crop extra white/transparent space around text."""
     # Use a white background for RGB, transparent for RGBA
