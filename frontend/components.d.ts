@@ -54,6 +54,7 @@ declare module 'vue' {
     DocumentDownloadModal: typeof import('./src/components/custom/DocumentDownloadModal.vue')['default']
     DocumentWizardModal: typeof import('./src/components/DocumentWizardModal.vue')['default']
     DownloadStep: typeof import('./src/components/steps/DownloadStep.vue')['default']
+    DropzoneUpload: typeof import('./src/components/DropzoneUpload.vue')['default']
     EditCoverImage: typeof import('./src/components/Modals/EditCoverImage.vue')['default']
     EditProfile: typeof import('./src/components/Modals/EditProfile.vue')['default']
     EmailTemplateModal: typeof import('./src/components/Modals/EmailTemplateModal.vue')['default']

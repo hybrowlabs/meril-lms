@@ -272,7 +272,7 @@ const downloadDocument = async (docItem) => {
         // This will generate PDF from the appropriate print format
         const isAdoption = docItem.name === 'Meril Distributor Compliance Policy Adoption Form'
         const effectiveName = isAdoption
-          ? (props.certificationData?.name || props.complianceOfficerName || 'User')
+          ? (props.complianceOfficerName || props.certificationData?.name || 'User')
           : (props.certificationData?.name || 'User')
 
         response = await call("lms.overrides.documents.generate_dynamic_docx", {
@@ -301,7 +301,7 @@ const downloadDocument = async (docItem) => {
         try {
           console.log('Trying standalone document generation without course context')
           const effectiveName = isAdoption
-            ? (props.certificationData?.name || props.complianceOfficerName || 'User')
+            ? (props.complianceOfficerName || props.certificationData?.name || 'User')
             : (props.certificationData?.name || 'User')
 
           response = await call("lms.overrides.documents.generate_dynamic_docx", {
