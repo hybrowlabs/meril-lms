@@ -1,10 +1,6 @@
 <template>
   <div class="dropzone-upload-container">
-    <div
-      ref="dropzoneElement"
-      class="dropzone-area"
-      :class="{ 'dropzone-dragging': isDragging }"
-    >
+    <div ref="dropzoneElement" class="dropzone-area" :class="{ 'dropzone-dragging': isDragging }">
       <div v-if="!currentFile" class="dropzone-placeholder">
         <FileUp class="w-10 h-10 text-gray-400 mb-3" />
         <p class="text-lg font-medium text-gray-700 mb-1">
@@ -13,62 +9,78 @@
         <p class="text-sm text-gray-500">
           Supports files up to 1GB. Video formats: MP4, MOV, AVI, MKV, WEBM
         </p>
-        <p class="text-sm text-gray-500">
-          Other formats: Images, PDFs, Audio files
-        </p>
+        <p class="text-sm text-gray-500">Other formats: Images, PDFs, Audio files</p>
       </div>
 
-      <!-- Upload Progress -->
-      <div v-if="currentFile && !uploadComplete" class="upload-progress">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex-1">
-            <p class="text-sm font-medium text-gray-700">{{ currentFile.name }}</p>
-            <p class="text-xs text-gray-500">
-              {{ formatFileSize(currentFile.size) }} • {{ getFileType(currentFile.type) }}
-            </p>
+      <div v-else class="dropzone-content">
+        <div v-if="previewType !== 'none'" class="file-preview">
+          <img
+            v-if="previewType === 'image'"
+            :src="filePreviewUrl"
+            :alt="currentFile.name"
+            class="file-preview-media"
+          />
+          <video
+            v-else-if="previewType === 'video'"
+            :src="filePreviewUrl"
+            controls
+            playsinline
+            class="file-preview-media"
+          ></video>
+          <audio
+            v-else-if="previewType === 'audio'"
+            :src="filePreviewUrl"
+            controls
+            class="file-preview-audio"
+          ></audio>
+          <div v-else class="file-preview-fallback">
+            <FileUp class="w-10 h-10 text-gray-400 mb-2" />
+            <p class="text-sm text-gray-600">Preview not available</p>
           </div>
-          <Button
-            v-if="!uploadComplete"
-            variant="ghost"
-            size="sm"
-            @click="cancelUpload"
-          >
-            Cancel
+        </div>
+
+        <!-- Upload Progress -->
+        <div v-if="!uploadComplete" class="upload-progress">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex-1 text-left">
+              <p class="text-sm font-medium text-gray-700">{{ currentFile.name }}</p>
+              <p class="text-xs text-gray-500">
+                {{ formatFileSize(currentFile.size) }} • {{ getFileType(currentFile.type) }}
+              </p>
+            </div>
+            <Button v-if="!uploadComplete" variant="ghost" size="sm" @click="cancelUpload">
+              Cancel
+            </Button>
+          </div>
+
+          <div class="mb-2">
+            <div class="flex justify-between text-xs text-gray-500 mb-1">
+              <span>{{ Math.round(uploadProgress) }}%</span>
+              <span v-if="uploadSpeed">{{ uploadSpeed }}</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+              <div
+                class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                :style="{ width: `${uploadProgress}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <div v-if="chunksInfo" class="text-xs text-gray-500 text-left">
+            Chunk {{ chunksInfo.currentChunk }} of {{ chunksInfo.totalChunks }}
+            <span v-if="estimatedTime"> • {{ estimatedTime }} remaining</span>
+          </div>
+        </div>
+
+        <!-- Upload Complete -->
+        <div v-else class="upload-complete">
+          <CheckCircle class="w-10 h-10 text-green-500 mb-2" />
+          <p class="text-sm font-medium text-gray-700">Upload complete!</p>
+          <p class="text-xs text-gray-500">{{ currentFile?.name }}</p>
+          <Button variant="subtle" size="sm" class="mt-3" @click="resetUpload">
+            Upload Another File
           </Button>
         </div>
-
-        <div class="mb-2">
-          <div class="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{{ Math.round(uploadProgress) }}%</span>
-            <span v-if="uploadSpeed">{{ uploadSpeed }}</span>
-          </div>
-          <div class="w-full bg-gray-200 rounded-full h-2">
-            <div
-              class="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              :style="{ width: `${uploadProgress}%` }"
-            ></div>
-          </div>
-        </div>
-
-        <div v-if="chunksInfo" class="text-xs text-gray-500">
-          Chunk {{ chunksInfo.currentChunk }} of {{ chunksInfo.totalChunks }}
-          <span v-if="estimatedTime"> • {{ estimatedTime }} remaining</span>
-        </div>
-      </div>
-
-      <!-- Upload Complete -->
-      <div v-if="uploadComplete" class="upload-complete">
-        <CheckCircle class="w-10 h-10 text-green-500 mb-2" />
-        <p class="text-sm font-medium text-gray-700">Upload complete!</p>
-        <p class="text-xs text-gray-500">{{ currentFile?.name }}</p>
-        <Button
-          variant="subtle"
-          size="sm"
-          class="mt-3"
-          @click="resetUpload"
-        >
-          Upload Another File
-        </Button>
       </div>
     </div>
 
@@ -78,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import Dropzone from 'dropzone'
 import { Button, ErrorMessage } from 'frappe-ui'
 import { FileUp, CheckCircle } from 'lucide-vue-next'
@@ -125,6 +137,8 @@ const uploadSpeed = ref('')
 const estimatedTime = ref('')
 const uploadStartTime = ref(null)
 const bytesUploaded = ref(0)
+const filePreviewUrl = ref('')
+const previewType = ref('none')
 
 // Initialize Dropzone
 onMounted(() => {
@@ -186,6 +200,7 @@ onMounted(() => {
 
 // Cleanup on unmount
 onUnmounted(() => {
+  clearPreview()
   if (dropzoneInstance.value) {
     dropzoneInstance.value.destroy()
   }
@@ -193,6 +208,7 @@ onUnmounted(() => {
 
 // Event Handlers
 function handleFileAdded(file) {
+  clearPreview()
   currentFile.value = file
   uploadComplete.value = false
   errorMessage.value = ''
@@ -214,6 +230,8 @@ function handleFileAdded(file) {
     currentChunk: 0,
     totalChunks: totalChunks
   }
+
+  setPreviewForFile(file)
 }
 
 function handleUploadProgress(file, progress, bytesSent) {
@@ -295,12 +313,14 @@ function handleUploadSuccess(file, response) {
 function handleUploadError(file, errorMsg) {
   errorMessage.value = errorMsg || 'Upload failed. Please try again.'
   uploadProgress.value = 0
+  clearPreview()
   currentFile.value = null
 
   emit('uploadError', { file, error: errorMsg })
 }
 
 function handleCanceled(file) {
+  clearPreview()
   currentFile.value = null
   uploadProgress.value = 0
   chunksInfo.value = null
@@ -313,6 +333,7 @@ function cancelUpload() {
   if (dropzoneInstance.value && currentFile.value) {
     dropzoneInstance.value.removeFile(currentFile.value)
   }
+  clearPreview()
 }
 
 function resetUpload() {
@@ -324,6 +345,7 @@ function resetUpload() {
   uploadSpeed.value = ''
   estimatedTime.value = ''
   bytesUploaded.value = 0
+  clearPreview()
 
   if (dropzoneInstance.value) {
     dropzoneInstance.value.removeAllFiles()
@@ -357,6 +379,46 @@ function getFileType(mimeType) {
   return 'File'
 }
 
+function setPreviewForFile(file) {
+  if (!file) return
+
+  const type = file.type || ''
+  const name = file.name || ''
+
+  if (type.startsWith('image/')) {
+    filePreviewUrl.value = URL.createObjectURL(file)
+    previewType.value = 'image'
+    return
+  }
+
+  if (type.startsWith('video/')) {
+    filePreviewUrl.value = URL.createObjectURL(file)
+    previewType.value = 'video'
+    return
+  }
+
+  if (type.startsWith('audio/')) {
+    filePreviewUrl.value = URL.createObjectURL(file)
+    previewType.value = 'audio'
+    return
+  }
+
+  if (name.toLowerCase().endsWith('.pdf')) {
+    previewType.value = 'file'
+    return
+  }
+
+  previewType.value = 'file'
+}
+
+function clearPreview() {
+  if (filePreviewUrl.value) {
+    URL.revokeObjectURL(filePreviewUrl.value)
+  }
+  filePreviewUrl.value = ''
+  previewType.value = 'none'
+}
+
 // Expose methods for parent component
 defineExpose({
   resetUpload,
@@ -381,6 +443,8 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .dropzone-area:hover {
@@ -398,6 +462,38 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.file-preview {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.file-preview-media {
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+}
+
+.file-preview-audio {
+  width: 100%;
+}
+
+.file-preview-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #4a5568;
 }
 
 .upload-progress,
