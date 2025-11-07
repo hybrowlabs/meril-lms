@@ -326,6 +326,8 @@ import CertificationLinks from '@/components/CertificationLinks.vue'
 import PDFViewerEnhanced from '@/components/PDFViewerEnhanced.vue'
 import { setCourseCompletion } from "../stores/course_completion.js";
 import { createApp } from 'vue'
+import translationPlugin from '@/translation'
+import { createDialog } from '@/utils/dialogs'
 
 const user = inject('$user')
 const socket = inject('$socket')
@@ -472,9 +474,11 @@ const setupLesson = (data) => {
 			bodyDiv.className = 'lesson-content prose'
 			bodyDiv.innerHTML = data.body
 			editorDiv.appendChild(bodyDiv)
-			// Process PDF embeds for legacy content
+			// Process PDF embeds and fix videos for legacy content
 			nextTick(() => {
 				processPDFEmbeds()
+				fixVideoRendering()
+				enablePlyr()
 			})
 		}
 	}
@@ -490,6 +494,10 @@ const setupLesson = (data) => {
 		// Process PDF embeds after EditorJS is ready
 		nextTick(() => {
 			processPDFEmbeds()
+			// Fix incorrectly rendered videos (images that should be videos)
+			fixVideoRendering()
+			// Enable Plyr for embedded videos
+			enablePlyr()
 		})
 	})
 
@@ -510,6 +518,97 @@ const renderEditor = (holder, content) => {
 		data: JSON.parse(content),
 		readOnly: true,
 		defaultBlock: 'embed', // editor adds an empty block at the top, so to avoid that added default block as embed
+	})
+}
+
+// Fix incorrectly rendered videos (images that should be videos)
+const fixVideoRendering = () => {
+	const editorDiv = document.getElementById('editor')
+	if (!editorDiv) return
+
+	// Video file extensions
+	const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm']
+	
+	// Find all images in the editor content
+	const images = editorDiv.querySelectorAll('img')
+	
+	images.forEach((img) => {
+		const src = img.src || img.getAttribute('src') || ''
+		if (!src) return
+		
+		// Extract extension from URL
+		const getExtension = (url) => {
+			try {
+				const urlWithoutParams = url.split('?')[0]
+				const filename = urlWithoutParams.split('/').pop()
+				if (filename && filename.includes('.')) {
+					return filename.split('.').pop().toLowerCase()
+				}
+			} catch (e) {
+				// Ignore errors
+			}
+			return null
+		}
+		
+		const extension = getExtension(src)
+		
+		// Check if this image is actually a video
+		if (extension && videoExtensions.includes(extension)) {
+			// Find the parent wrapper (usually a div or the upload block wrapper)
+			let wrapper = img.parentElement
+			
+			// Look for the upload block wrapper (usually has specific classes)
+			while (wrapper && wrapper !== editorDiv) {
+				if (wrapper.classList.contains('ce-block') || 
+				    wrapper.classList.contains('ce-block__content') ||
+				    wrapper.classList.contains('cdx-block')) {
+					break
+				}
+				wrapper = wrapper.parentElement
+			}
+			
+			// If we found a wrapper, replace the entire block content
+			if (wrapper) {
+				// Create a container for the VideoBlock component
+				const container = document.createElement('div')
+				container.className = 'video-block-container'
+				container.style.marginTop = '1rem'
+				container.style.marginBottom = '1rem'
+				
+				// Replace the image or its parent block with the container
+				if (wrapper.classList.contains('ce-block__content') || wrapper.classList.contains('cdx-block')) {
+					// Replace the content of the block
+					wrapper.innerHTML = ''
+					wrapper.appendChild(container)
+				} else {
+					// Replace the image itself
+					img.parentNode.replaceChild(container, img)
+				}
+				
+				// Import VideoBlock dynamically
+				import('@/components/VideoBlock.vue').then(({ default: VideoBlock }) => {
+					// Mount VideoBlock component
+					const app = createApp(VideoBlock, {
+						file: src,
+						readOnly: true,
+						quizzes: []
+					})
+					app.use(translationPlugin)
+					app.config.globalProperties.$dialog = createDialog
+					app.mount(container)
+				}).catch((error) => {
+					console.error('Failed to load VideoBlock component:', error)
+					// Fallback: create a video element
+					const video = document.createElement('video')
+					video.src = src
+					video.controls = true
+					video.style.width = '100%'
+					video.style.marginTop = '1rem'
+					video.style.marginBottom = '1rem'
+					container.appendChild(video)
+				})
+			}
+		}
 	})
 }
 

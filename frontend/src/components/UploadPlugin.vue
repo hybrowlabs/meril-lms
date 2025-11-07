@@ -131,9 +131,32 @@ const handleDropzoneUpload = (data) => {
 	let fileUrl = data.fileUrl || data.response?.file_url || data.response?.message?.file_url
 
 	if (fileUrl) {
+		// Extract file type from filename, file object, or file URL
+		let fileType = null
+		
+		// First try to get extension from filename
+		if (data.file?.name) {
+			fileType = getFileExtension(data.file.name)
+		}
+		
+		// If not available, try to extract from file URL
+		if (!fileType && fileUrl) {
+			fileType = getFileExtension(fileUrl)
+		}
+		
+		// If still not available, try to extract from MIME type
+		if (!fileType && data.file?.type) {
+			fileType = getExtensionFromMimeType(data.file.type)
+		}
+		
+		// Fallback to generic type if nothing works
+		if (!fileType) {
+			fileType = getFileType(data.file?.name || fileUrl)
+		}
+
 		props.onFileUploaded({
 			file_url: fileUrl,
-			file_type: data.file?.type || getFileType(data.file?.name),
+			file_type: fileType,
 		})
 	} else {
 		uploadError.value = 'Upload succeeded but no file URL received'
@@ -145,17 +168,59 @@ const handleUploadError = (data) => {
 	uploadError.value = data.error || 'Upload failed. Please try again.'
 }
 
-// Get file type from file name
+// Get file extension from file name or URL
+const getFileExtension = (fileNameOrUrl) => {
+	if (!fileNameOrUrl) return null
+	
+	// Extract filename from URL if needed
+	let filename = fileNameOrUrl
+	if (fileNameOrUrl.includes('/')) {
+		// Remove query parameters
+		filename = fileNameOrUrl.split('?')[0]
+		// Get the last part after the last slash
+		filename = filename.split('/').pop()
+	}
+	
+	// Extract extension
+	if (filename.includes('.')) {
+		return filename.split('.').pop().toLowerCase()
+	}
+	
+	return null
+}
+
+// Convert MIME type to file extension
+const getExtensionFromMimeType = (mimeType) => {
+	if (!mimeType) return null
+	
+	const mimeToExt = {
+		'video/mp4': 'mp4',
+		'video/quicktime': 'mov',
+		'video/x-msvideo': 'avi',
+		'video/x-matroska': 'mkv',
+		'video/webm': 'webm',
+		'audio/mpeg': 'mp3',
+		'audio/wav': 'wav',
+		'audio/ogg': 'ogg',
+		'application/pdf': 'pdf',
+		'image/jpeg': 'jpg',
+		'image/png': 'png',
+		'image/gif': 'gif',
+		'image/webp': 'webp',
+	}
+	
+	return mimeToExt[mimeType.toLowerCase()] || null
+}
+
+// Get file type from file name (kept for backward compatibility)
 const getFileType = (fileName) => {
 	if (!fileName) return 'file'
-	const extension = fileName.split('.').pop().toLowerCase()
-
-	if (isVideo(extension)) return 'video'
-	if (isAudio(extension)) return 'audio'
-	if (extension === 'pdf') return 'pdf'
-	if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) return 'image'
-
-	return 'file'
+	const extension = getFileExtension(fileName)
+	
+	if (!extension) return 'file'
+	
+	// Return the extension directly instead of generic type
+	return extension
 }
 
 const validateFile = (file) => {
