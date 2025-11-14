@@ -1,0 +1,33 @@
+[
+ {
+  "doctype": "Property Setter",
+  "doc_type": "Department",
+  "doctype_or_field": "DocField",
+  "field_name": "company",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "name": "Department-company-reqd"
+ },
+ {
+  "doctype": "Property Setter",
+  "doc_type": "Employee",
+  "doctype_or_field": "DocField",
+  "field_name": "custom_employee_id",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "1",
+  "name": "Employee-custom_employee_id-reqd"
+ },
+ {
+  "doctype": "Property Setter",
+  "doc_type": "Employee",
+  "doctype_or_field": "DocField",
+  "field_name": "custom_employee_id",
+  "property": "unique",
+  "property_type": "Check",
+  "value": "1",
+  "name": "Employee-custom_employee_id-unique"
+ }
+]
+

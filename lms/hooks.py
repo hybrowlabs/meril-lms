@@ -90,6 +90,8 @@ setup_wizard_requires = "assets/lms/js/setup_wizard.js"
 
 override_doctype_class = {
 	"Web Template": "lms.overrides.web_template.CustomWebTemplate",
+	"Employee": "lms.overrides.employee.CustomEmployeeMaster",
+	"Department": "lms.overrides.department.CustomDepartment",
 }
 
 # Document Events
@@ -132,7 +134,7 @@ scheduler_events = {
 	
 }
 
-fixtures = ["Custom Field", "Function", "Industry", "LMS Category", "Role", "User Course Documents", "Print Format", "Custom HTML Block",
+fixtures = ["Custom Field", "Function", "Industry", "LMS Category", "Role", "User Course Documents", "Print Format", "Custom HTML Block", "Property Setter",
             {"doctype": "DocType Permission", "filters": [["ref_doctype", "=", "LMS Course"]]},
             ]
 
