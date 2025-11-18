@@ -135,6 +135,27 @@ def create_user_from_employee(employee_id, _method):
 def generate_password(length=10):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
+def get_distributor_initial_email_template(distributor_doc, email, reset_password_link):
+	"""Generate the initial email template for distributor user creation/resend"""
+	subject = f'Ethics & Compliance Training on HCP/HCO Interactions'
+	message = f'''<p>Dear {distributor_doc.distributor_name},</p>
+
+		<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCP/HCO Interactions</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+
+		<p style="font-weight: bold;">Login Credentials:</p>
+		<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
+		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
+		<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
+		<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
+
+
+		<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
+
+		<p>Best regards,</p>
+		<p>Meril</p>
+		'''
+	return subject, message
+
 
 @frappe.whitelist()
 def get_distributors_by_division(division, filters=None):
@@ -266,6 +287,142 @@ def bulk_create_users_from_distributors(distributor_ids, filters=None):
 	return results
 
 @frappe.whitelist()
+def resend_initial_email_to_distributor(distributor_id):
+	"""
+	Resend the initial email to a distributor who already has a user account.
+	This regenerates the password reset link and sends the same email as initial creation.
+	"""
+	frappe.only_for(["Administrator", "Supervisor", "System User"])
+
+	distributor_doc = frappe.get_doc("Distributor", distributor_id)
+	email = distributor_doc.distributor_email_address
+
+	if not distributor_doc.user_id:
+		frappe.throw(_("Distributor does not have a user account. Use 'Create Users & Send Emails' instead."))
+
+	try:
+		# Get the user document
+		if not frappe.db.exists("User", distributor_doc.user_id):
+			frappe.throw(_("User account {0} does not exist.").format(distributor_doc.user_id))
+
+		user_doc = frappe.get_doc("User", distributor_doc.user_id)
+		
+		# Check if user is enabled
+		if not user_doc.enabled:
+			frappe.throw(_("User account is disabled. Please enable it first."))
+
+		# Generate new reset password link
+		reset_password_link = user_doc.reset_password(send_email=False)
+
+		# Get email template
+		subject, message = get_distributor_initial_email_template(distributor_doc, email, reset_password_link)
+
+		# Send email
+		frappe.sendmail(
+			recipients=[email],
+			sender=get_default_sender(),
+			subject=subject,
+			message=message,
+			now=True
+		)
+
+		# Update credentials sent date and reset reminder count
+		distributor_doc.db_set("credentials_sent_date", frappe.utils.now_datetime())
+		distributor_doc.db_set("login_reminder_count", 0)
+
+		return {
+			"status": "success",
+			"message": f"Email resent successfully to {distributor_doc.attendee_name or distributor_doc.distributor_name}"
+		}
+
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Resend Email Failed")
+		frappe.throw(_("An error occurred while resending email: {0}").format(str(e)))
+
+@frappe.whitelist()
+def bulk_resend_emails_to_distributors(distributor_ids, filters=None):
+	"""
+	Resend initial emails to multiple distributors who already have user accounts.
+	distributor_ids: List of distributor IDs to resend emails for
+	filters: Optional filters used to select these distributors (for logging)
+	"""
+	frappe.only_for(["Administrator", "Supervisor", "System User"])
+
+	if isinstance(distributor_ids, str):
+		distributor_ids = frappe.parse_json(distributor_ids)
+
+	if isinstance(filters, str):
+		filters = frappe.parse_json(filters)
+
+	results = {
+		"success": [],
+		"errors": [],
+		"skipped": [],
+		"total": len(distributor_ids)
+	}
+
+	for distributor_id in distributor_ids:
+		try:
+			distributor_doc = frappe.get_doc("Distributor", distributor_id)
+			email = distributor_doc.distributor_email_address
+
+			# Check if distributor has user_id
+			if not distributor_doc.user_id:
+				results["skipped"].append({
+					"distributor_id": distributor_id,
+					"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+					"email": email,
+					"message": "Distributor does not have a user account"
+				})
+				continue
+
+			# Check if user exists
+			if not frappe.db.exists("User", distributor_doc.user_id):
+				results["skipped"].append({
+					"distributor_id": distributor_id,
+					"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+					"email": email,
+					"message": "User account does not exist"
+				})
+				continue
+
+			user_doc = frappe.get_doc("User", distributor_doc.user_id)
+			
+			# Check if user is enabled
+			if not user_doc.enabled:
+				results["skipped"].append({
+					"distributor_id": distributor_id,
+					"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+					"email": email,
+					"message": "User account is disabled"
+				})
+				continue
+
+			# Resend the email using the single function
+			resend_initial_email_to_distributor(distributor_id)
+
+			results["success"].append({
+				"distributor_id": distributor_id,
+				"name": distributor_doc.attendee_name or distributor_doc.distributor_name,
+				"email": email,
+				"message": "Email resent successfully"
+			})
+
+		except Exception as e:
+			results["errors"].append({
+				"distributor_id": distributor_id,
+				"name": getattr(frappe.get_doc("Distributor", distributor_id), 'attendee_name', distributor_id),
+				"error": str(e)
+			})
+			frappe.log_error(f"Failed to resend email for distributor {distributor_id}: {str(e)}", "Bulk Email Resend Error")
+
+	# Send summary email to admins
+	if results["success"] or results["errors"]:
+		send_bulk_resend_summary_email(results, filters)
+
+	return results
+
+@frappe.whitelist()
 def create_user_from_distributor(distributor_id):
 	frappe.only_for(["Administrator", "Supervisor", "System User"])
 
@@ -341,23 +498,7 @@ def create_user_from_distributor(distributor_id):
 					distributor_course = ""
 					distributor_course_intro = ""
 
-				subject = f'Ethics & Compliance Training on HCP/HCO Interactions'
-				message = f'''<p>Dear {distributor_doc.distributor_name},</p>
-
-					<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCP/HCO Interactions</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
-
-					<p style="font-weight: bold;">Login Credentials:</p>
-					<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
-					<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
-					<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
-					<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
-
-
-					<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
-
-					<p>Best regards,</p>
-					<p>Meril</p>
-					'''
+				subject, message = get_distributor_initial_email_template(distributor_doc, email, reset_password_link)
 
 				frappe.sendmail(
 					recipients=[email],
@@ -1324,6 +1465,88 @@ def send_bulk_creation_summary_email(results, filters):
 			<ul style="margin: 5px 0;">
 		"""
 		for item in results["already_exists"]:
+			message += f"<li><strong>{item['name']}</strong> ({item['email']}) - {item['message']}</li>"
+		message += "</ul></div>"
+
+	if results["errors"]:
+		message += f"""
+		<div style="background-color: #f8d7da; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #dc3545;">
+			<h3 style="margin: 0 0 10px 0; color: #721c24;">❌ Errors ({error_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["errors"]:
+			message += f"<li><strong>{item['name']}</strong> - {item['error']}</li>"
+		message += "</ul></div>"
+
+	if filters:
+		message += f"""
+		<div style="background-color: #e7f3ff; padding: 15px; margin: 20px 0; border-radius: 5px;">
+			<h4 style="margin: 0 0 10px 0; color: #0066cc;">🔍 Applied Filters</h4>
+			<pre style="background: #fff; padding: 10px; border-radius: 3px; font-size: 12px;">{frappe.as_json(filters, indent=2)}</pre>
+		</div>
+		"""
+
+	message += f"""
+		<p style="margin-top: 30px; color: #6c757d; font-size: 12px;">
+			Bulk operation completed at {frappe.utils.format_datetime(frappe.utils.now_datetime())}
+		</p>
+	</div>
+	"""
+
+	frappe.sendmail(
+		recipients=admins,
+		sender=get_default_sender(),
+		subject=subject,
+		message=message
+	)
+
+def send_bulk_resend_summary_email(results, filters):
+	"""Send summary email to admins about bulk email resend results"""
+
+	admins = frappe.get_all("User",
+		filters={"role_profile_name": "System Manager", "enabled": 1},
+		pluck="email")
+
+	if not admins:
+		return
+
+	success_count = len(results["success"])
+	error_count = len(results["errors"])
+	skipped_count = len(results["skipped"])
+	total_count = results["total"]
+
+	subject = f"📧 Bulk Email Resend Summary: {success_count} Sent, {error_count} Errors"
+
+	message = f"""
+	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+		<h2 style="color: #2c3e50;">Bulk Distributor Email Resend Summary</h2>
+
+		<div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;">
+			<h3 style="margin: 0 0 10px 0; color: #007bff;">📈 Summary Statistics</h3>
+			<p><strong>Total Processed:</strong> {total_count}</p>
+			<p><strong>✅ Successfully Sent:</strong> {success_count}</p>
+			<p><strong>⚠️ Skipped:</strong> {skipped_count}</p>
+			<p><strong>❌ Errors:</strong> {error_count}</p>
+		</div>
+	"""
+
+	if results["success"]:
+		message += f"""
+		<div style="background-color: #d4edda; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #28a745;">
+			<h3 style="margin: 0 0 10px 0; color: #155724;">✅ Successfully Sent ({success_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["success"]:
+			message += f"<li><strong>{item['name']}</strong> ({item['email']})</li>"
+		message += "</ul></div>"
+
+	if results["skipped"]:
+		message += f"""
+		<div style="background-color: #fff3cd; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #ffc107;">
+			<h3 style="margin: 0 0 10px 0; color: #856404;">⚠️ Skipped ({skipped_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["skipped"]:
 			message += f"<li><strong>{item['name']}</strong> ({item['email']}) - {item['message']}</li>"
 		message += "</ul></div>"
 
