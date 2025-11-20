@@ -157,6 +157,27 @@ def get_distributor_initial_email_template(distributor_doc, email, reset_passwor
 	return subject, message
 
 
+def get_employee_initial_email_template(employee_doc, email, reset_password_link):
+	"""Generate the initial email template for employee user creation/resend"""
+	recipient_name = employee_doc.employee_name or employee_doc.first_name or email
+	subject = "Ethics & Compliance Training on HCPs/HCOs Interactions."
+	message = f"""<p>Dear {recipient_name},</p>
+
+<p>In line with our mandatory training, you have been enrolled for the <span style="font-weight:bold;">Ethics & Compliance Training on HCPs/HCOs Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+
+<p style="font-weight:bold;">Login Credentials:</p>
+<p>Please click on the below link to log in:</p>
+<p>(<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>)</p>
+<p>User ID: {email}</p>
+<p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
+
+<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
+
+<p>Best regards,</p>
+<p>Meril</p>"""
+	return subject, message
+
+
 @frappe.whitelist()
 def get_distributors_by_division(division, filters=None):
 	"""
@@ -427,6 +448,149 @@ def bulk_resend_emails_to_distributors(distributor_ids, filters=None):
 	# Send summary email to admins
 	if results["success"] or results["errors"]:
 		send_bulk_resend_summary_email(results, filters)
+
+	return results
+
+@frappe.whitelist()
+def resend_initial_email_to_employee(employee_id):
+	"""
+	Resend the initial email to an employee who already has a user account.
+	This regenerates the password reset link and sends the same email as initial creation.
+	"""
+	frappe.only_for(["Administrator", "Supervisor", "System User"])
+
+	employee_doc = frappe.get_doc("Employee", employee_id)
+	email = employee_doc.company_email
+
+	if not employee_doc.user_id:
+		frappe.throw(_("Employee does not have a user account. Use 'Create Users & Send Emails' instead."))
+
+	try:
+		# Get the user document
+		if not frappe.db.exists("User", employee_doc.user_id):
+			frappe.throw(_("User account {0} does not exist.").format(employee_doc.user_id))
+
+		user_doc = frappe.get_doc("User", employee_doc.user_id)
+		
+		# Check if user is enabled
+		if not user_doc.enabled:
+			frappe.throw(_("User account is disabled. Please enable it first."))
+
+		# Generate new reset password link
+		reset_password_link = user_doc.reset_password(send_email=False)
+
+		# Get email template
+		subject, message = get_employee_initial_email_template(employee_doc, email, reset_password_link)
+
+		# Send email
+		frappe.sendmail(
+			recipients=[email],
+			sender=get_default_sender(),
+			subject=subject,
+			message=message,
+			now=True
+		)
+
+		# Create a Notification Log to send system notification
+		frappe.get_doc({
+			"doctype": "Notification Log",
+			"subject": subject,
+			"email_content": message,
+			"for_user": email,
+			"type": "Alert",
+			"document_type": "Employee",
+			"document_name": employee_doc.name
+		}).insert(ignore_permissions=True)
+
+		return {
+			"status": "success",
+			"message": f"Email resent successfully to {employee_doc.employee_name or employee_doc.first_name}"
+		}
+
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Resend Email Failed")
+		frappe.throw(_("An error occurred while resending email: {0}").format(str(e)))
+
+@frappe.whitelist()
+def bulk_resend_emails_to_employees(employee_ids, filters=None):
+	"""
+	Resend initial emails to multiple employees who already have user accounts.
+	employee_ids: List of employee IDs to resend emails for
+	filters: Optional filters used to select these employees (for logging)
+	"""
+	frappe.only_for(["Administrator", "Supervisor", "System User"])
+
+	if isinstance(employee_ids, str):
+		employee_ids = frappe.parse_json(employee_ids)
+
+	if isinstance(filters, str):
+		filters = frappe.parse_json(filters)
+
+	results = {
+		"success": [],
+		"errors": [],
+		"skipped": [],
+		"total": len(employee_ids)
+	}
+
+	for employee_id in employee_ids:
+		try:
+			employee_doc = frappe.get_doc("Employee", employee_id)
+			email = employee_doc.company_email
+
+			# Check if employee has user_id
+			if not employee_doc.user_id:
+				results["skipped"].append({
+					"employee_id": employee_id,
+					"name": employee_doc.employee_name or employee_doc.first_name,
+					"email": email,
+					"message": "Employee does not have a user account"
+				})
+				continue
+
+			# Check if user exists
+			if not frappe.db.exists("User", employee_doc.user_id):
+				results["skipped"].append({
+					"employee_id": employee_id,
+					"name": employee_doc.employee_name or employee_doc.first_name,
+					"email": email,
+					"message": "User account does not exist"
+				})
+				continue
+
+			user_doc = frappe.get_doc("User", employee_doc.user_id)
+			
+			# Check if user is enabled
+			if not user_doc.enabled:
+				results["skipped"].append({
+					"employee_id": employee_id,
+					"name": employee_doc.employee_name or employee_doc.first_name,
+					"email": email,
+					"message": "User account is disabled"
+				})
+				continue
+
+			# Resend the email using the single function
+			resend_initial_email_to_employee(employee_id)
+
+			results["success"].append({
+				"employee_id": employee_id,
+				"name": employee_doc.employee_name or employee_doc.first_name,
+				"email": email,
+				"message": "Email resent successfully"
+			})
+
+		except Exception as e:
+			results["errors"].append({
+				"employee_id": employee_id,
+				"name": getattr(frappe.get_doc("Employee", employee_id), 'employee_name', employee_id),
+				"error": str(e)
+			})
+			frappe.log_error(f"Failed to resend email for employee {employee_id}: {str(e)}", "Bulk Email Resend Error")
+
+	# Send summary email to admins
+	if results["success"] or results["errors"]:
+		send_bulk_resend_summary_email_employees(results, filters)
 
 	return results
 
@@ -1528,6 +1692,88 @@ def send_bulk_resend_summary_email(results, filters):
 	message = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 		<h2 style="color: #2c3e50;">Bulk Distributor Email Resend Summary</h2>
+
+		<div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;">
+			<h3 style="margin: 0 0 10px 0; color: #007bff;">📈 Summary Statistics</h3>
+			<p><strong>Total Processed:</strong> {total_count}</p>
+			<p><strong>✅ Successfully Sent:</strong> {success_count}</p>
+			<p><strong>⚠️ Skipped:</strong> {skipped_count}</p>
+			<p><strong>❌ Errors:</strong> {error_count}</p>
+		</div>
+	"""
+
+	if results["success"]:
+		message += f"""
+		<div style="background-color: #d4edda; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #28a745;">
+			<h3 style="margin: 0 0 10px 0; color: #155724;">✅ Successfully Sent ({success_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["success"]:
+			message += f"<li><strong>{item['name']}</strong> ({item['email']})</li>"
+		message += "</ul></div>"
+
+	if results["skipped"]:
+		message += f"""
+		<div style="background-color: #fff3cd; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #ffc107;">
+			<h3 style="margin: 0 0 10px 0; color: #856404;">⚠️ Skipped ({skipped_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["skipped"]:
+			message += f"<li><strong>{item['name']}</strong> ({item['email']}) - {item['message']}</li>"
+		message += "</ul></div>"
+
+	if results["errors"]:
+		message += f"""
+		<div style="background-color: #f8d7da; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #dc3545;">
+			<h3 style="margin: 0 0 10px 0; color: #721c24;">❌ Errors ({error_count})</h3>
+			<ul style="margin: 5px 0;">
+		"""
+		for item in results["errors"]:
+			message += f"<li><strong>{item['name']}</strong> - {item['error']}</li>"
+		message += "</ul></div>"
+
+	if filters:
+		message += f"""
+		<div style="background-color: #e7f3ff; padding: 15px; margin: 20px 0; border-radius: 5px;">
+			<h4 style="margin: 0 0 10px 0; color: #0066cc;">🔍 Applied Filters</h4>
+			<pre style="background: #fff; padding: 10px; border-radius: 3px; font-size: 12px;">{frappe.as_json(filters, indent=2)}</pre>
+		</div>
+		"""
+
+	message += f"""
+		<p style="margin-top: 30px; color: #6c757d; font-size: 12px;">
+			Bulk operation completed at {frappe.utils.format_datetime(frappe.utils.now_datetime())}
+		</p>
+	</div>
+	"""
+
+	frappe.sendmail(
+		recipients=admins,
+		sender=get_default_sender(),
+		subject=subject,
+		message=message
+	)
+
+def send_bulk_resend_summary_email_employees(results, filters):
+	"""Send summary email to admins about bulk email resend results for employees"""
+
+	admins = frappe.get_all("User",
+		filters={"role_profile_name": "System Manager", "enabled": 1},
+		pluck="email")
+
+	if not admins:
+		return
+
+	success_count = len(results["success"])
+	error_count = len(results["errors"])
+	skipped_count = len(results["skipped"])
+	total_count = results["total"]
+
+	subject = f"📧 Bulk Email Resend Summary (Employees): {success_count} Sent, {error_count} Errors"
+
+	message = f"""
+	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+		<h2 style="color: #2c3e50;">Bulk Employee Email Resend Summary</h2>
 
 		<div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;">
 			<h3 style="margin: 0 0 10px 0; color: #007bff;">📈 Summary Statistics</h3>
