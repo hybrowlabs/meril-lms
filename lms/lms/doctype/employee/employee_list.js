@@ -86,7 +86,7 @@ function open_bulk_user_creation_dialog(listview) {
 		],
 		primary_action_label: __('Create Users & Send Emails'),
 		primary_action: function() {
-			let selected_employees = get_selected_employees_from_dialog();
+			let selected_employees = get_selected_employees_from_dialog(dialog);
 			if (selected_employees.length === 0) {
 				frappe.msgprint(__('Please select at least one employee'));
 				return;
@@ -145,10 +145,19 @@ function setup_dialog_field_dependencies(dialog) {
 function get_dialog_filters(dialog) {
 	let filters = {};
 
-	['company', 'department', 'designation', 'custom_country', 'first_name', 'last_name'].forEach(function(field) {
+	// Link fields use exact match
+	['company', 'department', 'designation', 'custom_country'].forEach(function(field) {
 		let value = dialog.get_value(field);
 		if (value) {
 			filters[field] = value;
+		}
+	});
+
+	// Data fields use "like" operator for partial matching
+	['first_name', 'last_name'].forEach(function(field) {
+		let value = dialog.get_value(field);
+		if (value) {
+			filters[field] = ['like', '%' + value + '%'];
 		}
 	});
 
@@ -186,7 +195,7 @@ function display_employees_in_dialog(dialog, employees) {
 				<thead>
 					<tr>
 						<th style="width: 30px;">
-							<input type="checkbox" id="select_all_employees" onchange="toggle_all_employees(this)">
+							<input type="checkbox" id="select_all_employees" class="select-all-checkbox">
 						</th>
 						<th>Name</th>
 						<th>Email</th>
@@ -208,14 +217,14 @@ function display_employees_in_dialog(dialog, employees) {
 		html += `
 			<tr>
 				<td>
-					<input type="checkbox" class="employee-checkbox" value="${employee.name}"
+					<input type="checkbox" class="employee-checkbox" value="${frappe.utils.escape_html(employee.name)}"
 						   ${!employee.user_id ? 'checked' : ''}>
 				</td>
-				<td>${full_name}</td>
-				<td>${employee.company_email || 'N/A'}</td>
-				<td>${employee.company || 'N/A'}</td>
-				<td>${employee.department || 'N/A'}</td>
-				<td>${employee.custom_country || 'N/A'}</td>
+				<td>${frappe.utils.escape_html(full_name)}</td>
+				<td>${frappe.utils.escape_html(employee.company_email || 'N/A')}</td>
+				<td>${frappe.utils.escape_html(employee.company || 'N/A')}</td>
+				<td>${frappe.utils.escape_html(employee.department || 'N/A')}</td>
+				<td>${frappe.utils.escape_html(employee.custom_country || 'N/A')}</td>
 				<td>${status}</td>
 			</tr>
 		`;
@@ -229,20 +238,42 @@ function display_employees_in_dialog(dialog, employees) {
 	`;
 
 	dialog.fields_dict.employees_html.$wrapper.html(html);
+	
+	// Setup checkbox handlers
+	setup_checkbox_handlers_send(dialog);
 }
 
-function toggle_all_employees(checkbox) {
-	let checkboxes = document.querySelectorAll('.employee-checkbox');
-	checkboxes.forEach(function(cb) {
-		cb.checked = checkbox.checked;
+function setup_checkbox_handlers_send(dialog) {
+	let $wrapper = dialog.fields_dict.employees_html.$wrapper;
+	
+	// Remove any existing handlers to prevent duplicates
+	$wrapper.off('change', '.select-all-checkbox');
+	$wrapper.off('change', '.employee-checkbox');
+	
+	// Handle select all checkbox
+	$wrapper.on('change', '#select_all_employees', function() {
+		let is_checked = $(this).is(':checked');
+		$wrapper.find('.employee-checkbox').prop('checked', is_checked);
 	});
+	
+	// Handle individual checkbox changes to update select all state
+	$wrapper.on('change', '.employee-checkbox', function() {
+		let total_checkboxes = $wrapper.find('.employee-checkbox').length;
+		let checked_checkboxes = $wrapper.find('.employee-checkbox:checked').length;
+		$wrapper.find('#select_all_employees').prop('checked', total_checkboxes === checked_checkboxes);
+	});
+	
+	// Initialize select all checkbox state
+	let total_checkboxes = $wrapper.find('.employee-checkbox').length;
+	let checked_checkboxes = $wrapper.find('.employee-checkbox:checked').length;
+	$wrapper.find('#select_all_employees').prop('checked', total_checkboxes > 0 && total_checkboxes === checked_checkboxes);
 }
 
-function get_selected_employees_from_dialog() {
+function get_selected_employees_from_dialog(dialog) {
 	let selected = [];
-	let checkboxes = document.querySelectorAll('.employee-checkbox:checked');
-	checkboxes.forEach(function(cb) {
-		selected.push(cb.value);
+	let $wrapper = dialog ? dialog.fields_dict.employees_html.$wrapper : $('.employees_html');
+	$wrapper.find('.employee-checkbox:checked').each(function() {
+		selected.push($(this).val());
 	});
 	return selected;
 }
@@ -524,10 +555,19 @@ function setup_resend_dialog_field_dependencies_employee(dialog) {
 function get_resend_dialog_filters_employee(dialog) {
 	let filters = {};
 
-	['company', 'department', 'designation', 'custom_country', 'first_name', 'last_name'].forEach(function(field) {
+	// Link fields use exact match
+	['company', 'department', 'designation', 'custom_country'].forEach(function(field) {
 		let value = dialog.get_value(field);
 		if (value) {
 			filters[field] = value;
+		}
+	});
+
+	// Data fields use "like" operator for partial matching
+	['first_name', 'last_name'].forEach(function(field) {
+		let value = dialog.get_value(field);
+		if (value) {
+			filters[field] = ['like', '%' + value + '%'];
 		}
 	});
 

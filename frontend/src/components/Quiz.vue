@@ -11,17 +11,24 @@
 					__('This quiz consists of {0} questions.').format(questions.length)
 				}}
 			</div>
-			<div v-if="quiz.data?.duration" class="leading-5">
+			<div v-if="quiz.data?.duration && quiz.data.duration > 0" class="leading-5">
 				{{
 					__(
 						'Please ensure that you complete all the questions in {0} minutes.'
 					).format(quiz.data.duration)
 				}}
 			</div>
-			<div v-if="quiz.data?.duration" class="leading-5">
+			<div v-if="quiz.data?.duration && quiz.data.duration > 0" class="leading-5">
 				{{
 					__(
 						'If you fail to do so, the quiz will be automatically submitted when the timer ends.'
+					)
+				}}
+			</div>
+			<div v-if="quiz.data?.duration === 0" class="leading-5">
+				{{
+					__(
+						'You can take as much time as you need to complete this quiz.'
 					)
 				}}
 			</div>
@@ -43,7 +50,7 @@
 			</div>
 		</div>
 
-		<div v-if="quiz.data.duration" class="flex flex-col space-x-1 my-4">
+		<div v-if="quiz.data.duration && quiz.data.duration > 0" class="flex flex-col space-x-1 my-4">
 			<div class="mb-2">
 				<span class=""> {{ __('Time') }}: </span>
 				<span class="font-semibold">
@@ -261,20 +268,40 @@
 					)
 				}}
 			</div>
+			<div
+				v-if="quizSubmission.data.requires_reattempt"
+				class="leading-5 text-ink-red-6 font-semibold mt-4"
+			>
+				{{
+					__(
+						'You need to score at least {0}% to pass this quiz. Please try again.'
+					).format(quizSubmission.data.passing_percentage)
+				}}
+			</div>
+			<div
+				v-else-if="quizSubmission.data.pass"
+				class="leading-5 text-ink-green-6 font-semibold mt-4"
+			>
+				{{ __('Congratulations! You have passed the quiz.') }}
+			</div>
 			<div class="space-x-2">
 				<Button
 					@click="resetQuiz()"
 					class="mt-2"
 					v-if="
-						!quiz.data.max_attempts ||
-						attempts?.data.length < quiz.data.max_attempts
+						quizSubmission.data.requires_reattempt ||
+						(!quiz.data.max_attempts ||
+						attempts?.data.length < quiz.data.max_attempts)
 					"
 				>
 					<span>
-						{{ __('Try Again') }}
+						{{ quizSubmission.data.requires_reattempt ? __('Re-attempt Quiz') : __('Try Again') }}
 					</span>
 				</Button>
-				<Button v-if="inVideo" @click="props.backToVideo()">
+				<Button 
+					v-if="inVideo && quizSubmission.data.pass" 
+					@click="props.backToVideo()"
+				>
 					{{ __('Resume Video') }}
 				</Button>
 			</div>
@@ -388,12 +415,18 @@ const populateQuestions = () => {
 }
 
 const setupTimer = () => {
-	if (quiz.data.duration) {
+	if (quiz.data.duration && quiz.data.duration > 0) {
 		timer.value = quiz.data.duration * 60
+	} else {
+		timer.value = 0
 	}
 }
 
 const startTimer = () => {
+	// Don't start timer if duration is 0 or not set
+	if (!quiz.data.duration || quiz.data.duration === 0) {
+		return
+	}
 	timerInterval = setInterval(() => {
 		timer.value--
 		if (timer.value == 0) {
@@ -415,6 +448,9 @@ const formatTimer = (seconds) => {
 }
 
 const timerProgress = computed(() => {
+	if (!quiz.data.duration || quiz.data.duration === 0) {
+		return 0
+	}
 	return (timer.value / (quiz.data.duration * 60)) * 100
 })
 
@@ -561,8 +597,12 @@ const checkAnswer = () => {
 				showAnswers.push(data)
 			}
 			addToLocalStorage()
+			// On incorrect answer, move forward (don't block)
 			if (!quiz.data.show_answers) {
-				resetQuestion()
+				// Small delay to show the answer feedback, then move forward
+				setTimeout(() => {
+					resetQuestion()
+				}, 1000)
 			}
 		},
 	})
@@ -615,9 +655,22 @@ const createSubmission = () => {
 		{},
 		{
 			onSuccess(data) {
-				markLessonProgress()
+				// Only mark lesson progress if quiz passed
+				if (data.pass) {
+					markLessonProgress()
+				}
 				if (quiz.data && quiz.data.max_attempts) attempts.reload()
-				if (quiz.data.duration) clearInterval(timerInterval)
+				if (quiz.data.duration && quiz.data.duration > 0) {
+					clearInterval(timerInterval)
+				}
+				// If quiz requires re-attempt, show message and auto-reset after delay
+				if (data.requires_reattempt) {
+					toast.error(
+						__('You need to score at least {0}% to pass. Please re-attempt the quiz.').format(
+							data.passing_percentage
+						)
+					)
+				}
 			},
 			onError(err) {
 				const errorTitle = err?.message || ''

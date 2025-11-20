@@ -183,11 +183,19 @@ function setup_dialog_field_dependencies(dialog) {
 function get_dialog_filters(dialog) {
 	let filters = {};
 
-	['division', 'country', 'state', 'city', 'distributor_company_name',
-	 'bu__fd_head', 'rsm__state_head', 'attendee_name', 'distributor_name', 'region'].forEach(function(field) {
+	// Link fields use exact match
+	['division', 'country', 'state', 'city'].forEach(function(field) {
 		let value = dialog.get_value(field);
 		if (value) {
 			filters[field] = value;
+		}
+	});
+
+	// Data fields use "like" operator for partial matching
+	['distributor_company_name', 'bu__fd_head', 'rsm__state_head', 'attendee_name', 'distributor_name', 'region'].forEach(function(field) {
+		let value = dialog.get_value(field);
+		if (value) {
+			filters[field] = ['like', '%' + value + '%'];
 		}
 	});
 
@@ -482,11 +490,19 @@ function setup_resend_dialog_field_dependencies(dialog) {
 function get_resend_dialog_filters(dialog) {
 	let filters = {};
 
-	['division', 'country', 'state', 'city', 'distributor_company_name',
-	 'bu__fd_head', 'rsm__state_head', 'attendee_name', 'distributor_name', 'region'].forEach(function(field) {
+	// Link fields use exact match
+	['division', 'country', 'state', 'city'].forEach(function(field) {
 		let value = dialog.get_value(field);
 		if (value) {
 			filters[field] = value;
+		}
+	});
+
+	// Data fields use "like" operator for partial matching
+	['distributor_company_name', 'bu__fd_head', 'rsm__state_head', 'attendee_name', 'distributor_name', 'region'].forEach(function(field) {
+		let value = dialog.get_value(field);
+		if (value) {
+			filters[field] = ['like', '%' + value + '%'];
 		}
 	});
 

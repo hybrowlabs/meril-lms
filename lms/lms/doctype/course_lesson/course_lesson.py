@@ -45,6 +45,33 @@ class CourseLesson(Document):
 def normalize_url(url):
     return url.lower().rstrip('/') if url else url
 
+def lesson_has_quizzes(lesson):
+	"""Check if a lesson has any quizzes"""
+	lesson_details = frappe.db.get_value(
+		"Course Lesson", lesson, ["body", "content"], as_dict=1
+	)
+	quizzes = []
+
+	if lesson_details and lesson_details.content:
+		try:
+			content = json.loads(lesson_details.content)
+			for block in content.get("blocks", []):
+				if block.get("type") == "quiz":
+					quizzes.append(block.get("data").get("quiz"))
+				if block.get("type") == "upload":
+					quizzes_in_video = block.get("data", {}).get("quizzes")
+					if quizzes_in_video and len(quizzes_in_video) > 0:
+						for row in quizzes_in_video:
+							quizzes.append(row.get("quiz"))
+		except Exception:
+			pass
+
+	elif lesson_details and lesson_details.body:
+		macros = find_macros(lesson_details.body)
+		quizzes = [value for name, value in macros if name == "Quiz"]
+
+	return len(quizzes) > 0
+
 @frappe.whitelist()
 def save_progress(lesson, course, completed_videos=None):
 	latest_enrollment = frappe.get_all(
@@ -60,27 +87,43 @@ def save_progress(lesson, course, completed_videos=None):
 
 	frappe.db.set_value("LMS Enrollment", membership, "current_lesson", lesson)
 	
+	# Get current progress before any updates
+	current_progress = get_course_progress(course)
+	
 	# Check if progress already exists for this enrollment and lesson
-	already_completed = frappe.db.exists(
+	existing_progress_name = frappe.db.exists(
 		"LMS Course Progress", {
 			"lesson": lesson, 
 			"member": frappe.session.user,
 			"enrollment": membership
 		}
 	)
-	# If user has 'Distributor' role but not 'Administrator', treat quiz as completed
-	roles = frappe.get_roles(frappe.session.user)
-	if "Distributor" in roles and "Administrator" not in roles:
-		quiz_completed = True
+	already_completed = bool(existing_progress_name)
+	
+	# Check if lesson has quizzes - if yes, quiz must be passed
+	has_quizzes = lesson_has_quizzes(lesson)
+	if has_quizzes:
+		# If user has 'Distributor' role but not 'Administrator', treat quiz as completed
+		roles = frappe.get_roles(frappe.session.user)
+		if "Distributor" in roles and "Administrator" not in roles:
+			quiz_completed = True
+		else:
+			quiz_completed = get_quiz_progress(lesson)
+		
+		# If quiz exists but not passed, don't update progress - return current progress
+		if not quiz_completed:
+			frappe.logger().info(f"[save_progress] Quiz not passed for lesson {lesson}, progress unchanged")
+			return current_progress
 	else:
-		quiz_completed = get_quiz_progress(lesson)
+		# No quizzes in lesson, quiz requirement is satisfied
+		quiz_completed = True
+	
+	# Check assignment progress
 	assignment_completed = get_assignment_progress(lesson)
-
 
 	# --- Video completion logic ---
 	video_urls = [normalize_url(url) for url in get_lesson_video_urls(lesson)]
 	all_videos_completed = True
-	print("videos", completed_videos ,"already completed", already_completed, 'lesson', lesson)
 	completed_videos_list = []
 	if completed_videos:
 		try:
@@ -96,43 +139,40 @@ def save_progress(lesson, course, completed_videos=None):
 	frappe.logger().info(f"[save_progress] all_videos_completed: {all_videos_completed}")
 	# --- End video logic ---
 
-	print("video_urls", video_urls, "all_videos_completed", all_videos_completed)
-	# PATCH: Update existing progress record if all requirements are now met
+	# Only update progress if all requirements are met
+	all_requirements_met = quiz_completed and assignment_completed and (not video_urls or all_videos_completed)
+	
+	if not all_requirements_met:
+		# Requirements not met, return current progress without updating
+		frappe.logger().info(f"[save_progress] Requirements not met for lesson {lesson}, progress unchanged")
+		return current_progress
+
+	# All requirements met - update or create progress record
 	if already_completed:
-		print("already completed")
-		progress_doc = frappe.get_doc("LMS Course Progress", {
-			"lesson": lesson,
-			"member": frappe.session.user,
-			"enrollment": membership
-
-		})
-		print("already check")
-		if quiz_completed and assignment_completed and (not video_urls or all_videos_completed):
-			print("already check after if")
-			progress_doc.status = "Complete"
-			progress_doc.is_complete = 1
-			progress_doc.progress = 100
-			progress_doc.completed_on = frappe.utils.now_datetime()
-			if completed_videos_list:
-				progress_doc.completed_videos = json.dumps(completed_videos_list)
-			progress_doc.save(ignore_permissions=True)
+		progress_doc = frappe.get_doc("LMS Course Progress", existing_progress_name)
+		progress_doc.status = "Complete"
+		progress_doc.is_complete = 1
+		progress_doc.progress = 100
+		progress_doc.completed_on = frappe.utils.now_datetime()
+		if completed_videos_list:
+			progress_doc.completed_videos = json.dumps(completed_videos_list)
+		progress_doc.save(ignore_permissions=True)
 	else:
-		print("aleary not completed")
-		if quiz_completed and assignment_completed and (not video_urls or all_videos_completed):
-			# Create progress record linked to enrollment
-			progress_doc = frappe.get_doc({
-				"doctype": "LMS Course Progress",
-				"lesson": lesson,
-				"status": "Complete",
-				"member": frappe.session.user,
-				"enrollment": membership,
-				"completed_on": frappe.utils.now_datetime(),
-				"is_complete": 1,
-				"progress": 100,
-				"completed_videos": json.dumps(completed_videos_list) if completed_videos_list else None
-			})
-			progress_doc.save(ignore_permissions=True)
+		# Create progress record linked to enrollment
+		progress_doc = frappe.get_doc({
+			"doctype": "LMS Course Progress",
+			"lesson": lesson,
+			"status": "Complete",
+			"member": frappe.session.user,
+			"enrollment": membership,
+			"completed_on": frappe.utils.now_datetime(),
+			"is_complete": 1,
+			"progress": 100,
+			"completed_videos": json.dumps(completed_videos_list) if completed_videos_list else None
+		})
+		progress_doc.save(ignore_permissions=True)
 
+	# Recalculate course progress after updating lesson progress
 	progress = get_course_progress(course)
 	capture_progress_for_analytics(progress, course)
 
