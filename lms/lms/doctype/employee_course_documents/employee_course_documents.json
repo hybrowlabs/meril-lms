@@ -11,6 +11,11 @@
   "is_certified",
   "column_break_ymyl",
   "entered_name",
+  "reporting_head_name",
+  "hod_name",
+  "region",
+  "login_reminder_count",
+  "course_reminder_count",
   "submission_datetime",
   "section_break_template",
   "selected_template",
@@ -131,6 +136,33 @@
    "fieldname": "entered_name",
    "fieldtype": "Data",
    "label": "Entered Name"
+  },
+  {
+   "fieldname": "reporting_head_name",
+   "fieldtype": "Data",
+   "label": "Reporting Head Name"
+  },
+  {
+   "fieldname": "hod_name",
+   "fieldtype": "Data",
+   "label": "HOD Name"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region"
+  },
+  {
+   "default": "0",
+   "fieldname": "login_reminder_count",
+   "fieldtype": "Int",
+   "label": "Login Reminder Count"
+  },
+  {
+   "default": "0",
+   "fieldname": "course_reminder_count",
+   "fieldtype": "Int",
+   "label": "Course Reminder Count"
   },
   {
    "fieldname": "enrollment_reference",

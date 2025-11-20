@@ -169,27 +169,37 @@ def get_distributors_by_division(division, filters=None):
 	if isinstance(filters, str):
 		filters = frappe.parse_json(filters)
 
+	# Create a copy of filters to avoid modifying during iteration
 	# Remove division from filters since we'll handle it separately
-	filters.pop('division', None)
+	filters_copy = filters.copy()
+	filters_copy.pop('division', None)
 
 	# Build the SQL query to join with child table
 	conditions = ["d.name = c.parent"]
+	
+	# Separate dict for SQL parameters to avoid modifying filters during iteration
+	sql_params = {}
 
 	if division:
 		conditions.append("c.division = %(division)s")
+		sql_params['division'] = division
 
-	# Add other filters
-	for field, value in filters.items():
-		if field == 'user_id' and isinstance(value, list) and value[0] == 'is' and value[1] == 'not set':
-			conditions.append("(d.user_id IS NULL OR d.user_id = '')")
+	# Add other filters - iterate over a copy to avoid modification during iteration
+	for field, value in filters_copy.items():
+		if field == 'user_id' and isinstance(value, list) and value[0] == 'is':
+			if value[1] == 'not set':
+				conditions.append("(d.user_id IS NULL OR d.user_id = '')")
+			elif value[1] == 'set':
+				conditions.append("(d.user_id IS NOT NULL AND d.user_id != '')")
 		elif isinstance(value, list):
 			# Handle list conditions like ['like', '%value%']
 			operator = value[0]
 			filter_value = value[1]
 			conditions.append(f"d.{field} {operator} %({field}_value)s")
-			filters[f"{field}_value"] = filter_value
+			sql_params[f"{field}_value"] = filter_value
 		else:
 			conditions.append(f"d.{field} = %({field})s")
+			sql_params[field] = value
 
 	query = f"""
 		SELECT DISTINCT
@@ -210,9 +220,7 @@ def get_distributors_by_division(division, filters=None):
 		LIMIT 100
 	"""
 
-	filters['division'] = division
-
-	result = frappe.db.sql(query, filters, as_dict=True)
+	result = frappe.db.sql(query, sql_params, as_dict=True)
 	return result
 
 @frappe.whitelist()

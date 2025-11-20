@@ -145,28 +145,84 @@ def get_employee_dashboard_info():
     
     frappe.only_for("Supervisor")
 
-    query = """
+    region_expr = "COALESCE(e.branch, '')"
+    for candidate in ("region", "custom_region"):
+        if frappe.db.has_column("Employee", candidate):
+            region_expr = f"COALESCE(e.{candidate}, '')"
+            break
+
+    login_expr = "'0'"
+    login_sources = (
+        ("Employee", "login_reminder_count", "e"),
+        ("Employee", "custom_login_reminder_count", "e"),
+        ("LMS Enrollment", "login_reminder_count", "le"),
+    )
+    for table, field, alias in login_sources:
+        if frappe.db.has_column(table, field):
+            login_expr = f"IFNULL(CAST({alias}.{field} AS CHAR), '0')"
+            break
+
+    hod_expr = "''"
+    hod_join = ""
+    if frappe.db.has_column("Employee", "hod_name"):
+        hod_expr = "COALESCE(e.hod_name, '')"
+    elif frappe.db.has_column("Employee", "custom_hod_name"):
+        hod_expr = "COALESCE(e.custom_hod_name, '')"
+    elif frappe.db.has_column("Department", "hod_name"):
+        hod_expr = "COALESCE(dept.hod_name, '')"
+        hod_join = """
+            LEFT JOIN `tabDepartment` AS dept
+                ON dept.name = e.department
+        """
+    elif frappe.db.has_column("Department", "hod"):
+        hod_expr = "COALESCE(hod_emp.employee_name, '')"
+        hod_join = """
+            LEFT JOIN `tabDepartment` AS dept
+                ON dept.name = e.department
+            LEFT JOIN `tabEmployee` AS hod_emp
+                ON hod_emp.name = dept.hod
+        """
+
+    query = f"""
         SELECT
-            e.name                             As `employee_docid`,
+            e.name                             AS `employee_docid`,
             e.employee_name                    AS `employee_name`,
-            e.designation                      AS `designation`,
-            e.cell_number                     AS `employee_number`,
-            e.company                          AS `company`,
-            e.company_email                    AS `company_email`,
-            e.country                          AS `country`,
             e.custom_employee_id               AS `custom_employee_id`,
+            e.company                          AS `company`,
+            e.designation                      AS `designation`,
+            e.department                       AS `department`,
+            COALESCE(manager.employee_name, '') AS `reporting_head_name`,
+            e.company_email                    AS `company_email`,
+            COALESCE(e.employee_number, e.cell_number, '') AS `employee_number`,
+            e.country                          AS `country`,
+            {region_expr}                      AS `region`,
+            {login_expr}                       AS `login_reminder_count`,
+            {hod_expr}                         AS `hod_name`,
             e.user_id                          AS `employee_user_id`,
-            ed.name                            AS `docuemnts_id`,
             le.course                          AS `course_name`,
-        IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`,
-            le.progress                        AS `progress`,
+            IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`,
+            IFNULL(le.progress, 0)             AS `progress`,
             le.completed_on                    AS `completed_on`,
-            IFNULL(le.completion_status, 'Pending') AS `completion_status`
+            IFNULL(le.completion_status, 'Pending') AS `completion_status`,
+            COALESCE(le.enrollment_version, 1) AS `enrollment_version`,
+            (
+                SELECT ed_inner.name
+                FROM `tabEmployee Course Documents` AS ed_inner
+                WHERE ed_inner.employee = e.name
+                  AND ed_inner.course = le.course
+                ORDER BY (ed_inner.enrollment_version = le.enrollment_version) DESC,
+                         ed_inner.is_current_enrollment DESC,
+                         ed_inner.modified DESC
+                LIMIT 1
+            ) AS `docuemnts_id`
         FROM `tabEmployee` AS e
+        LEFT JOIN `tabEmployee` AS manager
+            ON manager.name = e.reports_to
         LEFT JOIN `tabLMS Enrollment` AS le
             ON le.member = e.user_id
-        LEFT JOIN `tabEmployee Course Documents` AS ed
-            ON e.name = ed.employee AND le.course = ed.course
+        {hod_join}
+        ORDER BY e.employee_name, le.course
     """
+
     data = frappe.db.sql(query, as_dict=True)
     return data
