@@ -84,6 +84,8 @@ def create_user_from_employee(employee_id, _method):
 				update_password(email, new_password)
 
 				user_doc = frappe.get_doc("User", email)
+				# Add default roles for employees
+				user_doc.add_roles("Employee", "Employee Self Service")
 				reset_password_link = user_doc.reset_password(send_email=False)
 				login_url = frappe.utils.get_url("/login")
 				recipient_name = (

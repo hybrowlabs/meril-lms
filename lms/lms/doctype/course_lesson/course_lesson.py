@@ -105,10 +105,8 @@ def save_progress(lesson, course, completed_videos=None):
 	if has_quizzes:
 		# If user has 'Distributor' role but not 'Administrator', treat quiz as completed
 		roles = frappe.get_roles(frappe.session.user)
-		if "Distributor" in roles and "Administrator" not in roles:
-			quiz_completed = True
-		else:
-			quiz_completed = get_quiz_progress(lesson)
+		
+		quiz_completed = get_quiz_progress(lesson)
 		
 		# If quiz exists but not passed, don't update progress - return current progress
 		if not quiz_completed:
@@ -149,7 +147,11 @@ def save_progress(lesson, course, completed_videos=None):
 
 	# All requirements met - update or create progress record
 	if already_completed:
-		progress_doc = frappe.get_doc("LMS Course Progress", existing_progress_name)
+		progress_doc = frappe.get_doc("LMS Course Progress", {
+			"lesson": lesson,
+			"member": frappe.session.user,
+			"enrollment": membership
+		})
 		progress_doc.status = "Complete"
 		progress_doc.is_complete = 1
 		progress_doc.progress = 100
