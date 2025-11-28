@@ -80,7 +80,9 @@
   "user_creation_settings_section",
   "auto_create_distributor_users",
   "column_break_user_creation",
-  "auto_create_employee_users"
+  "auto_create_employee_users",
+  "otp_exclusions_section",
+  "otp_excluded_users"
  ],
  "fields": [
   {
@@ -504,13 +506,24 @@
    "fieldname": "auto_create_employee_users",
    "fieldtype": "Check",
    "label": "Auto Create Users for New Employees"
+  },
+  {
+   "fieldname": "otp_exclusions_section",
+   "fieldtype": "Section Break",
+   "label": "OTP Exclusions"
+  },
+  {
+   "fieldname": "otp_excluded_users",
+   "fieldtype": "Table",
+   "label": "OTP Excluded Users",
+   "options": "OTP Excluded Users"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-09-23 16:29:52.717240",
+ "modified": "2025-11-28 18:23:09.223093",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Settings",

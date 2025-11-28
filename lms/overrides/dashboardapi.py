@@ -225,4 +225,66 @@ def get_employee_dashboard_info():
     """
 
     data = frappe.db.sql(query, as_dict=True)
+
+    # Build enrollment history for all employees in one query
+    members = [r.get("employee_user_id") for r in data if r.get("employee_user_id")]
+    history_by_member = {}
+    if members:
+        history_sql = """
+            SELECT
+                e.user_id                           AS member,
+                le.course                           AS course,
+                le.enrollment_version               AS enrollment_version,
+                le.progress                         AS progress,
+                le.completed_on                     AS completed_on,
+                IFNULL(le.completion_status, 'Pending') AS completion_status,
+                ecd.name                            AS docid,
+                ecd.has_submitted_documents         AS submitted,
+                ecd.submission_datetime             AS submission_datetime
+            FROM `tabEmployee` AS e
+            JOIN `tabLMS Enrollment` AS le
+                ON le.member = e.user_id
+            LEFT JOIN `tabEmployee Course Documents` AS ecd
+                ON ecd.employee = e.name
+               AND ecd.course = le.course
+               AND ecd.enrollment_version = le.enrollment_version
+            WHERE e.user_id IN %(members)s
+            ORDER BY e.user_id, le.enrollment_version ASC
+        """
+        hist_rows = frappe.db.sql(history_sql, {"members": tuple(set(members))}, as_dict=True)
+        for hr in hist_rows:
+            # Derive completed status if progress is 100
+            progress_val = float(hr.get("progress") or 0)
+            status = hr.get("completion_status") or "Pending"
+            if progress_val >= 100.0 and status != "Completed":
+                status = "Completed"
+            entry = {
+                "course": hr.get("course"),
+                "enrollment_version": hr.get("enrollment_version"),
+                "progress": hr.get("progress"),
+                "completed_on": hr.get("completed_on"),
+                "completion_status": status,
+                "documents": []
+            }
+            if hr.get("docid"):
+                entry["documents"].append({
+                    "name": hr.get("docid"),
+                    "docid": hr.get("docid"),
+                    "submitted": bool(hr.get("submitted")),
+                    "submission_datetime": hr.get("submission_datetime"),
+                })
+            history_by_member.setdefault(hr["member"], []).append(entry)
+
+    # Final post-processing
+    for r in data:
+        # Normalize completion from progress
+        try:
+            prog = float(r.get("progress") or 0)
+        except Exception:
+            prog = 0.0
+        if prog >= 100.0 and r.get("completion_status") != "Completed":
+            r["completion_status"] = "Completed"
+        # Attach history
+        r["enrollment_history"] = history_by_member.get(r.get("employee_user_id"), [])
+
     return data

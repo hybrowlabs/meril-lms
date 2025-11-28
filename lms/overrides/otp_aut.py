@@ -488,6 +488,17 @@ def get_user_status():
     if "System Manager" in roles or "Administrator" in roles or "Supervisor" in roles:
         return {"status": "unlocked", "message": "User is unlocked."}
 
+    # Check if user is excluded from OTP verification
+    try:
+        lms_settings = frappe.get_single("LMS Settings")
+        excluded_users = lms_settings.get("otp_excluded_users", [])
+        for excluded_user in excluded_users:
+            if excluded_user.user == user and excluded_user.disabled == 1:
+                return {"status": "unlocked", "message": "User is excluded from OTP verification"}
+    except Exception as e:
+        # If there's an error checking excluded users, log it but continue with normal flow
+        frappe.log_error(frappe.get_traceback(), "Error checking OTP excluded users")
+
     email = frappe.db.get_value("User", user, "email")
     if not email:
         return {"status": "error", "message": "Email not found"}
