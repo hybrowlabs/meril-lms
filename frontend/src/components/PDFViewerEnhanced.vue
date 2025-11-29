@@ -47,6 +47,35 @@
         </svg>
       </button>
 
+      <!-- Mobile Fullscreen Navigation -->
+      <div v-if="isFullscreen" class="mobile-fullscreen-nav">
+        <button
+          @click="previousPage"
+          :disabled="page <= 1"
+          class="mobile-nav-btn mobile-nav-prev"
+          :class="{ disabled: page <= 1 }"
+        >
+          <svg class="mobile-nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <div class="mobile-page-indicator">
+          {{ page }} / {{ pages }}
+        </div>
+
+        <button
+          @click="nextPage"
+          :disabled="page >= pages"
+          class="mobile-nav-btn mobile-nav-next"
+          :class="{ disabled: page >= pages }"
+        >
+          <svg class="mobile-nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
       <!-- Navigation Controls -->
       <div class="pdf-controls">
         <div class="pdf-controls-inner">
@@ -113,11 +142,23 @@
               class="zoom-select"
             >
               <option :value="0.5">50%</option>
-              <option :value="0.75">75%</option>
+              <option :value="0.6">60%</option>
+              <option :value="0.7">70%</option>
+              <option :value="0.8">80%</option>
+              <option :value="0.9">90%</option>
               <option :value="1">100%</option>
-              <option :value="1.25">125%</option>
+              <option :value="1.1">110%</option>
+              <option :value="1.2">120%</option>
+              <option :value="1.3">130%</option>
+              <option :value="1.4">140%</option>
               <option :value="1.5">150%</option>
+              <option :value="1.6">160%</option>
+              <option :value="1.7">170%</option>
+              <option :value="1.8">180%</option>
+              <option :value="1.9">190%</option>
               <option :value="2">200%</option>
+              <option :value="2.5">250%</option>
+              <option :value="3">300%</option>
             </select>
 
             <button
@@ -388,18 +429,20 @@ const goToPage = () => {
 // Zoom methods
 const zoomIn = () => {
   if (typeof scale.value === 'number' && scale.value < 3) {
-    scale.value = Math.min(scale.value + 0.25, 3)
+    scale.value = Math.round((scale.value + 0.1) * 10) / 10
+    scale.value = Math.min(scale.value, 3)
   } else {
-    scale.value = 1.25
+    scale.value = 1.1
   }
   resize.value = !resize.value
 }
 
 const zoomOut = () => {
   if (typeof scale.value === 'number' && scale.value > 0.5) {
-    scale.value = Math.max(scale.value - 0.25, 0.5)
+    scale.value = Math.round((scale.value - 0.1) * 10) / 10
+    scale.value = Math.max(scale.value, 0.5)
   } else {
-    scale.value = 0.75
+    scale.value = 0.9
   }
   resize.value = !resize.value
 }
@@ -422,9 +465,37 @@ const toggleFullscreen = async () => {
       await elem.msRequestFullscreen()
     }
     isFullscreen.value = true
+    // Center the page after entering fullscreen
+    nextTick(() => {
+      centerPageInView()
+    })
   } else {
     exitFullscreen()
   }
+}
+
+// Center the PDF page in the container
+const centerPageInView = () => {
+  const container = pdfContainer.value
+  if (!container) return
+
+  // Wait for layout to settle
+  setTimeout(() => {
+    const scrollWidth = container.scrollWidth
+    const scrollHeight = container.scrollHeight
+    const clientWidth = container.clientWidth
+    const clientHeight = container.clientHeight
+
+    // Center horizontally
+    if (scrollWidth > clientWidth) {
+      container.scrollLeft = (scrollWidth - clientWidth) / 2
+    }
+
+    // Center vertically
+    if (scrollHeight > clientHeight) {
+      container.scrollTop = (scrollHeight - clientHeight) / 2
+    }
+  }, 100)
 }
 
 const exitFullscreen = async () => {
@@ -548,6 +619,20 @@ const onPageError = (err) => {
 // Responsive handling
 const handleResize = () => {
   resize.value = !resize.value
+  // Re-center page in fullscreen when resizing/rotating
+  if (isFullscreen.value) {
+    centerPageInView()
+  }
+}
+
+// Handle orientation change
+const handleOrientationChange = () => {
+  if (isFullscreen.value) {
+    // Small delay to allow layout to update after orientation change
+    setTimeout(() => {
+      centerPageInView()
+    }, 200)
+  }
 }
 
 // Set initial scale based on device
@@ -577,6 +662,10 @@ onMounted(() => {
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
   document.addEventListener('mozfullscreenchange', handleFullscreenChange)
   document.addEventListener('MSFullscreenChange', handleFullscreenChange)
+
+  // Listen for orientation changes
+  window.addEventListener('orientationchange', handleOrientationChange)
+  screen.orientation?.addEventListener('change', handleOrientationChange)
 })
 
 const handleFullscreenChange = () => {
@@ -586,6 +675,13 @@ const handleFullscreenChange = () => {
                            document.msFullscreenElement
 
   isFullscreen.value = !!fullscreenElement
+
+  // Center page when entering fullscreen
+  if (isFullscreen.value) {
+    nextTick(() => {
+      centerPageInView()
+    })
+  }
 }
 
 onUnmounted(() => {
@@ -595,6 +691,8 @@ onUnmounted(() => {
   document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
   document.removeEventListener('mozfullscreenchange', handleFullscreenChange)
   document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
+  window.removeEventListener('orientationchange', handleOrientationChange)
+  screen.orientation?.removeEventListener('change', handleOrientationChange)
 })
 
 // Watch for URL changes
@@ -1016,5 +1114,163 @@ watch(() => props.src, () => {
 
 .pdf-page-container::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Fullscreen Navigation */
+.mobile-fullscreen-nav {
+  display: none;
+}
+
+.fullscreen-mode .mobile-fullscreen-nav {
+  display: flex;
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100001;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.85);
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-btn:hover:not(.disabled),
+.mobile-nav-btn:active:not(.disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.mobile-nav-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.mobile-nav-icon {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.mobile-page-indicator {
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Mobile Landscape Mode */
+@media (max-width: 896px) and (orientation: landscape) {
+  .fullscreen-mode {
+    background: #f3f4f6;
+  }
+
+  .fullscreen-mode .pdf-page-container {
+    min-height: auto !important;
+    max-height: 100vh !important;
+    height: 100vh !important;
+    background: #f3f4f6 !important;
+  }
+
+  .fullscreen-mode .pdf-page-wrapper {
+    min-height: auto;
+    padding: 0.5rem;
+    padding-bottom: 2rem;
+  }
+
+  .fullscreen-mode .pdf-controls {
+    display: none;
+  }
+
+  .fullscreen-mode .pdf-footer {
+    display: none;
+  }
+
+  .fullscreen-mode .pdf-controls-compact {
+    padding: 0.25rem 0.5rem;
+  }
+
+  .fullscreen-mode .pdf-controls-inner {
+    gap: 0.5rem;
+  }
+
+  .fullscreen-mode .control-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .fullscreen-mode .control-btn .icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .fullscreen-mode .page-indicator {
+    padding: 0.25rem 0.5rem;
+  }
+
+  .fullscreen-mode .zoom-select {
+    padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* Move navigation to the side in landscape */
+  .fullscreen-mode .mobile-fullscreen-nav {
+    flex-direction: column;
+    bottom: auto;
+    top: 50%;
+    left: auto;
+    right: 20px;
+    transform: translateY(-50%);
+    padding: 12px 8px;
+    border-radius: 30px;
+  }
+
+  .fullscreen-mode .mobile-nav-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .fullscreen-mode .mobile-nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .fullscreen-mode .mobile-page-indicator {
+    font-size: 12px;
+    min-width: auto;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+  }
+
+  /* Adjust exit button for landscape */
+  .fullscreen-exit-btn {
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .fullscreen-exit-btn .exit-icon {
+    width: 18px;
+    height: 18px;
+  }
 }
 </style>
