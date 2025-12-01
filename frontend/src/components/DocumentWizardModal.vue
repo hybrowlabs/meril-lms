@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between">
           <div>
             <h2 class="text-xl font-semibold text-gray-900">
-              {{ getStepTitle() }}
+              {{ stepTitle }}
             </h2>
             <p class="text-sm text-gray-600 mt-1">
               {{ state.courseName ? `Course: ${state.courseName}` : 'Document Compliance Workflow' }}
@@ -64,7 +64,7 @@
         <div class="mt-8">
           <!-- Step 1: Certification (includes compliance officer nomination) -->
           <CertificationStep
-            v-if="state.currentStep === 1"
+            v-if="certificationStepId && state.currentStep === certificationStepId"
             :user-role="state.userRole"
             :declaration-info="state.declarationInfo"
             :certification-data="state.certification"
@@ -78,7 +78,7 @@
 
           <!-- Step 2: Download -->
           <DownloadStep
-            v-if="state.currentStep === 2"
+            v-if="downloadStepId && state.currentStep === downloadStepId"
             :required-documents="state.requiredDocuments"
             :certification-data="state.certification"
             :course-name="state.courseName"
@@ -89,7 +89,7 @@
 
           <!-- Step 3: Upload -->
           <UploadStep
-            v-if="state.currentStep === 3"
+            v-if="uploadStepId && state.currentStep === uploadStepId"
             :required-documents="state.requiredDocuments"
             :uploaded-documents="state.uploadedDocuments"
             :current-document="currentDocumentToUpload"
@@ -102,7 +102,7 @@
 
           <!-- Step 4: Completion -->
           <CompletionStep
-            v-if="state.currentStep === 4"
+            v-if="completionStepId && state.currentStep === completionStepId"
             :uploaded-documents="state.uploadedDocumentsList"
             :documents-list="state.documentsList"
             :required-documents="state.requiredDocuments"
@@ -131,7 +131,7 @@
               :disabled="!canProceedToNextStep"
               class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {{ getNextButtonText() }}
+              {{ nextButtonLabel }}
             </button>
             <button
               v-else
@@ -148,7 +148,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { Spinner } from 'frappe-ui'
 import StepIndicator from './StepIndicator.vue'
 import CertificationStep from './steps/CertificationStep.vue'
@@ -158,6 +158,11 @@ import CompletionStep from './steps/CompletionStep.vue'
 import {
   state,
   totalSteps,
+  stepDefinitions,
+  certificationStepId,
+  downloadStepId,
+  uploadStepId,
+  completionStepId,
   currentDocumentToUpload,
   canProceedToNextStep,
   closeModal,
@@ -169,58 +174,9 @@ import {
   markDocumentUploaded,
   setUploadProgress
 } from '../stores/document-workflow.js'
-
-const stepDefinitions = computed(() => {
-  return [
-    {
-      id: 1,
-      title: 'Certify',
-      description: 'Review and certify documents',
-      statusMessage: state.userRole === 'Employee'
-        ? 'Please review the Employee Declaration and provide your certification.'
-        : 'Review the compliance documents, provide certification, and nominate compliance officer.'
-    },
-    {
-      id: 2,
-      title: 'Download',
-      description: 'Download required documents',
-      statusMessage: 'Download the generated documents for signing and completion.'
-    },
-    {
-      id: 3,
-      title: 'Upload',
-      description: 'Upload completed documents',
-      statusMessage: 'Upload your signed and completed documents.'
-    },
-    {
-      id: 4,
-      title: 'Complete',
-      description: 'Process completed',
-      statusMessage: state.userRole === 'Employee'
-        ? 'Your employee documents have been successfully processed.'
-        : 'All documents have been successfully processed.'
-    }
-  ]
-})
-
-const getStepTitle = () => {
-  const titles = {
-    1: 'Document Certification',
-    2: 'Download Documents',
-    3: 'Upload Documents',
-    4: 'Process Complete'
-  }
-  return titles[state.currentStep] || 'Document Workflow'
-}
-
-const getNextButtonText = () => {
-  const texts = {
-    1: 'Proceed to Download',
-    2: 'Proceed to Upload',
-    3: 'Complete Process'
-  }
-  return texts[state.currentStep] || 'Next'
-}
+const currentStepMeta = computed(() => stepDefinitions.value.find(step => step.id === state.currentStep) || null)
+const stepTitle = computed(() => currentStepMeta.value?.title || 'Document Workflow')
+const nextButtonLabel = computed(() => currentStepMeta.value?.nextButtonText || 'Next')
 
 const handleOfficerNominated = (officerData) => {
   // This will be handled by the store
