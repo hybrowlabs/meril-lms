@@ -25,7 +25,7 @@
             :error="!!errors.emailOtp"
           />
         </div>
-        <div class="mb-6">
+        <div v-if="requiresMobileOtp" class="mb-6">
           <label class="block mb-1 text-gray-800 " for="mobile-otp">Mobile OTP</label>
           <TextInput
             id="mobile-otp" 
@@ -72,6 +72,7 @@ import { call, TextInput, Button , Spinner, toast } from "frappe-ui";
 const showOtpDialog = ref(false)
 const emailOtp = ref('')
 const mobileOtp = ref('')
+const requiresMobileOtp = ref(true) // Default to true for safety
 const errors = ref({
   emailOtp: "",
   mobileOtp: ""
@@ -87,9 +88,10 @@ const trapFocus = (event) => {
   const dialog = otpDialogContent.value;
   if (!dialog) return;
 
-  const focusableElements = dialog.querySelectorAll(
-    "#email-otp, #mobile-otp, #send-otp, #submit-otp"
-  );
+  const focusableSelectors = requiresMobileOtp.value 
+    ? "#email-otp, #mobile-otp, #send-otp, #submit-otp"
+    : "#email-otp, #send-otp, #submit-otp";
+  const focusableElements = dialog.querySelectorAll(focusableSelectors);
 
   if (focusableElements.length === 0) {
     event.preventDefault();
@@ -116,8 +118,22 @@ if(window.self === window.top)
     should_user_redirect();
 });
 
+async function checkMobileOtpRequirement() {
+  try {
+    const res = await call("lms.overrides.otp_aut.requires_mobile_otp", {});
+    requiresMobileOtp.value = res.requires_mobile_otp || false;
+  } catch (error) {
+    // Default to requiring mobile OTP for safety if API call fails
+    console.error("Error checking mobile OTP requirement:", error);
+    requiresMobileOtp.value = true;
+  }
+}
+
 async function getUnlockedStatus() {
   try {
+    // Check if mobile OTP is required before showing dialog
+    await checkMobileOtpRequirement();
+    
     const res = await call("lms.overrides.otp_aut.get_user_status", {});
     if (res.status === "unlocked") {
       showOtpDialog.value = false;
@@ -163,7 +179,7 @@ async function submitOtp() {
   if (!emailOtp.value) {
     errors.value.emailOtp = "Email OTP is required"
   }
-  if (!mobileOtp.value) {
+  if (requiresMobileOtp.value && !mobileOtp.value) {
     errors.value.mobileOtp = "Mobile OTP is required"
   }
   if (errors.value.emailOtp || errors.value.mobileOtp) return;
@@ -172,7 +188,7 @@ async function submitOtp() {
     loading.value = true;
     const res = await call("lms.overrides.otp_aut.verify_email_otp", {
       otp: emailOtp.value,
-      otp1: mobileOtp.value
+      otp1: requiresMobileOtp.value ? mobileOtp.value : null
     });
     if (res.status === "success") {
       toast.success("OTP verified successfully!");

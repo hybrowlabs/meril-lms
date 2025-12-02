@@ -63,6 +63,37 @@ def send_mobile_notification(mobile_no, message):
 
     return {'status': status, 'response': api_response}
 
+
+def get_user_country_for_otp():
+    """Get user's country from User, Employee, or Distributor records."""
+    user = frappe.session.user
+    country = frappe.db.get_value("User", user, "country")
+    
+    if not country:
+        user_doc = frappe.get_doc("User", user)
+        roles = [d.role for d in user_doc.get("roles", [])]
+        
+        if "Distributor" in roles:
+            country = frappe.get_value("Distributor", {"user_id": user}, "country")
+        elif "Employee" in roles:
+            employee = frappe.get_value("Employee", {"user_id": user}, ["country", "custom_country"], as_dict=True)
+            if employee:
+                country = employee.get("custom_country") or employee.get("country")
+    
+    return country
+
+
+@frappe.whitelist(allow_guest=False)
+def requires_mobile_otp():
+    """Check if mobile OTP is required based on user's country.
+    Returns True for India, False for other countries.
+    Defaults to True if country is not set (for safety).
+    """
+    country = get_user_country_for_otp()
+    # India country code/name might be "India" or "IN" depending on system
+    is_india = country and (country.upper() == "INDIA" or country.upper() == "IN")
+    return {"requires_mobile_otp": is_india if country else True}
+
         
 @frappe.whitelist(allow_guest=False)
 def verify_email_otp(otp=None, otp1=None):
@@ -81,20 +112,32 @@ def verify_email_otp(otp=None, otp1=None):
         email = frappe.get_value("Employee", {"user_id": user}, "company_email") 
         mobile = frappe.get_value("Employee", {"user_id": user}, "cell_number") 
 
-    if not email or (not otp and not otp1):
-        return {"status": "error", "message": "Missing email or OTP"}
+    if not email:
+        return {"status": "error", "message": "Missing email"}
 
-    if not mobile or (not otp and not otp1):
-        return {"status": "error", "message": "Missing email or OTP"}
+    if not otp:
+        return {"status": "error", "message": "Email OTP is required"}
+
+    # Check if mobile OTP is required based on country
+    country = get_user_country_for_otp()
+    is_india = country and (country.upper() == "INDIA" or country.upper() == "IN")
+    requires_mobile = is_india if country else True  # Default to True for safety
+
+    # For non-India countries, mobile OTP is optional
+    if requires_mobile:
+        if not mobile:
+            return {"status": "error", "message": "Missing mobile number"}
+        if not otp1:
+            return {"status": "error", "message": "Mobile OTP is required"}
 
     filters = {
         "email": email,
-        "is_verified": 0
+        "is_verified": 0,
+        "email_otp": otp
     }
 
-    if otp:
-        filters["email_otp"] = otp
-    if otp1:
+    # Only add mobile_otp filter if mobile OTP is required
+    if requires_mobile and otp1:
         filters["mobile_otp"] = otp1
 
     otp_doc = frappe.get_all("Custom Auth Data",
@@ -134,11 +177,15 @@ def verify_email_otp(otp=None, otp1=None):
     email_expired = otp_doc.email_otp and now > get_datetime(otp_doc.email_otp_expiry_datetime)
     mobile_expired = otp_doc.mobile_otp and now > get_datetime(otp_doc.mobile_otp_expiry_datetime)
 
-    valid = False
-    if otp and otp == otp_doc.email_otp and not email_expired:
-        valid = True
-    elif otp1 and otp1 == otp_doc.mobile_otp and not mobile_expired:
-        valid = True
+    # Email OTP is always required
+    email_valid = otp and otp == otp_doc.email_otp and not email_expired
+    
+    # Mobile OTP is only required for India
+    mobile_valid = True  # Default to True for non-India countries
+    if requires_mobile:
+        mobile_valid = otp1 and otp1 == otp_doc.mobile_otp and not mobile_expired
+    
+    valid = email_valid and mobile_valid
 
     doc = frappe.get_doc("Custom Auth Data", otp_doc.name)
 
@@ -182,7 +229,13 @@ def send_email_otp():
         if not email:
             return {"status": "error", "message": "User email not found"}
 
-        if not mobile:
+        # Check if mobile OTP is required based on country
+        country = get_user_country_for_otp()
+        is_india = country and (country.upper() == "INDIA" or country.upper() == "IN")
+        requires_mobile = is_india if country else True  # Default to True for safety
+
+        # For non-India countries, mobile is optional
+        if requires_mobile and not mobile:
             return {"status": "error", "message": "User mobile not found"}
 
         now = now_datetime()
@@ -210,7 +263,9 @@ def send_email_otp():
             email_expired = otp_info.email_otp_expiry_datetime and now > otp_info.email_otp_expiry_datetime
             mobile_expired = otp_info.mobile_otp_expiry_datetime and now > otp_info.mobile_otp_expiry_datetime
 
-            if email_expired and mobile_expired:
+            # Resend if email is expired (always required)
+            # For India users, also resend if mobile is expired
+            if email_expired or (requires_mobile and mobile_expired):
                 try:
                     frappe.db.set_value("Custom Auth Data", otp_info.name, "is_expired", 1)
                     frappe.db.commit()
@@ -243,27 +298,33 @@ def send_email_otp():
                         email_error = str(e)
                         frappe.log_error(frappe.get_traceback(), "Error sending email OTP (resent)")
 
-                    # Try sending mobile OTP via SMS and respect API result
-                    try:
-                        sms_result = send_mobile_notification(
-                            mobile_no=mobile,
-                            message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
-                        )
-                        mobile_sent = bool(sms_result and sms_result.get('status') == 'success')
-                        if not mobile_sent:
-                            mobile_error = (sms_result or {}).get('response') or 'SMS gateway reported failure'
-                    except Exception as e:
-                        mobile_error = str(e)
-                        frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (resent)")
-
-                    if email_sent and mobile_sent:
-                        return {"status": "resent", "message": "Previous OTPs resent in a new record"}
-                    elif not email_sent and mobile_sent:
-                        return {"status": "resent", "message": "Mobile OTP sent, but failed to send email OTP", "email_error": email_error}
-                    elif email_sent and not mobile_sent:
-                        return {"status": "resent", "message": "Email OTP sent, but failed to send mobile OTP", "mobile_error": mobile_error}
+                    # Try sending mobile OTP via SMS only for India
+                    if requires_mobile and mobile:
+                        try:
+                            sms_result = send_mobile_notification(
+                                mobile_no=mobile,
+                                message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
+                            )
+                            mobile_sent = bool(sms_result and sms_result.get('status') == 'success')
+                            if not mobile_sent:
+                                mobile_error = (sms_result or {}).get('response') or 'SMS gateway reported failure'
+                        except Exception as e:
+                            mobile_error = str(e)
+                            frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (resent)")
                     else:
-                        return {"status": "error", "message": "Failed to send both OTPs", "email_error": email_error, "mobile_error": mobile_error}
+                        # For non-India countries, mobile OTP is not sent via SMS
+                        mobile_sent = True  # Consider it successful since it's not required
+
+                    if email_sent:
+                        if requires_mobile:
+                            if mobile_sent:
+                                return {"status": "resent", "message": "Previous OTPs resent in a new record"}
+                            else:
+                                return {"status": "resent", "message": "Email OTP sent, but failed to send mobile OTP", "mobile_error": mobile_error}
+                        else:
+                            return {"status": "resent", "message": "Email OTP resent in a new record"}
+                    else:
+                        return {"status": "error", "message": "Failed to send email OTP", "email_error": email_error}
                 except Exception as e:
                     frappe.log_error(frappe.get_traceback(), "Error resending OTPs")
                     return {"status": "error", "message": f"Failed to resend OTPs: {str(e)}"}
@@ -302,26 +363,33 @@ def send_email_otp():
                 email_error = str(e)
                 frappe.log_error(frappe.get_traceback(), "Error sending email OTP (new)")
 
-            try:
-                sms_result = send_mobile_notification(
-                    mobile_no=mobile,
-                    message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
-                )
-                mobile_sent = bool(sms_result and sms_result.get('status') == 'success')
-                if not mobile_sent:
-                    mobile_error = (sms_result or {}).get('response') or 'SMS gateway reported failure'
-            except Exception as e:
-                mobile_error = str(e)
-                frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (new)")
-
-            if email_sent and mobile_sent:
-                return {"status": "new", "message": "New OTPs sent"}
-            elif not email_sent and mobile_sent:
-                return {"status": "new", "message": "Mobile OTP sent, but failed to send email OTP", "email_error": email_error}
-            elif email_sent and not mobile_sent:
-                return {"status": "new", "message": "Email OTP sent, but failed to send mobile OTP", "mobile_error": mobile_error}
+            # Try sending mobile OTP via SMS only for India
+            if requires_mobile and mobile:
+                try:
+                    sms_result = send_mobile_notification(
+                        mobile_no=mobile,
+                        message=f"Dear User, Your OTP to login in Meril App is {mobile_otp}. Valid only for 15 minutes."
+                    )
+                    mobile_sent = bool(sms_result and sms_result.get('status') == 'success')
+                    if not mobile_sent:
+                        mobile_error = (sms_result or {}).get('response') or 'SMS gateway reported failure'
+                except Exception as e:
+                    mobile_error = str(e)
+                    frappe.log_error(frappe.get_traceback(), "Error sending mobile OTP (new)")
             else:
-                return {"status": "error", "message": "Failed to send both OTPs", "email_error": email_error, "mobile_error": mobile_error}
+                # For non-India countries, mobile OTP is not sent via SMS
+                mobile_sent = True  # Consider it successful since it's not required
+
+            if email_sent:
+                if requires_mobile:
+                    if mobile_sent:
+                        return {"status": "new", "message": "New OTPs sent"}
+                    else:
+                        return {"status": "new", "message": "Email OTP sent, but failed to send mobile OTP", "mobile_error": mobile_error}
+                else:
+                    return {"status": "new", "message": "Email OTP sent"}
+            else:
+                return {"status": "error", "message": "Failed to send email OTP", "email_error": email_error}
         except Exception as e:
             frappe.log_error(frappe.get_traceback(), "Error sending new OTPs")
             return {"status": "error", "message": f"Failed to send OTPs: {str(e)}"}
