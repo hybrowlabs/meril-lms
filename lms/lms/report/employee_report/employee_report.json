@@ -1,7 +1,135 @@
 {
  "add_total_row": 0,
  "add_translate_data": 0,
- "columns": [],
+ "columns": [
+  {
+   "fieldname": "company",
+   "label": "Company Name",
+   "fieldtype": "Link",
+   "options": "Company",
+   "width": 200
+  },
+  {
+   "fieldname": "designation",
+   "label": "Designation",
+   "fieldtype": "Link",
+   "options": "Designation",
+   "width": 150
+  },
+  {
+   "fieldname": "department",
+   "label": "Department",
+   "fieldtype": "Link",
+   "options": "Department",
+   "width": 150
+  },
+  {
+   "fieldname": "reporting_head_name",
+   "label": "Reporting Head Name",
+   "fieldtype": "Data",
+   "width": 180
+  },
+  {
+   "fieldname": "reports_to",
+   "label": "Reporting Head",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "width": 120
+  },
+  {
+   "fieldname": "company_email",
+   "label": "Company Email",
+   "fieldtype": "Data",
+   "width": 180
+  },
+  {
+   "fieldname": "cell_number",
+   "label": "Contact Number",
+   "fieldtype": "Data",
+   "width": 130
+  },
+  {
+   "fieldname": "custom_hod",
+   "label": "HOD Name",
+   "fieldtype": "Data",
+   "width": 150
+  },
+  {
+   "fieldname": "region",
+   "label": "Region",
+   "fieldtype": "Data",
+   "width": 120
+  },
+  {
+   "fieldname": "employee_id",
+   "label": "Employee ID",
+   "fieldtype": "Data",
+   "width": 120
+  },
+  {
+   "fieldname": "employee_name",
+   "label": "Employee Name",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "width": 180
+  },
+  {
+   "fieldname": "employee_number",
+   "label": "Employee Number",
+   "fieldtype": "Data",
+   "width": 130
+  },
+  {
+   "fieldname": "country",
+   "label": "Country",
+   "fieldtype": "Link",
+   "options": "Country",
+   "width": 100
+  },
+  {
+   "fieldname": "login_reminder_count",
+   "label": "Login Reminder Count",
+   "fieldtype": "Data",
+   "width": 150
+  },
+  {
+   "fieldname": "course_name",
+   "label": "Course Name",
+   "fieldtype": "Link",
+   "options": "LMS Course",
+   "width": 200
+  },
+  {
+   "fieldname": "progress",
+   "label": "Progress",
+   "fieldtype": "Percent",
+   "width": 100
+  },
+  {
+   "fieldname": "completed_on",
+   "label": "Course Completion Date & Time",
+   "fieldtype": "Datetime",
+   "width": 200
+  },
+  {
+   "fieldname": "completion_status",
+   "label": "Course Status",
+   "fieldtype": "Data",
+   "width": 120
+  },
+  {
+   "fieldname": "course_reminder_count",
+   "label": "Course Reminder Count",
+   "fieldtype": "Data",
+   "width": 150
+  },
+  {
+   "fieldname": "enrollment_version",
+   "label": "Enrolment Version",
+   "fieldtype": "Int",
+   "width": 130
+  }
+ ],
  "creation": "2025-08-11 15:18:00.302252",
  "disabled": 0,
  "docstatus": 0,
@@ -16,7 +144,7 @@
  "name": "Employee Report",
  "owner": "Administrator",
  "prepared_report": 0,
- "query": "  SELECT\r\n            e.custom_employee_id               AS `employee_id`,\r\n            e.employee_name                    AS `employee_name`,\r\n            e.designation                      AS `designation`,\r\n            COALESCE(e.employee_number, e.cell_number, '') AS `employee_number`,\r\n            e.company                          AS `company`,\r\n            e.department                       AS `department`,\r\n            IFNULL(manager.employee_name, '')  AS `reporting_head_name`,\r\n            e.company_email                    AS `company_email`,\r\n            e.country                          AS `country`,\r\n            IFNULL(COALESCE(e.region, e.custom_region, e.branch), '') AS `region`,\r\n            IFNULL(CAST(COALESCE(e.login_reminder_count, e.custom_login_reminder_count, le.login_reminder_count, 0) AS CHAR), '0') AS `login_reminder_count`,\r\n            IFNULL(COALESCE(e.hod_name, e.custom_hod_name), '') AS `hod_name`,\r\n            le.course                          AS `course_name`,\r\n            CAST(ROUND(IFNULL(le.progress, 0), 2) AS CHAR) AS `progress`,\r\n            le.completed_on                    AS `completed_on`,\r\n            IFNULL(le.completion_status, 'Pending') AS `completion_status`,\r\n            CAST(le.course_reminder_count AS CHAR) AS `course_reminder_count`,\r\n            COALESCE(le.enrollment_version, 1) AS `enrollment_version`\r\n        FROM `tabEmployee` AS e\r\n        LEFT JOIN `tabEmployee` AS manager\r\n            ON manager.name = e.reports_to\r\n        LEFT JOIN (\r\n            SELECT le1.*\r\n            FROM `tabLMS Enrollment` AS le1\r\n            JOIN (\r\n                SELECT member, MAX(enrollment_version) AS max_ev\r\n                FROM `tabLMS Enrollment`\r\n                GROUP BY member\r\n            ) AS latest\r\n            ON latest.member = le1.member AND latest.max_ev = le1.enrollment_version\r\n        ) AS le\r\n            ON le.member = e.user_id\r\n        LEFT JOIN `tabEmployee Course Documents` AS ed\r\n            ON e.name = ed.employee AND le.course = ed.course\r\n        ORDER BY e.employee_name",
+ "query": "  SELECT\r\n            e.custom_employee_id               AS `employee_id`,\r\n            e.employee_name                    AS `employee_name`,\r\n            e.designation                      AS `designation`,\r\n            COALESCE(e.employee_number, e.cell_number, '') AS `employee_number`,\r\n            e.company                          AS `company`,\r\n            e.department                       AS `department`,\r\n            IFNULL(manager.employee_name, '')  AS `reporting_head_name`,\r\n            e.reports_to                       AS `reports_to`,\r\n            e.company_email                    AS `company_email`,\r\n            e.cell_number                      AS `cell_number`,\r\n            e.country                          AS `country`,\r\n            IFNULL(COALESCE(e.region, e.custom_region, e.branch), '') AS `region`,\r\n            IFNULL(CAST(COALESCE(e.login_reminder_count, e.custom_login_reminder_count, le.login_reminder_count, 0) AS CHAR), '0') AS `login_reminder_count`,\r\n            IFNULL(e.custom_hod, '')           AS `custom_hod`,\r\n            le.course                          AS `course_name`,\r\n            CAST(ROUND(IFNULL(le.progress, 0), 2) AS CHAR) AS `progress`,\r\n            le.completed_on                    AS `completed_on`,\r\n            IFNULL(le.completion_status, 'Pending') AS `completion_status`,\r\n            CAST(le.course_reminder_count AS CHAR) AS `course_reminder_count`,\r\n            COALESCE(le.enrollment_version, 1) AS `enrollment_version`\r\n        FROM `tabEmployee` AS e\r\n        LEFT JOIN `tabEmployee` AS manager\r\n            ON manager.name = e.reports_to\r\n        LEFT JOIN (\r\n            SELECT le1.*\r\n            FROM `tabLMS Enrollment` AS le1\r\n            JOIN (\r\n                SELECT member, MAX(enrollment_version) AS max_ev\r\n                FROM `tabLMS Enrollment`\r\n                GROUP BY member\r\n            ) AS latest\r\n            ON latest.member = le1.member AND latest.max_ev = le1.enrollment_version\r\n        ) AS le\r\n            ON le.member = e.user_id\r\n        LEFT JOIN `tabEmployee Course Documents` AS ed\r\n            ON e.name = ed.employee AND le.course = ed.course\r\n        ORDER BY e.employee_name",
  "ref_doctype": "Employee",
  "report_name": "Employee Report",
  "report_type": "Query Report",
