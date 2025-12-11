@@ -55,7 +55,19 @@ def create_user_from_employee(employee_id, _method):
 	employee_doc = frappe.get_doc("Employee", employee_id)
 	full_name = employee_doc.first_name + " " + employee_doc.last_name if employee_doc.last_name else employee_doc.first_name
 	email = employee_doc.company_email 
-	country = employee_doc.custom_country 
+	
+	# Check both country and custom_country fields
+	# If either is not India (or not set), use that value
+	country = None
+	if hasattr(employee_doc, 'custom_country') and employee_doc.custom_country:
+		if employee_doc.custom_country.lower() != 'india':
+			country = employee_doc.custom_country
+	if not country and hasattr(employee_doc, 'country') and employee_doc.country:
+		if employee_doc.country.lower() != 'india':
+			country = employee_doc.country
+	# If both are India or not set, default to India
+	if not country:
+		country = 'India'
 
 	print( "email", email, "country", country)
 	# Check if user already exists
@@ -77,6 +89,7 @@ def create_user_from_employee(employee_id, _method):
 						"user_category": "Employee",
 						"mobile_no": employee_doc.cell_number,
 						"send_welcome_email": 0,
+						"country": country,
 					}
 					).insert(ignore_permissions=True).email
 
