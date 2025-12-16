@@ -45,15 +45,10 @@
 </template>
 <script setup>
 import { FormControl, createResource, toast } from 'frappe-ui'
-import { ref, watch } from 'vue'
-import { convertToTitleCase } from '@/utils'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { CircleAlert } from 'lucide-vue-next'
 
-const moderator = ref(false)
-const course_creator = ref(false)
-const batch_evaluator = ref(false)
-const lms_student = ref(false)
-const readOnlyMode = window.read_only_mode
+const __ = inject('$__')
 
 const props = defineProps({
 	profile: {
@@ -62,22 +57,52 @@ const props = defineProps({
 	},
 })
 
-const roles = createResource({
+const readOnlyMode = ref(window.read_only_mode)
+
+const moderator = ref(false)
+const course_creator = ref(false)
+const batch_evaluator = ref(false)
+const lms_student = ref(false)
+
+// Initialize roles on component mount
+onMounted(() => {
+	if (props.profile.data?.name) {
+		getRoles.submit()
+	}
+})
+
+const convertToTitleCase = (str) => {
+	return str.replace(/\w\S*/g, (txt) => {
+		return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+	})
+}
+
+const getRoles = createResource({
 	url: 'lms.lms.utils.get_roles',
-	makeParams(values) {
+	makeParams() {
 		return {
-			name: values.member,
+			name: props.profile.data?.name,
 		}
 	},
 	onSuccess(data) {
-		let roles = [
+		// Create a mapping object to avoid eval usage
+		const roleRefs = {
+			moderator: moderator,
+			course_creator: course_creator,
+			batch_evaluator: batch_evaluator,
+			lms_student: lms_student,
+		}
+
+		const roles = [
 			'moderator',
 			'course_creator',
 			'batch_evaluator',
 			'lms_student',
 		]
 		for (let role of roles) {
-			if (data[role]) eval(role).value = true
+			if (data[role] && roleRefs[role]) {
+				roleRefs[role].value = true
+			}
 		}
 	},
 })
@@ -85,9 +110,9 @@ const roles = createResource({
 watch(
 	() => props.profile,
 	(newValue) => {
-		roles.reload({
-			member: newValue.data?.name,
-		})
+		if (newValue.data?.name) {
+			getRoles.submit()
+		}
 	},
 	{ immediate: true }
 )
@@ -104,13 +129,21 @@ const updateRole = createResource({
 })
 
 const changeRole = (role) => {
+	// Create a mapping object to avoid eval usage
+	const roleRefs = {
+		moderator: moderator,
+		course_creator: course_creator,
+		batch_evaluator: batch_evaluator,
+		lms_student: lms_student,
+	}
+
 	updateRole.submit(
 		{
 			role:
 				role == 'lms_student'
 					? 'LMS Student'
 					: convertToTitleCase(role.split('_').join(' ')),
-			value: eval(role).value,
+			value: roleRefs[role]?.value || false,
 		},
 		{
 			onSuccess(data) {

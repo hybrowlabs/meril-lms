@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.merillife.lms",
+      "sha256_cert_fingerprints": [
+        "BB:14:5A:EF:47:3E:EE:D8:BF:3E:AA:C8:EF:65:5F:A4:35:CB:F0:C1:C7:A1:1C:99:76:B8:D6:09:B8:9F:37:B6"
+      ]
+    }
+  }
+]

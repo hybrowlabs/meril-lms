@@ -60,11 +60,13 @@
 						type="number"
 						v-model="quizDetails.doc.max_attempts"
 						:label="__('Maximum Attempts')"
+						:min="0"
 					/>
 					<FormControl
 						type="number"
 						v-model="quizDetails.doc.duration"
 						:label="__('Duration (in minutes)')"
+						:min="0"
 					/>
 				</div>
 				<div class="space-y-5">
@@ -74,9 +76,14 @@
 						disabled
 					/>
 					<FormControl
-						v-model="quizDetails.doc.passing_percentage"
+						type="number"
+						v-model.number="quizDetails.doc.passing_percentage"
 						:label="__('Passing Percentage')"
+						:min="0"
+						:max="100"
+						:step="1"
 						:required="true"
+						@blur="quizDetails.doc.passing_percentage = Math.min(100, Math.max(0, Number(quizDetails.doc.passing_percentage) || 0))"
 					/>
 				</div>
 			</div>
@@ -257,6 +264,9 @@ const questions = ref([])
 onMounted(() => {
 	if (!user.data?.is_moderator && !user.data?.is_instructor) {
 		router.push({ name: 'Courses' })
+	}
+	if (props.quizID === 'new') {
+		quiz.passing_percentage = 80
 	}
 	if (props.quizID !== 'new') {
 		quizDetails.reload()

@@ -1,0 +1,38 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2025-08-11 15:18:00.302252",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "letterhead": null,
+ "modified": "2025-12-11 08:26:31.808373",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Employee Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "  SELECT\r\n            e.custom_employee_id               AS `employee_id`,\r\n            e.employee_name                    AS `employee_name`,\r\n            e.reports_to                       AS `reports_to`,\r\n            e.custom_hod_name                  AS `custom_hod_name`,\r\n            e.branch                           AS `branch`,\r\n            e.designation                      AS `designation`,\r\n            e.cell_number                      AS `employee_number`,\r\n            e.company                          AS `company`,\r\n            e.company_email                    AS `company_email`,\r\n            e.country                          AS `country`,\r\n            le.course                          AS `course_name`,\r\n            FORMAT(le.progress, 2)             AS `progress`,\r\n            le.completed_on                    AS `completed_on`,\r\n            le.completion_status               AS `completion_status`,\r\n            CAST(le.course_reminder_count AS CHAR) AS `course_reminder_count`\r\n        FROM `tabEmployee` AS e\r\n        LEFT JOIN `tabLMS Enrollment` AS le\r\n            ON le.member = e.user_id\r\n        LEFT JOIN `tabEmployee Course Documents` AS ed\r\n            ON e.name = ed.employee AND le.course = ed.course",
+ "ref_doctype": "Employee",
+ "report_name": "Employee Report",
+ "report_type": "Query Report",
+ "roles": [
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "Supervisor"
+  },
+  {
+   "role": "Employee"
+  }
+ ],
+ "timeout": 0
+}

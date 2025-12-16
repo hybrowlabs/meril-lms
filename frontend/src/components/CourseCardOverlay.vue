@@ -78,7 +78,7 @@
 				</Button>
 				<Button
 					v-if="canGetCertificate"
-					@click="fetchCertificate()"
+					@click="handleGetDocuments"
 					variant="subtle"
 					class="w-full mt-2"
 					size="md"
@@ -86,7 +86,7 @@
 					<template #prefix>
 						<GraduationCap class="size-4 stroke-1.5" />
 					</template>
-					{{ __('Get Certificate') }}
+					{{ __('Get Documents') }}
 				</Button>
 				<Button
 					v-if="user.data?.is_moderator || is_instructor()"
@@ -129,13 +129,6 @@
 					<BookOpen class="h-4 w-4 stroke-1.5" />
 					<span class="ml-2">
 						{{ course.data.lessons }} {{ __('Lessons') }}
-					</span>
-				</div>
-				<div class="flex items-center text-ink-gray-9">
-					<Users class="h-4 w-4 stroke-1.5" />
-					<span class="ml-2">
-						{{ formatAmount(course.data.enrollments) }}
-						{{ __('Enrolled Students') }}
 					</span>
 				</div>
 				<div
@@ -193,11 +186,14 @@ import { capture } from '@/telemetry'
 import { useRouter } from 'vue-router'
 import CertificationLinks from '@/components/CertificationLinks.vue'
 import CourseProgressSummary from '@/components/Modals/CourseProgressSummary.vue'
+import { setCourseCompletion } from "../stores/course_completion.js";
 
 const router = useRouter()
 const user = inject('$user')
 const showProgressModal = ref(false)
 const readOnlyMode = window.read_only_mode
+const showDownloadForm = ref(false)
+const showFormModal = ref(false)
 
 const props = defineProps({
 	course: {
@@ -257,6 +253,7 @@ const is_instructor = () => {
 }
 
 const canGetCertificate = computed(() => {
+	console.log(props.course.data)
 	if (
 		props.course.data?.enable_certification &&
 		props.course.data?.membership?.progress == 100
@@ -292,5 +289,27 @@ const fetchCertificate = () => {
 
 const showProgressSummary = () => {
 	showProgressModal.value = true
+}
+
+async function handleGetDocuments() {
+	try {
+		const res = await call('lms.overrides.documents.has_user_submited_document', { course: props.course.data.name })
+		if (res.message === true) {
+			showDownloadForm.value = true
+			showFormModal.value = false
+		} else {
+			showDownloadForm.value = false
+			showFormModal.value = true
+		}
+
+	} catch (e) {
+		showDownloadForm.value = false
+		showFormModal.value = true
+	}finally{
+		setCourseCompletion({
+			courseName: props.course.data.name,
+			showDocument: true
+		})
+	}
 }
 </script>

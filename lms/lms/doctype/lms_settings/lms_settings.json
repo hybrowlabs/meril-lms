@@ -72,7 +72,24 @@
   "contact_us_tab",
   "contact_us_email",
   "column_break_gcgv",
-  "contact_us_url"
+  "contact_us_url",
+  "custom_settings_tab",
+  "meril_distributor_compliance_policy_adoption_form_column",
+  "distributor_self_declaration",
+  "meril_distributor_compliance_code_of_conduct",
+  "meril_distributor_compliance_policy_adoption_form",
+  "meril_distributor_compliance_policy",
+  "meril_distributor_compliance_policy_for_endo",
+  "employee_documents_section",
+  "employee_declaration_form",
+  "column_break_employee_docs",
+  "employee_completion_certificate",
+  "user_creation_settings_section",
+  "auto_create_distributor_users",
+  "column_break_user_creation",
+  "auto_create_employee_users",
+  "otp_exclusions_section",
+  "otp_excluded_users"
  ],
  "fields": [
   {
@@ -445,6 +462,101 @@
    "fieldname": "disable_pwa",
    "fieldtype": "Check",
    "label": "Disable PWA"
+  },
+  {
+   "fieldname": "custom_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Custom Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "distributor_self_declaration",
+   "fieldtype": "Check",
+   "label": "Distributor Self Declaration"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_code_of_conduct",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Code of Conduct"
+  },
+  {
+   "fieldname": "meril_distributor_compliance_policy_adoption_form_column",
+   "fieldtype": "Column Break",
+   "label": "Enable Upload and Download"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_policy_adoption_form",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Policy Adoption Form"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_policy",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Policy"
+  },
+  {
+   "default": "0",
+   "fieldname": "meril_distributor_compliance_policy_for_endo",
+   "fieldtype": "Check",
+   "label": "Meril Distributor Compliance Policy for Endo"
+  },
+  {
+   "fieldname": "employee_documents_section",
+   "fieldtype": "Section Break",
+   "label": "Employee Documents"
+  },
+  {
+   "default": "0",
+   "fieldname": "employee_declaration_form",
+   "fieldtype": "Check",
+   "label": "Employee Declaration Form"
+  },
+  {
+   "fieldname": "column_break_employee_docs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "employee_completion_certificate",
+   "fieldtype": "Check",
+   "label": "Employee Completion Certificate"
+  },
+  {
+   "fieldname": "user_creation_settings_section",
+   "fieldtype": "Section Break",
+   "label": "User Creation Settings"
+  },
+  {
+   "default": "0",
+   "description": "Automatically create user accounts when new distributors are created. When disabled, use the manual 'Send Email' button in the Distributor list view.",
+   "fieldname": "auto_create_distributor_users",
+   "fieldtype": "Check",
+   "label": "Auto Create Users for New Distributors"
+  },
+  {
+   "fieldname": "column_break_user_creation",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Automatically create user accounts when new employees are created. When disabled, use the manual user creation functions.",
+   "fieldname": "auto_create_employee_users",
+   "fieldtype": "Check",
+   "label": "Auto Create Users for New Employees"
+  },
+  {
+   "fieldname": "otp_exclusions_section",
+   "fieldtype": "Section Break",
+   "label": "OTP Exclusions"
+  },
+  {
+   "fieldname": "otp_excluded_users",
+   "fieldtype": "Table",
+   "label": "OTP Excluded Users",
+   "options": "OTP Excluded Users"
   }
  ],
  "grid_page_length": 50,

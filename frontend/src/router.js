@@ -44,6 +44,16 @@ const routes = [
 		component: () => import('@/pages/Batches.vue'),
 	},
 	{
+		path: '/test-pdf',
+		name: 'TestPDFViewer',
+		component: () => import('@/pages/TestPDFViewer.vue'),
+	},
+	{
+		path: '/pdf-lesson-demo',
+		name: 'PDFLessonDemo',
+		component: () => import('@/pages/PDFLessonDemo.vue'),
+	},
+	{
 		path: '/batches/details/:batchName',
 		name: 'BatchDetail',
 		component: () => import('@/pages/BatchDetail.vue'),
@@ -96,18 +106,23 @@ const routes = [
 			{
 				name: 'ProfileEvaluationSchedule',
 				path: 'schedule',
-				component: () =>
-					import('@/pages/ProfileEvaluationSchedule.vue'),
+				component: () => import('@/pages/ProfileEvaluationSchedule.vue'),
 			},
 		],
 	},
 	{
-		path: '/job-openings',
+		path: '/jobs',
 		name: 'Jobs',
 		component: () => import('@/pages/Jobs.vue'),
 	},
 	{
-		path: '/job-openings/:job',
+		path: '/jobs/:jobName',
+		name: 'JobForm',
+		component: () => import('@/pages/JobForm.vue'),
+		props: true,
+	},
+	{
+		path: '/job/:jobName',
 		name: 'JobDetail',
 		component: () => import('@/pages/JobDetail.vue'),
 		props: true,
@@ -119,38 +134,32 @@ const routes = [
 		props: true,
 	},
 	{
+		path: '/notifications',
+		name: 'Notifications',
+		component: () => import('@/pages/Notifications.vue'),
+	},
+	{
 		path: '/courses/:courseName/edit',
 		name: 'CourseForm',
 		component: () => import('@/pages/CourseForm.vue'),
 		props: true,
 	},
 	{
-		path: '/courses/:courseName/learn/:chapterNumber-:lessonNumber/edit',
+		path: '/lesson-form/:courseName/:chapterNumber/:lessonNumber',
 		name: 'LessonForm',
 		component: () => import('@/pages/LessonForm.vue'),
 		props: true,
 	},
 	{
-		path: '/batches/:batchName/edit',
+		path: '/batch-form/:batchName',
 		name: 'BatchForm',
 		component: () => import('@/pages/BatchForm.vue'),
-		props: true,
-	},
-	{
-		path: '/job-opening/:jobName/edit',
-		name: 'JobForm',
-		component: () => import('@/pages/JobForm.vue'),
 		props: true,
 	},
 	{
 		path: '/certified-participants',
 		name: 'CertifiedParticipants',
 		component: () => import('@/pages/CertifiedParticipants.vue'),
-	},
-	{
-		path: '/notifications',
-		name: 'Notifications',
-		component: () => import('@/pages/Notifications.vue'),
 	},
 	{
 		path: '/badges/:badgeName/:email',
@@ -259,6 +268,24 @@ const routes = [
 		name: 'DataImport',
 		component: () => import('@/pages/DataImport.vue'),
 		props: true,
+	},
+	{
+		path: '/admin/enrollment-management',
+		name: 'CourseEnrollmentManagement',
+		component: () => import('@/pages/CourseEnrollmentManagement.vue'),
+	},
+	{
+		path: '/admin/reminders-dashboard',
+		name: 'RemindersManagementDashboard',
+		component: () => import('@/pages/RemindersManagementDashboard.vue'),
+	},
+	{
+		path: '/admin/distributor-management',
+		name: 'DistributorManagement',
+		component: () => import('@/pages/DistributorManagement.vue'),
+		meta: {
+			requiresRole: ['System Manager', 'Administrator']
+		}
 	},
 ]
 

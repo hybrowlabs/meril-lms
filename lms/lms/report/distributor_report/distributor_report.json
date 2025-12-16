@@ -1,0 +1,30 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2025-08-06 16:41:55.805767",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{}",
+ "letterhead": null,
+ "modified": "2025-10-30 10:57:00.676185",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Distributor Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "SELECT\n    d.attendee_name                      AS `attendee_name`,\n    d.designation                        AS `designation`,\n    d.distributor_name                   AS `distributor_name`,\n    d.distributor_contact_number         AS `distributor_contact_number`,\n    d.distributor_email_address          AS `distributor_email_address`,\n    COALESCE(NULLIF(mdc.distributor_code, ''), d.account__distributor_code) AS `distributor_code`,\n    d.distributor_company_address        AS `distributor_company_address`,\n    d.country                            AS `country`,\n    d.city                               AS `city`,\n    d.state                              AS `state`,\n    d.region                             AS `region`,\n    d.distributor_company_name           AS `distributor_company_name`,\n    IFNULL(CAST(d.login_reminder_count AS CHAR), '0') AS `login_remainer_count`,\n    IFNULL(CAST(le.course_reminder_count AS CHAR), '0') AS `course_reminder_count`,\n\n    -- Document status per enrollment (no join explosion)\n    (\n        SELECT CASE\n                 WHEN dcd.has_submitted_documents = 1 THEN 'Yes'\n                 WHEN dcd.has_submitted_documents = 0 THEN 'No'\n                 ELSE 'Not Submitted'\n               END\n        FROM `tabDistributor Course Documents` dcd\n        WHERE dcd.distributor = d.name\n          AND dcd.course = le.course\n        ORDER BY (dcd.enrollment_version = le.enrollment_version) DESC,\n                 dcd.is_current_enrollment DESC,\n                 dcd.modified DESC\n        LIMIT 1\n    ) AS `has_submitted_documents`,\n    (\n        SELECT dcd.submission_datetime\n        FROM `tabDistributor Course Documents` dcd\n        WHERE dcd.distributor = d.name\n          AND dcd.course = le.course\n        ORDER BY (dcd.enrollment_version = le.enrollment_version) DESC,\n                 dcd.is_current_enrollment DESC,\n                 dcd.modified DESC\n        LIMIT 1\n    ) AS `submission_datetime`,\n\n    le.course                            AS `course`,\n    CAST(ROUND(le.progress, 2) AS CHAR)  AS `progress`,\n    le.completed_on                      AS `completed_on`,\n    le.completion_status                 AS `completion_status`,\n    le.enrollment_version                AS `enrollment_version`,\n\n    -- One row per child division \u00d7 enrollment\n    mdc.division                         AS `division`,\n    mdc.meril_company_name               AS `meril_company_name`,\n    mdc.rsm                              AS `rsm`,\n    mdc.bu_head                          AS `bu_head`\n\nFROM `tabDistributor` AS d\nLEFT JOIN `tabLMS Enrollment` AS le\n    ON le.member = d.user_id\nLEFT JOIN `tabMeril Distributor Division Child` AS mdc\n    ON d.name = mdc.parent\nORDER BY d.distributor_name, mdc.division, le.enrollment_version;",
+ "ref_doctype": "Distributor",
+ "report_name": "Distributor Report",
+ "report_type": "Query Report",
+ "roles": [
+  {
+   "role": "Supervisor"
+  }
+ ],
+ "timeout": 0
+}

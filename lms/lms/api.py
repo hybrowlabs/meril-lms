@@ -1,4 +1,7 @@
-"""API methods for the LMS."""
+from __future__ import annotations
+
+"""API methods for the LMS.
+"""
 
 import json
 import os
@@ -29,7 +32,74 @@ from frappe.utils.response import Response
 
 from lms.lms.doctype.course_lesson.course_lesson import save_progress
 from lms.lms.utils import get_average_rating, get_lesson_count
+from frappe.integrations.frappe_providers.frappecloud_billing import (
+	is_fc_site,
+	current_site_info,
+)
+from frappe.utils.print_format import download_pdf
+from frappe.exceptions import PermissionError
+import mimetypes
 
+
+@frappe.whitelist(allow_guest=False)
+def can_re_enroll_user(member_email: str | None = None, course_name: str | None = None):
+    """
+    Check if a user can be re-enrolled in a course.
+    Blocks if the latest enrollment is Active/Re-enrolled and progress < 100.
+
+    Returns:
+        { "can_re_enroll": bool, "reason": str | None }
+    """
+    if not member_email or not course_name:
+        return {"can_re_enroll": False, "reason": "missing_params"}
+
+    latest = frappe.db.get_value(
+        "LMS Enrollment",
+        {"member": member_email, "course": course_name},
+        ["name", "progress", "completion_status", "enrollment_version"],
+        as_dict=True,
+        order_by="enrollment_version desc",
+    )
+
+    if not latest:
+        # No enrollment yet; allow re-enroll call to create one per your flow
+        return {"can_re_enroll": True}
+
+    status = (latest.get("completion_status") or "").strip()
+    try:
+        progress = float(latest.get("progress") or 0)
+    except Exception:
+        progress = 0.0
+
+    if status in {"Re-enrolled", "Active"} and progress < 100.0:
+        return {"can_re_enroll": False, "reason": "already_running"}
+
+    return {"can_re_enroll": True}
+
+
+
+@frappe.whitelist()
+def distributor_download_pdf(doctype, name, format=None, no_letterhead=0, letterhead=None, settings=None):
+	user = frappe.session.user
+
+	roles = frappe.get_roles(user)
+
+	if ("System Manager" in roles) or ("Administrator" in roles) or ("Supervisor" in roles):
+		return download_pdf(doctype, name, format, no_letterhead=no_letterhead, letterhead=letterhead)
+
+	# Only check linked permission for specific doctypes
+	if doctype == "Employee Course Documents":
+		employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+		linked_employee = frappe.db.get_value(doctype, name, "employee")
+		if not (employee and linked_employee == employee):
+			raise PermissionError(_("You are not allowed to download this PDF"))
+	elif doctype == "Distributor Course Documents":
+		distributor = frappe.db.get_value("Distributor", {"user_id": user}, "name")
+		linked_distributor = frappe.db.get_value(doctype, name, "distributor")
+		if not (distributor and linked_distributor == distributor):
+			raise PermissionError(_("You are not allowed to download this PDF"))
+
+	return download_pdf(doctype, name, format, no_letterhead=no_letterhead, letterhead=letterhead)
 
 @frappe.whitelist()
 def autosave_section(section, code):
@@ -71,7 +141,7 @@ def join_cohort(course, cohort, subgroup, invite_code):
 	"""Creates a Cohort Join Request for given user."""
 	course_doc = frappe.get_doc("LMS Course", course)
 	cohort_doc = course_doc and course_doc.get_cohort(cohort)
-	subgroup_doc = cohort_doc and cohort_doc.get_subgroup(subgroup)
+	subgroup_doc = cohort_doc and subgroup_doc.get_subgroup(subgroup)
 
 	if not subgroup_doc or subgroup_doc.invite_code != invite_code:
 		return {"ok": False, "error": "Invalid join link"}
@@ -716,7 +786,7 @@ def check_app_permission():
 		return True
 
 	roles = frappe.get_roles()
-	lms_roles = ["Moderator", "Course Creator", "Batch Evaluator", "LMS Student"]
+	lms_roles = ["Moderator", "Course Creator", "Batch Evaluator", "LMS Student", "Distributor"]
 	if any(role in roles for role in lms_roles):
 		return True
 
@@ -1168,7 +1238,7 @@ def mark_lesson_progress(course, chapter_number, lesson_number):
 	lesson_name = frappe.get_value(
 		"Lesson Reference", {"parent": chapter_name, "idx": lesson_number}, "lesson"
 	)
-	save_progress(lesson_name, course)
+	save_progress(lesson_name, course, completed_videos=None)
 
 
 @frappe.whitelist()
@@ -1734,3 +1804,1129 @@ def get_profile_details(username):
 
 	details.roles = frappe.get_roles(details.name)
 	return details
+
+
+@frappe.whitelist()
+def validate_course_access_before_entry(course_name):
+	"""Validate if user can access course before allowing entry"""
+	from lms.lms.doctype.lms_enrollment.lms_enrollment import check_course_access
+
+	access_result = check_course_access(course_name)
+
+	if not access_result.get("access"):
+		return {
+			"access_denied": True,
+			"message": access_result.get("message"),
+			"completion_status": access_result.get("completion_status"),
+			"completed_on": access_result.get("completed_on")
+		}
+
+	return {"access_denied": False}
+
+
+@frappe.whitelist()
+def get_course_with_access_check(course_name):
+	"""Get course details with access validation"""
+	# First check if user can access the course
+	access_check = validate_course_access_before_entry(course_name)
+
+	if access_check.get("access_denied"):
+		return access_check
+
+	# If access is allowed, return course details
+	course = frappe.get_doc("LMS Course", course_name)
+	return {
+		"access_denied": False,
+		"course": course,
+		"enrollment": access_check.get("enrollment")
+	}
+
+
+@frappe.whitelist()
+def get_enrollments_with_completion_status(member=None):
+	"""Get user enrollments with completion status for dashboard"""
+	from lms.lms.doctype.lms_enrollment.lms_enrollment import get_user_course_enrollments
+
+	enrollments = get_user_course_enrollments(member)
+
+	# Categorize enrollments
+	active_courses = []
+	completed_courses = []
+	re_enrolled_courses = []
+
+	for enrollment in enrollments:
+		if enrollment.completion_status == "Completed":
+			completed_courses.append(enrollment)
+		elif enrollment.completion_status == "Re-enrolled":
+			re_enrolled_courses.append(enrollment)
+		else:
+			active_courses.append(enrollment)
+
+	return {
+		"active_courses": active_courses,
+		"completed_courses": completed_courses,
+		"re_enrolled_courses": re_enrolled_courses,
+		"total_active": len(active_courses),
+		"total_completed": len(completed_courses),
+		"total_re_enrolled": len(re_enrolled_courses)
+	}
+
+
+@frappe.whitelist()
+def admin_re_enroll_user(course_name, member_email, reset_progress=False):
+	"""Admin function to re-enroll a user in a course"""
+	from lms.lms.doctype.lms_enrollment.lms_enrollment import re_enroll_user_in_course
+
+	# Check if current user has permission to re-enroll
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to re-enroll users"))
+
+	try:
+		result = re_enroll_user_in_course(course_name, member_email, reset_progress)
+		return result
+	except Exception as e:
+		frappe.throw(_("Failed to re-enroll user: {0}").format(str(e)))
+
+
+@frappe.whitelist()
+def get_users_for_re_enrollment(course_name=None):
+	"""Get list of users who have completed courses and can be re-enrolled"""
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to view this data"))
+
+	filters = {
+		"completion_status": "Completed",
+		"access_restricted": 1
+	}
+
+	if course_name:
+		filters["course"] = course_name
+
+	completed_enrollments = frappe.get_all(
+		"LMS Enrollment",
+		filters=filters,
+		fields=[
+			"name", "member", "member_name", "course", "completed_on",
+			"progress", "member_type"
+		]
+	)
+
+	# Add course titles
+	for enrollment in completed_enrollments:
+		course_title = frappe.db.get_value("LMS Course", enrollment.course, "title")
+		enrollment.course_title = course_title
+
+	return completed_enrollments
+
+
+@frappe.whitelist()
+def bulk_re_enroll_users(enrollments_data):
+	"""Bulk re-enroll multiple users"""
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to perform bulk re-enrollment"))
+
+	enrollments = frappe.parse_json(enrollments_data)
+	results = []
+
+	for enrollment_data in enrollments:
+		try:
+			course = enrollment_data.get("course")
+			member = enrollment_data.get("member")
+			reset_progress = enrollment_data.get("reset_progress", False)
+
+			result = admin_re_enroll_user(course, member, reset_progress)
+			results.append({
+				"course": course,
+				"member": member,
+				"success": result.get("success"),
+				"message": result.get("message")
+			})
+		except Exception as e:
+			results.append({
+				"course": enrollment_data.get("course"),
+				"member": enrollment_data.get("member"),
+				"success": False,
+				"message": str(e)
+			})
+
+	return results
+
+
+@frappe.whitelist()
+def get_course_completion_analytics(course_name=None):
+	"""Get analytics data for course completions"""
+	current_user_roles = frappe.get_roles()
+	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
+		frappe.throw(_("You don't have permission to view analytics"))
+
+	filters = {}
+	if course_name:
+		filters["course"] = course_name
+
+	# Get completion statistics
+	total_enrollments = frappe.db.count("LMS Enrollment", filters)
+
+	completed_filters = filters.copy()
+	completed_filters["completion_status"] = "Completed"
+	completed_enrollments = frappe.db.count("LMS Enrollment", completed_filters)
+
+	re_enrolled_filters = filters.copy()
+	re_enrolled_filters["completion_status"] = "Re-enrolled"
+	re_enrolled_count = frappe.db.count("LMS Enrollment", re_enrolled_filters)
+
+	# Get completion trend data
+	completion_trend = frappe.db.sql("""
+		SELECT
+			DATE(completed_on) as completion_date,
+			COUNT(*) as completions
+		FROM `tabLMS Enrollment`
+		WHERE completion_status = 'Completed'
+		{course_filter}
+		AND completed_on IS NOT NULL
+		AND completed_on >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+		GROUP BY DATE(completed_on)
+		ORDER BY completion_date
+	""".format(
+		course_filter=f"AND course = '{course_name}'" if course_name else ""
+	), as_dict=True)
+
+	return {
+		"total_enrollments": total_enrollments,
+		"completed_enrollments": completed_enrollments,
+		"re_enrolled_count": re_enrolled_count,
+		"completion_rate": (completed_enrollments / total_enrollments * 100) if total_enrollments > 0 else 0,
+		"completion_trend": completion_trend
+	}
+
+@frappe.whitelist(allow_guest=True)
+def get_course_completion_stats():
+	"""
+	Get course completion statistics for the dashboard
+	"""
+	try:
+		# Simplify queries to match the working user function pattern
+
+		# Total enrolled users - simple count without complex joins
+		total_enrolled = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabLMS Enrollment` e
+			WHERE e.docstatus != 2
+		""")[0][0] or 0
+
+		# Completed courses count - simple query
+		completed_courses = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabLMS Enrollment` e
+			WHERE e.completed_on IS NOT NULL
+			AND e.docstatus != 2
+		""")[0][0] or 0
+
+		# Pending completions
+		pending_completions = total_enrolled - completed_courses
+
+		# Total course reminders sent - simple sum
+		total_reminders = frappe.db.sql("""
+			SELECT COALESCE(SUM(course_reminder_count), 0) as total
+			FROM `tabLMS Enrollment` e
+			WHERE e.course_reminder_count IS NOT NULL
+			AND e.docstatus != 2
+		""")[0][0] or 0
+
+		# Reminders sent today
+		today = frappe.utils.today()
+		reminders_today = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabEmail Queue`
+			WHERE subject LIKE '%Complete your course%'
+			AND DATE(creation) = %s
+		""", today)[0][0] or 0
+
+		# Calculate completion rate
+		completion_rate = 0
+		if total_enrolled > 0:
+			completion_rate = round((completed_courses / total_enrolled) * 100, 1)
+
+		# Average time to complete (in days) - simplified
+		avg_time_query = frappe.db.sql("""
+			SELECT AVG(DATEDIFF(completed_on, creation)) as avg_days
+			FROM `tabLMS Enrollment` e
+			WHERE e.completed_on IS NOT NULL
+			AND e.docstatus != 2
+		""")
+		avg_time_to_complete = round(avg_time_query[0][0] or 0, 1)
+
+		# Most active course - simplified
+		most_active_query = frappe.db.sql("""
+			SELECT c.title, COUNT(e.name) as enrollment_count
+			FROM `tabLMS Course` c
+			JOIN `tabLMS Enrollment` e ON c.name = e.course
+			WHERE e.docstatus != 2
+			GROUP BY c.name, c.title
+			ORDER BY enrollment_count DESC
+			LIMIT 1
+		""", as_dict=True)
+		most_active_course = most_active_query[0].title if most_active_query else "N/A"
+
+		# Average reminders sent for users with pending completions - simplified
+		avg_reminders_query = frappe.db.sql("""
+			SELECT AVG(course_reminder_count) as avg_reminders
+			FROM `tabLMS Enrollment` e
+			WHERE e.completed_on IS NULL
+			AND e.course_reminder_count IS NOT NULL
+			AND e.course_reminder_count > 0
+			AND e.docstatus != 2
+		""")
+		avg_reminders_sent = round(avg_reminders_query[0][0] or 0, 1)
+
+		return {
+			"total_enrolled_users": total_enrolled,
+			"completed_courses": completed_courses,
+			"pending_completions": pending_completions,
+			"total_course_reminders_sent": total_reminders,
+			"reminders_sent_today": reminders_today,
+			"completion_rate": completion_rate,
+			"avg_time_to_complete": avg_time_to_complete,
+			"most_active_course": most_active_course,
+			"avg_reminders_sent": avg_reminders_sent
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error getting course completion stats: {str(e)}", "Course Stats Error")
+		return {
+			"total_enrolled_users": 0,
+			"completed_courses": 0,
+			"pending_completions": 0,
+			"total_course_reminders_sent": 0,
+			"reminders_sent_today": 0,
+			"completion_rate": 0,
+			"avg_time_to_complete": 0,
+			"most_active_course": "N/A",
+			"avg_reminders_sent": 0
+		}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_users_with_course_completion_status():
+	"""
+	Get all users with their course completion status for the dashboard table
+	"""
+	try:
+		users_data = frappe.db.sql("""
+			SELECT
+				e.name as enrollment_id,
+				e.member as user_id,
+				e.course,
+				e.creation,
+				e.completed_on,
+				e.progress,
+				e.course_reminder_count,
+				e.completion_status,
+				e.re_enrolled_on,
+				c.title as course_title,
+				u.full_name as user_name,
+				u.email as user_email
+			FROM `tabLMS Enrollment` e
+			JOIN `tabLMS Course` c ON e.course = c.name
+			JOIN `tabUser` u ON e.member = u.name
+			WHERE e.docstatus != 2
+			AND u.enabled = 1
+			ORDER BY e.creation DESC
+		""", as_dict=True)
+
+		return users_data
+
+	except Exception as e:
+		frappe.log_error(f"Error getting users with course completion status: {str(e)}", "Users Status Error")
+		return []
+
+
+@frappe.whitelist(allow_guest=True)
+def get_recent_course_completions():
+	"""
+	Get recent course completions for the dashboard
+	"""
+	try:
+		recent_completions = frappe.db.sql("""
+			SELECT
+				e.name as enrollment_id,
+				e.member as user_id,
+				e.completed_on,
+				e.progress,
+				c.title as course_title,
+				u.full_name as user_name
+			FROM `tabLMS Enrollment` e
+			JOIN `tabLMS Course` c ON e.course = c.name
+			JOIN `tabUser` u ON e.member = u.name
+			WHERE e.completed_on IS NOT NULL
+			AND e.docstatus != 2
+			ORDER BY e.completed_on DESC
+			LIMIT 10
+		""", as_dict=True)
+
+		return recent_completions
+
+	except Exception as e:
+		frappe.log_error(f"Error getting recent course completions: {str(e)}", "Recent Completions Error")
+		return []
+
+
+@frappe.whitelist(allow_guest=True)
+def get_course_reminder_breakdown():
+	"""
+	Get breakdown of course reminders by count
+	"""
+	try:
+		breakdown_data = frappe.db.sql("""
+			SELECT
+				course_reminder_count as count,
+				COUNT(*) as users_count
+			FROM `tabLMS Enrollment`
+			WHERE course_reminder_count IS NOT NULL
+			AND course_reminder_count > 0
+			AND completed_on IS NULL
+			GROUP BY course_reminder_count
+			ORDER BY course_reminder_count
+		""", as_dict=True)
+
+		return breakdown_data
+
+	except Exception as e:
+		frappe.log_error(f"Error getting course reminder breakdown: {str(e)}", "Reminder Breakdown Error")
+		return []
+
+
+@frappe.whitelist()
+def get_enrollments_with_completion_status():
+	"""
+	Get enrollment data with completion status for course access validation
+	"""
+	try:
+		user = frappe.session.user
+		if not user or user == "Guest":
+			return {
+				"active_courses": [],
+				"completed_courses": [],
+				"re_enrolled_courses": []
+			}
+
+		# Get all enrollments for the current user
+		enrollments = frappe.db.sql("""
+			SELECT
+				e.name,
+				e.course,
+				e.completed_on,
+				e.progress,
+				e.re_enrolled_on,
+				CASE
+					WHEN e.completed_on IS NOT NULL AND e.re_enrolled_on IS NOT NULL THEN 'Re-enrolled'
+					WHEN e.completed_on IS NOT NULL THEN 'Completed'
+					ELSE 'Active'
+				END as completion_status
+			FROM `tabLMS Enrollment` e
+			WHERE e.member = %s
+			AND e.docstatus != 2
+		""", user, as_dict=True)
+
+		# Categorize enrollments
+		active_courses = []
+		completed_courses = []
+		re_enrolled_courses = []
+
+		for enrollment in enrollments:
+			# Reset progress to 0 for re-enrolled courses
+			if enrollment.completion_status == 'Re-enrolled':
+				enrollment.progress = 0
+				re_enrolled_courses.append(enrollment)
+			elif enrollment.completion_status == 'Completed':
+				completed_courses.append(enrollment)
+			else:
+				active_courses.append(enrollment)
+
+		return {
+			"active_courses": active_courses,
+			"completed_courses": completed_courses,
+			"re_enrolled_courses": re_enrolled_courses
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error getting enrollments with completion status: {str(e)}", "Enrollment Status Error")
+		return {
+			"active_courses": [],
+			"completed_courses": [],
+			"re_enrolled_courses": []
+		}
+
+
+@frappe.whitelist()
+def validate_lesson_access(course_name, lesson_name):
+	"""
+	Validate if a user can access a specific lesson based on completion status
+	"""
+	try:
+		user = frappe.session.user
+		if not user or user == "Guest":
+			return {"access_granted": False, "message": "Please log in to access lessons"}
+
+		# Check if the lesson is already completed
+		progress = frappe.db.exists(
+			"LMS Course Progress",
+			{
+				"course": course_name,
+				"lesson": lesson_name,
+				"member": user
+			}
+		)
+
+		if progress:
+			# Check enrollment status to see if course is completed and access is restricted
+			enrollment = frappe.db.get_value(
+				"LMS Enrollment",
+				{"member": user, "course": course_name},
+				["access_restricted", "completion_status"],
+				as_dict=True
+			)
+
+			if enrollment and enrollment.get("access_restricted") == 1 and enrollment.get("completion_status") == "Completed":
+				return {
+					"access_granted": False,
+					"message": "This lesson has been completed. Course access is restricted after completion. Please contact the administrator to re-enroll.",
+					"lesson_completed": True
+				}
+
+		# Allow access if not completed or not restricted
+		return {"access_granted": True, "message": "Lesson access granted"}
+
+	except Exception as e:
+		frappe.log_error(f"Error validating lesson access: {str(e)}", "Lesson Access Error")
+		# In case of error, default to allowing access to avoid blocking users unnecessarily
+		return {"access_granted": True, "message": "Lesson access granted (fallback)"}
+
+
+@frappe.whitelist()
+def mark_course_re_enrolled(course_name):
+	"""
+	Mark a course as re-enrolled and reset progress to 0
+	"""
+	try:
+		user = frappe.session.user
+		if not user or user == "Guest":
+			return {"success": False, "message": "User not logged in"}
+
+		# Get the enrollment
+		enrollment = frappe.get_doc("LMS Enrollment", {
+			"member": user,
+			"course": course_name,
+			"docstatus": ("!=", 2)
+		})
+
+		if not enrollment:
+			return {"success": False, "message": "Enrollment not found"}
+
+		# Mark as re-enrolled and reset progress
+		enrollment.re_enrolled_on = frappe.utils.now_datetime()
+		enrollment.progress = 0
+		enrollment.completion_status = "Re-enrolled"
+		enrollment.access_restricted = 0
+		enrollment.current_lesson = None
+		enrollment.save(ignore_permissions=True)
+
+		# Delete all lesson progress records for this enrollment to start fresh
+		frappe.db.sql("""
+			DELETE FROM `tabLMS Course Progress`
+			WHERE enrollment = %s
+		""", enrollment.name)
+
+		# Also clean up any orphaned progress records
+		frappe.db.sql("""
+			DELETE FROM `tabLMS Course Progress`
+			WHERE member = %s
+			AND course = %s
+			AND (enrollment IS NULL OR enrollment = '')
+		""", (user, course_name))
+
+		frappe.db.commit()
+
+		return {"success": True, "message": "Course re-enrolled successfully"}
+
+	except Exception as e:
+		frappe.log_error(f"Error re-enrolling course: {str(e)}", "Re-enrollment Error")
+		return {"success": False, "message": "Error during re-enrollment"}
+
+
+# Keep existing API functions for backward compatibility
+@frappe.whitelist()
+def get_distributor_login_stats():
+	"""
+	Legacy function for distributor login stats - kept for backward compatibility
+	"""
+	try:
+		# Total distributors
+		total_distributors = frappe.db.count("Distributor", filters={"user_id": ("is", "set")})
+
+		# Logged in distributors
+		logged_in_distributors = frappe.db.count("Distributor", filters={
+			"first_login_date": ("is", "set"),
+			"user_id": ("is", "set")
+		})
+
+		# Never logged in
+		never_logged_in = total_distributors - logged_in_distributors
+
+		# Total reminders sent
+		total_reminders = frappe.db.sql("""
+			SELECT COALESCE(SUM(login_reminder_count), 0) as total
+			FROM `tabDistributor`
+			WHERE login_reminder_count IS NOT NULL
+		""")[0][0] or 0
+
+		# Reminders sent today
+		today = frappe.utils.today()
+		reminders_today = frappe.db.sql("""
+			SELECT COUNT(*) as count
+			FROM `tabEmail Queue`
+			WHERE subject LIKE '%login to Meril Learning Portal%'
+			AND DATE(creation) = %s
+		""", today)[0][0] or 0
+
+		# Calculate response rate
+		response_rate = 0
+		if total_distributors > 0:
+			response_rate = round((logged_in_distributors / total_distributors) * 100, 1)
+
+		# Average time to login (in days)
+		avg_time_query = frappe.db.sql("""
+			SELECT AVG(DATEDIFF(first_login_date, credentials_sent_date)) as avg_days
+			FROM `tabDistributor`
+			WHERE first_login_date IS NOT NULL
+			AND credentials_sent_date IS NOT NULL
+		""")
+		avg_time_to_login = round(avg_time_query[0][0] or 0, 1)
+
+		# Average reminders sent
+		avg_reminders_query = frappe.db.sql("""
+			SELECT AVG(login_reminder_count) as avg_reminders
+			FROM `tabDistributor`
+			WHERE first_login_date IS NULL
+			AND login_reminder_count IS NOT NULL
+			AND login_reminder_count > 0
+		""")
+		avg_reminders_sent = round(avg_reminders_query[0][0] or 0, 1)
+
+		return {
+			"total_distributors": total_distributors,
+			"logged_in_distributors": logged_in_distributors,
+			"never_logged_in": never_logged_in,
+			"total_reminders_sent": total_reminders,
+			"reminders_sent_today": reminders_today,
+			"response_rate": response_rate,
+			"avg_time_to_login": avg_time_to_login,
+			"most_effective_day": "Monday",  # Placeholder
+			"avg_reminders_sent": avg_reminders_sent
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error getting distributor login stats: {str(e)}", "Distributor Stats Error")
+		return {}
+
+
+# Fixed function with correct indentation
+@frappe.whitelist(allow_guest=True)
+def get_distributors_with_login_status():
+	"""
+	Legacy function for distributor login status - kept for backward compatibility
+	"""
+	try:
+		distributors_data = frappe.db.sql("""
+			SELECT
+				d.name,
+				d.atendee_name,
+				d.distributor_company_name,
+				d.distributor_email_address,
+				d.user_id,
+				d.first_login_date,
+				d.last_login_date,
+				d.credentials_sent_date,
+				d.login_reminder_count
+			FROM `tabDistributor` d
+			WHERE d.user_id IS NOT NULL
+			AND d.user_id != ''
+			ORDER BY d.credentials_sent_date DESC
+		""", as_dict=True)
+
+		return distributors_data
+
+	except Exception as e:
+		frappe.log_error(f"Error getting distributors with login status: {str(e)}", "Distributors Status Error")
+		return []
+
+
+@frappe.whitelist(allow_guest=True)
+def get_recent_distributor_logins():
+	"""
+	Legacy function for recent distributor logins - kept for backward compatibility
+	"""
+	try:
+		recent_logins = frappe.db.sql("""
+			SELECT
+				d.name as distributor_id,
+				d.atendee_name as distributor_name,
+				d.distributor_company_name as company_name,
+				d.last_login_date,
+				CASE
+					WHEN d.first_login_date = d.last_login_date THEN 1
+					ELSE 0
+				END as is_first_login
+			FROM `tabDistributor` d
+			WHERE d.last_login_date IS NOT NULL
+			ORDER BY d.last_login_date DESC
+			LIMIT 10
+		""", as_dict=True)
+
+		return recent_logins
+
+	except Exception as e:
+		frappe.log_error(f"Error getting recent distributor logins: {str(e)}", "Recent Logins Error")
+		return []
+
+
+@frappe.whitelist()
+def get_reminder_breakdown():
+	"""
+	Legacy function for reminder breakdown - kept for backward compatibility
+	"""
+	try:
+		breakdown_data = frappe.db.sql("""
+			SELECT
+				login_reminder_count as count,
+				COUNT(*) as distributors_count
+			FROM `tabDistributor`
+			WHERE login_reminder_count IS NOT NULL
+			AND login_reminder_count > 0
+			AND first_login_date IS NULL
+			GROUP BY login_reminder_count
+			ORDER BY login_reminder_count
+		""", as_dict=True)
+
+		return breakdown_data
+
+	except Exception as e:
+		frappe.log_error(f"Error getting reminder breakdown: {str(e)}", "Reminder Breakdown Error")
+		return []
+
+
+@frappe.whitelist()
+def migrate_lesson_progress_to_enrollment_based():
+	"""
+	Migration function to update existing LMS Course Progress records
+	to link them to enrollments and ensure data consistency
+	"""
+	try:
+		# Get all LMS Course Progress records that don't have enrollment links
+		orphaned_progress = frappe.db.sql("""
+			SELECT
+				lcp.name,
+				lcp.member,
+				lcp.course,
+				lcp.lesson,
+				lcp.status,
+				e.name as enrollment_id
+			FROM `tabLMS Course Progress` lcp
+			LEFT JOIN `tabLMS Enrollment` e ON (
+				lcp.member = e.member
+				AND lcp.course = e.course
+			)
+			WHERE lcp.enrollment IS NULL OR lcp.enrollment = ''
+		""", as_dict=True)
+
+		updated_count = 0
+		deleted_count = 0
+
+		for progress in orphaned_progress:
+			if progress.enrollment_id:
+				# Link to existing enrollment
+				frappe.db.sql("""
+					UPDATE `tabLMS Course Progress`
+					SET enrollment = %s,
+						is_complete = %s,
+						progress = %s,
+						completed_on = %s
+					WHERE name = %s
+				""", (
+					progress.enrollment_id,
+					1 if progress.status == "Complete" else 0,
+					100 if progress.status == "Complete" else 0,
+					frappe.utils.now_datetime() if progress.status == "Complete" else None,
+					progress.name
+				))
+				updated_count += 1
+			else:
+				# No enrollment found, delete orphaned progress
+				frappe.db.delete("LMS Course Progress", progress.name)
+				deleted_count += 1
+
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"message": f"Migration completed: {updated_count} records updated, {deleted_count} orphaned records deleted"
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error during lesson progress migration: {str(e)}", "Migration Error")
+		return {
+			"success": False,
+			"message": f"Migration failed: {str(e)}"
+		}
+
+
+@frappe.whitelist()
+def recalculate_course_progress_for_all():
+	"""
+	Recalculate course progress for all enrollments based on lesson completion
+	"""
+	try:
+		from lms.lms.utils import get_course_progress
+
+		enrollments = frappe.get_all("LMS Enrollment",
+			fields=["name", "course", "member"],
+			filters={"docstatus": ("!=", 2)}
+		)
+
+		updated_count = 0
+
+		for enrollment in enrollments:
+			try:
+				# Recalculate progress
+				new_progress = get_course_progress(enrollment.course, enrollment.member)
+
+				# Update enrollment
+				frappe.db.set_value("LMS Enrollment", enrollment.name, "progress", new_progress)
+
+				# Check if course should be marked as completed
+				enrollment_doc = frappe.get_doc("LMS Enrollment", enrollment.name)
+				enrollment_doc.check_course_completion()
+
+				updated_count += 1
+
+			except Exception as e:
+				frappe.log_error(f"Error updating progress for enrollment {enrollment.name}: {str(e)}", "Progress Recalculation Error")
+				continue
+
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"message": f"Progress recalculated for {updated_count} enrollments"
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error during progress recalculation: {str(e)}", "Progress Recalculation Error")
+		return {
+			"success": False,
+			"message": f"Progress recalculation failed: {str(e)}"
+		}
+
+
+@frappe.whitelist(allow_guest=False)
+def register_push_token(user_id, token, device_id=None):
+	"""Register or update mobile push token for a user"""
+	try:
+		# Log the incoming request for debugging
+		frappe.log_error(
+			f"register_push_token called with user_id: {user_id}, token: {token[:50] if token else 'None'}...",
+			"Push Token Debug",
+		)
+		frappe.log_error(f"Session user: {frappe.session.user}", "Push Token Debug - Session")
+
+		if not user_id or not token:
+			frappe.log_error(f"Missing data - user_id: {user_id}, token: {token}", "Push Token Error")
+			frappe.throw(_("User ID and token are required"))
+
+		# Check if the user is authenticated
+		if frappe.session.user == "Guest":
+			frappe.log_error("User is Guest - authentication required", "Push Token Error")
+			frappe.throw(_("Authentication required"))
+
+		# Allow both exact match and Administrator to register tokens
+		if user_id != frappe.session.user and frappe.session.user != "Administrator":
+			frappe.log_error(f"User mismatch - user_id: {user_id}, session: {frappe.session.user}", "Push Token Error")
+			frappe.throw(_("You can only register tokens for your own account"))
+
+		# Check if a token already exists for this user
+		existing_token = frappe.db.get_value(
+			"Mobile Push Token",
+			{"user_id": user_id},
+			"name",
+		)
+
+		frappe.log_error(f"Existing token check - Found: {existing_token}", "Push Token Debug")
+
+		if existing_token:
+			# Update existing token
+			doc = frappe.get_doc("Mobile Push Token", existing_token)
+			frappe.log_error(f"Existing doc - user_id: {doc.user_id}, old_token: {doc.token[:50] if doc.token else 'None'}...", "Push Token Debug")
+
+			if doc.token != token:
+				doc.token = token
+				doc.save(ignore_permissions=True)
+				frappe.db.commit()
+				frappe.log_error(f"Token updated for user {user_id} - Token: {token[:50]}...", "Push Token Update Success")
+				return {
+					"success": True,
+					"message": _("Push token updated successfully"),
+					"action": "updated",
+					"doc_name": doc.name
+				}
+			else:
+				frappe.log_error(f"Token already exists and is same for user {user_id}", "Push Token Info")
+				return {
+					"success": True,
+					"message": _("Token already registered"),
+					"action": "exists"
+				}
+		else:
+			# Check if this token is already registered for another user
+			duplicate_token = frappe.db.get_value(
+				"Mobile Push Token",
+				{"token": token},
+				["name", "user_id"],
+				as_dict=True,
+			)
+
+			if duplicate_token:
+				# Token exists for another user, update it
+				if duplicate_token.user_id != user_id:
+					doc = frappe.get_doc("Mobile Push Token", duplicate_token.name)
+					doc.user_id = user_id
+					doc.token = token
+					doc.save(ignore_permissions=True)
+					frappe.db.commit()
+					return {
+						"success": True,
+						"message": _("Push token reassigned successfully"),
+						"action": "reassigned",
+					}
+				else:
+					return {
+						"success": True,
+						"message": _("Token already registered"),
+						"action": "exists",
+					}
+
+			# Create new token entry
+			frappe.log_error(f"Creating new token for user {user_id}", "Push Token Debug")
+			doc = frappe.new_doc("Mobile Push Token")
+			doc.user_id = user_id
+			doc.token = token
+			doc.insert(ignore_permissions=True)
+			frappe.db.commit()
+			frappe.log_error(f"New token created for user {user_id} - Doc Name: {doc.name}, Token: {token[:50]}...", "Push Token Create Success")
+
+			return {
+				"success": True,
+				"message": _("Push token registered successfully"),
+				"action": "created",
+				"doc_name": doc.name
+			}
+
+	except Exception as e:
+		frappe.log_error(f"Error registering push token: {str(e)}", "Push Token Registration Error")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+
+@frappe.whitelist()
+def unregister_push_token(device_id=None, token=None):
+	"""Unregister a push token"""
+	try:
+		if not token:
+			frappe.throw(_("Token is required"))
+
+		filters = {"user_id": frappe.session.user, "token": token}
+
+		token_doc = frappe.db.get_value("Mobile Push Token", filters, "name")
+
+		if token_doc:
+			frappe.delete_doc("Mobile Push Token", token_doc, ignore_permissions=True)
+			frappe.db.commit()
+			return {
+				"success": True,
+				"message": _("Push token unregistered successfully")
+			}
+		else:
+			return {
+				"success": False,
+				"message": _("Token not found")
+			}
+
+	except Exception as e:
+		frappe.log_error(f"Error unregistering push token: {str(e)}", "Push Token Unregistration Error")
+		return {
+			"success": False,
+			"message": str(e)
+		}
+
+
+@frappe.whitelist(allow_guest=True)
+def serve_pdf_inline(file_url):
+	"""
+	Enhanced PDF serving with proper headers for all devices.
+	Detects device type and adjusts headers accordingly.
+	"""
+	import os
+	from frappe.utils.file_manager import get_file_path
+
+	try:
+		# Get user agent for device detection
+		user_agent = frappe.get_request_header("User-Agent") or ""
+
+		# Detect device type
+		is_mobile = any(device in user_agent for device in [
+			"Android", "iPhone", "iPad", "iPod", "Mobile", "mobile", "Windows Phone"
+		])
+
+		is_ios = "iPhone" in user_agent or "iPad" in user_agent or "iPod" in user_agent
+		is_android = "Android" in user_agent
+		is_webview = "wv" in user_agent or "WebView" in user_agent
+
+		# Clean the file URL
+		if file_url.startswith('/'):
+			file_url = file_url[1:]
+
+		# Get the actual file path
+		file_path = get_file_path(file_url)
+
+		if not os.path.exists(file_path):
+			frappe.response["http_status_code"] = 404
+			return {"error": "File not found"}
+
+		# Get file size for range requests support
+		file_size = os.path.getsize(file_path)
+
+		# Check for range request (important for iOS)
+		range_header = frappe.get_request_header("Range")
+		if range_header:
+			# Parse range header
+			import re
+			range_match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+			if range_match:
+				start = int(range_match.group(1))
+				end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+
+				# Read the requested range
+				with open(file_path, 'rb') as f:
+					f.seek(start)
+					file_content = f.read(end - start + 1)
+
+				# Set 206 Partial Content response
+				frappe.response["http_status_code"] = 206
+				frappe.local.response.filecontent = file_content
+				frappe.local.response.type = "pdf"
+
+				# Set range headers
+				frappe.local.response.headers = {
+					"Content-Type": "application/pdf",
+					"Content-Length": str(len(file_content)),
+					"Content-Range": f"bytes {start}-{end}/{file_size}",
+					"Accept-Ranges": "bytes",
+					"Content-Disposition": f'inline; filename="{os.path.basename(file_path)}"',
+					"Cache-Control": "public, max-age=3600",
+				}
+				return
+
+		# Read the full file content
+		with open(file_path, 'rb') as f:
+			file_content = f.read()
+
+		# Set proper headers based on device type
+		frappe.local.response.filename = os.path.basename(file_path)
+		frappe.local.response.filecontent = file_content
+		frappe.local.response.type = "pdf"
+
+		# Build headers based on device
+		headers = {
+			"Content-Type": "application/pdf",
+			"Content-Length": str(file_size),
+			"Accept-Ranges": "bytes",  # Enable range requests
+			"X-Content-Type-Options": "nosniff",
+		}
+
+		# Adjust Content-Disposition based on device
+		if is_ios:
+			# iOS requires specific inline handling with proper CORS
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+			headers["X-Frame-Options"] = "SAMEORIGIN"
+			headers["Access-Control-Allow-Origin"] = "*"
+			headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+		elif is_android and is_webview:
+			# Android WebView needs different handling
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "public, max-age=3600"
+			headers["X-Frame-Options"] = "SAMEORIGIN"
+			headers["Access-Control-Allow-Origin"] = "*"
+		elif is_mobile:
+			# General mobile handling with better compatibility
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "public, max-age=3600"
+			headers["X-Frame-Options"] = "SAMEORIGIN"
+			headers["Access-Control-Allow-Origin"] = "*"
+			headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+			# Add viewport support hint
+			headers["X-Mobile-Optimized"] = "width=device-width"
+		else:
+			# Desktop handling
+			headers["Content-Disposition"] = f'inline; filename="{os.path.basename(file_path)}"'
+			headers["Cache-Control"] = "public, max-age=86400"
+
+		# Add CORS headers for cross-origin requests
+		headers["Access-Control-Allow-Origin"] = "*"
+		headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+		headers["Access-Control-Allow-Headers"] = "Range, Content-Type"
+
+		frappe.local.response.headers = headers
+		return
+
+	except Exception as e:
+		frappe.log_error(f"Error serving PDF inline: {str(e)}", "PDF Serve Error")
+		frappe.response["http_status_code"] = 500
+		return {"error": str(e)}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_document_info(file_url):
+	"""
+	Get document information for better client-side handling
+	"""
+	import os
+	from frappe.utils.file_manager import get_file_path
+
+	try:
+		if file_url.startswith('/'):
+			file_url = file_url[1:]
+
+		file_path = get_file_path(file_url)
+
+		if not os.path.exists(file_path):
+			return {"error": "File not found", "exists": False}
+
+		file_size = os.path.getsize(file_path)
+		file_extension = os.path.splitext(file_path)[1].lower()
+
+		return {
+			"exists": True,
+			"size": file_size,
+			"size_mb": round(file_size / (1024 * 1024), 2),
+			"extension": file_extension,
+			"name": os.path.basename(file_path),
+			"mime_type": mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+		}
+
+	except Exception as e:
+		frappe.log_error(f"Error getting document info: {str(e)}", "Document Info Error")
+		return {"error": str(e), "exists": False}

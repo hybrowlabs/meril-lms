@@ -104,6 +104,36 @@
 					</Button>
 				</div>
 			</div>
+			<!-- Access Restricted Section for Completed Lessons -->
+			<div v-else-if="lesson.data.access_restricted" class="border-r">
+				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+					<div class="flex items-center justify-center mt-4 space-x-2">
+						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
+						<div class="text-lg font-semibold text-ink-gray-7">
+							{{ __('Lesson Access Restricted') }}
+						</div>
+					</div>
+					<div class="mt-1 mb-4 text-ink-gray-7">
+						{{ lesson.data.restriction_message || __('This lesson was completed and is currently restricted.') }}
+					</div>
+					<div v-if="lesson.data.lesson_completed" class="mt-2 mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+						<div class="flex items-center justify-center text-green-700">
+							<CheckCircle class="w-4 h-4 mr-2" />
+							<span class="text-sm font-medium">{{ __('Lesson Completed') }}</span>
+						</div>
+						<p class="text-xs text-green-600 mt-1">
+							{{ __('You have successfully completed this lesson.') }}
+						</p>
+					</div>
+					
+					<Button
+						@click="goBackToCourse()"
+						variant="subtle"
+					>
+						{{ __('Back to Course') }}
+					</Button>
+				</div>
+			</div>
 			<div
 				v-else
 				ref="lessonContainer"
@@ -280,7 +310,7 @@
 							@updateNotes="updateNotes"
 						/>
 						<Discussions
-							v-else-if="allowDiscussions"
+							v-else-if="allowDiscussions && currentTab === 'Community'"
 							:title="'Questions'"
 							:doctype="'Course Lesson'"
 							:docname="lesson.data.name"
@@ -289,14 +319,43 @@
 								__('Ask a question to get help from the community.')
 							"
 						/>
-					</div>
 				</div>
 			</div>
 			<div class="sticky top-10">
 				<div class="bg-surface-menu-bar py-5 px-2 border-b">
-					<div class="text-lg font-semibold text-ink-gray-9">
-						{{ lesson.data.course_title }}
-					</div>
+					<div class="flex w-full">
+						<div class="text-lg font-semibold text-ink-gray-9">
+							{{ lesson.data.course_title }}
+						</div>
+						<div v-show="lesson?.data?.duration && lesson?.data?.duration>=0" class="ml-auto flex items-center gap-2 text-ink-gray-7">
+							<span class="flex items-center gap-1">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="inline w-5 h-5"
+									:class="{
+										'text-ink-gray-5': lesson.data.progress === null,
+										'text-green-600': lesson.data.progress !== null
+									}"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<circle cx="12" cy="12" r="10" stroke-width="2" />
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2" />
+								</svg>
+								<span class="font-medium" v-show="(videoFiles?.length==0)">
+									{{
+										!!lesson.data.progress ?
+											 (lesson.data.duration + 's')
+											: ((timer >= lesson.data.duration
+												? lesson.data.duration
+												: timer) + 's')
+									}}
+									/ {{ lesson.data.duration }}s
+								</span>
+							</span>
+						</div>
+						</div>
 					<div
 						v-if="user && lesson.data.membership"
 						class="text-sm mt-4 mb-2 text-ink-gray-5"
@@ -352,6 +411,7 @@ import {
 	onBeforeUnmount,
 	nextTick,
 } from 'vue'
+import CourseOutline from '@/components/CourseOutline.vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
 	ChevronLeft,
@@ -362,21 +422,25 @@ import {
 	Info,
 	MessageCircleQuestion,
 	TrendingUp,
+	CheckCircle,
 } from 'lucide-vue-next'
 import { getEditorTools, enablePlyr, highlightText } from '@/utils'
 import { sessionStore } from '@/stores/session'
 import { useSidebar } from '@/stores/sidebar'
 import EditorJS from '@editorjs/editorjs'
 import LessonContent from '@/components/LessonContent.vue'
-import CourseInstructors from '@/components/CourseInstructors.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import Discussions from '@/components/Discussions.vue'
 import CertificationLinks from '@/components/CertificationLinks.vue'
 import VideoStatistics from '@/components/Modals/VideoStatistics.vue'
-import CourseOutline from '@/components/CourseOutline.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import Notes from '@/components/Notes/Notes.vue'
 import InlineLessonMenu from '@/components/Notes/InlineLessonMenu.vue'
+import PDFViewerEnhanced from '@/components/PDFViewerEnhanced.vue'
+import { setCourseCompletion } from "../stores/course_completion.js"
+import { createApp } from 'vue'
+import translationPlugin from '@/translation'
+import { createDialog } from '@/utils/dialogs'
 
 const user = inject('$user')
 const socket = inject('$socket')
@@ -384,7 +448,6 @@ const router = useRouter()
 const route = useRoute()
 const allowDiscussions = ref(false)
 const editor = ref(null)
-const instructorEditor = ref(null)
 const lessonProgress = ref(0)
 const lessonContainer = ref(null)
 const zenModeEnabled = ref(false)
@@ -397,7 +460,37 @@ const sidebarStore = useSidebar()
 const plyrSources = ref([])
 const showInlineMenu = ref(false)
 const currentTab = ref('Notes')
+const instructorEditor = ref(null)
 let timerInterval
+let timerFrame
+let timerPaused = false
+let savedTimerKey = null
+let timerSaveInterval = null
+let currentEnrollmentVersion = ref(null)
+let isReEnrollment = ref(false)
+let enrollmentId = ref(null)
+
+// --- Video completion logic ---
+const videoFiles = ref([]) // List of video URLs in the lesson
+const completedVideos = ref(new Set())
+let markProgressTimeout = null
+function handleVideoCompleted(e) {
+  onVideoCompleted(e.detail.file)
+}
+
+function onVideoCompleted(fileUrl) {
+  const before = completedVideos.value.size
+  completedVideos.value.add(fileUrl)
+  if (
+    completedVideos.value.size === videoFiles.value.length &&
+    before !== completedVideos.value.size
+  ) {
+    if (markProgressTimeout) clearTimeout(markProgressTimeout)
+    markProgressTimeout = setTimeout(() => {
+      markProgress()
+    }, 200)
+  }
+}
 
 const tabs = ref([
 	{
@@ -422,16 +515,29 @@ const props = defineProps({
 })
 
 onMounted(() => {
-	startTimer()
 	sidebarStore.isSidebarCollapsed = true
+	// Timer will be started when lesson data loads
 	document.addEventListener('fullscreenchange', attachFullscreenEvent)
+	document.addEventListener('visibilitychange', handleVisibilityChange)
+	window.addEventListener('beforeunload', handleBeforeUnload)
 	socket.on('update_lesson_progress', (data) => {
 		if (data.course === props.courseName) {
 			lessonProgress.value = data.progress
 		}
 	})
+	window.addEventListener('video-completed', handleVideoCompleted)
+	window.addEventListener("message", handleMessage )
+
+	// Check enrollment status when component mounts
+	if (user.data) {
+		checkEnrollmentStatus()
+	}
 })
 
+const handleMessage = (data) =>{
+	if(data.data === "quize completed")
+		markProgress();
+}
 const attachFullscreenEvent = () => {
 	if (document.fullscreenElement) {
 		zenModeEnabled.value = true
@@ -448,6 +554,10 @@ onBeforeUnmount(() => {
 	document.removeEventListener('fullscreenchange', attachFullscreenEvent)
 	sidebarStore.isSidebarCollapsed = false
 	trackVideoWatchDuration()
+	window.removeEventListener('video-completed', handleVideoCompleted)
+	if (timerFrame) cancelAnimationFrame(timerFrame)
+	if (timerSaveInterval) clearInterval(timerSaveInterval)
+	saveTimerToBackend() // Final save before unmounting
 })
 
 const lesson = createResource({
@@ -461,6 +571,7 @@ const lesson = createResource({
 	},
 	auto: true,
 })
+
 
 const setupLesson = (data) => {
 	if (Object.keys(data).length === 0) {
@@ -480,17 +591,52 @@ const setupLesson = (data) => {
 		})
 	}
 	lessonProgress.value = data.membership?.progress
-	if (data.content) editor.value = renderEditor('editor', data.content)
-	if (
-		data.instructor_content &&
-		JSON.parse(data.instructor_content)?.blocks?.length > 1
-	)
-		instructorEditor.value = renderEditor(
-			'instructor-content',
-			data.instructor_content
-		)
+	let contentRendered = false
+	if (data.content) {
+		try {
+			editor.value = renderEditor('editor', data.content)
+			contentRendered = true
+		} catch (e) {
+			console.error('Failed to render lesson content:', e)
+			contentRendered = false
+		}
+	}
+	if (!contentRendered && data.body) {
+		// Remove any previous EditorJS instance
+		if (editor.value && editor.value.destroy) editor.value.destroy()
+		// Render legacy body as HTML
+		const editorDiv = document.getElementById('editor')
+		if (editorDiv) {
+			editorDiv.innerHTML = ''
+			const bodyDiv = document.createElement('div')
+			bodyDiv.className = 'lesson-content prose'
+			bodyDiv.innerHTML = data.body
+			editorDiv.appendChild(bodyDiv)
+			// Process PDF embeds and fix videos for legacy content
+			nextTick(() => {
+				processPDFEmbeds()
+				fixVideoRendering()
+				enablePlyr()
+			})
+		}
+	}
+	if (!contentRendered && !data.body) {
+		// Show a fallback message if no content
+		const editorDiv = document.getElementById('editor')
+		if (editorDiv) {
+			editorDiv.innerHTML = '<div class="text-ink-gray-5 text-center py-10">No content available for this lesson.</div>'
+		}
+	}
 	editor.value?.isReady.then(() => {
 		checkIfDiscussionsAllowed()
+		// Process PDF embeds after EditorJS is ready
+		nextTick(() => {
+			processPDFEmbeds()
+			// Fix incorrectly rendered videos (images that should be videos)
+			fixVideoRendering()
+			// Enable Plyr for embedded videos
+			enablePlyr()
+		})
 	})
 	checkQuiz()
 }
@@ -519,22 +665,229 @@ const renderEditor = (holder, content) => {
 	})
 }
 
-const markProgress = () => {
-	if (user.data && lesson.data && !lesson.data.progress) {
-		progress.submit()
-	}
+// Fix incorrectly rendered videos (images that should be videos)
+const fixVideoRendering = () => {
+	const editorDiv = document.getElementById('editor')
+	if (!editorDiv) return
+
+	// Video file extensions
+	const videoExtensions = ['mp4', 'mov', 'avi', 'mkv', 'webm']
+	
+	// Find all images in the editor content
+	const images = editorDiv.querySelectorAll('img')
+	
+	images.forEach((img) => {
+		const src = img.src || img.getAttribute('src') || ''
+		if (!src) return
+		
+		// Extract extension from URL
+		const getExtension = (url) => {
+			try {
+				const urlWithoutParams = url.split('?')[0]
+				const filename = urlWithoutParams.split('/').pop()
+				if (filename && filename.includes('.')) {
+					return filename.split('.').pop().toLowerCase()
+				}
+			} catch (e) {
+				// Ignore errors
+			}
+			return null
+		}
+		
+		const extension = getExtension(src)
+		
+		// Check if this image is actually a video
+		if (extension && videoExtensions.includes(extension)) {
+			// Find the parent wrapper (usually a div or the upload block wrapper)
+			let wrapper = img.parentElement
+			
+			// Look for the upload block wrapper (usually has specific classes)
+			while (wrapper && wrapper !== editorDiv) {
+				if (wrapper.classList.contains('ce-block') || 
+				    wrapper.classList.contains('ce-block__content') ||
+				    wrapper.classList.contains('cdx-block')) {
+					break
+				}
+				wrapper = wrapper.parentElement
+			}
+			
+			// If we found a wrapper, replace the entire block content
+			if (wrapper) {
+				// Create a container for the VideoBlock component
+				const container = document.createElement('div')
+				container.className = 'video-block-container'
+				container.style.marginTop = '1rem'
+				container.style.marginBottom = '1rem'
+				
+				// Replace the image or its parent block with the container
+				if (wrapper.classList.contains('ce-block__content') || wrapper.classList.contains('cdx-block')) {
+					// Replace the content of the block
+					wrapper.innerHTML = ''
+					wrapper.appendChild(container)
+				} else {
+					// Replace the image itself
+					img.parentNode.replaceChild(container, img)
+				}
+				
+				// Import VideoBlock dynamically
+				import('@/components/VideoBlock.vue').then(({ default: VideoBlock }) => {
+					// Mount VideoBlock component
+					const app = createApp(VideoBlock, {
+						file: src,
+						readOnly: true,
+						quizzes: []
+					})
+					app.use(translationPlugin)
+					app.config.globalProperties.$dialog = createDialog
+					app.mount(container)
+				}).catch((error) => {
+					console.error('Failed to load VideoBlock component:', error)
+					// Fallback: create a video element
+					const video = document.createElement('video')
+					video.src = src
+					video.controls = true
+					video.style.width = '100%'
+					video.style.marginTop = '1rem'
+					video.style.marginBottom = '1rem'
+					container.appendChild(video)
+				})
+			}
+		}
+	})
 }
+
+// Process PDF embeds and replace with PDFViewerEnhanced
+const processPDFEmbeds = () => {
+	// Find all iframes in the editor content
+	const editorDiv = document.getElementById('editor')
+	if (!editorDiv) return
+
+	// Find all iframes that contain PDF URLs
+	const iframes = editorDiv.querySelectorAll('iframe')
+	iframes.forEach((iframe) => {
+		const src = iframe.src || ''
+
+		// Check if this is a PDF (either direct PDF URL or Google Docs viewer)
+		const isPDFUrl = src.toLowerCase().includes('.pdf')
+		const isGoogleDocsViewer = src.includes('docs.google.com/viewer') || src.includes('drive.google.com')
+		const isDriveEmbed = src.includes('drive.google.com/file')
+
+		if (isPDFUrl || isGoogleDocsViewer || isDriveEmbed) {
+			// Extract the actual PDF URL
+			let pdfUrl = src
+
+			// If it's a Google Docs viewer URL, extract the actual PDF URL
+			if (isGoogleDocsViewer && src.includes('url=')) {
+				const urlMatch = src.match(/url=([^&]+)/)
+				if (urlMatch) {
+					pdfUrl = decodeURIComponent(urlMatch[1])
+				}
+			}
+
+			// If it's a Google Drive embed, convert to direct download URL
+			if (isDriveEmbed) {
+				const fileIdMatch = src.match(/\/d\/([A-Za-z0-9_-]+)/)
+				if (fileIdMatch) {
+					pdfUrl = `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`
+				}
+			}
+
+			// Create a container for the Vue component
+			const container = document.createElement('div')
+			container.className = 'pdf-viewer-enhanced-container'
+			container.style.marginTop = '1rem'
+			container.style.marginBottom = '1rem'
+			container.style.position = 'relative'
+			container.style.isolation = 'isolate'
+			container.style.contain = 'layout style'
+
+			// Replace iframe with container
+			iframe.parentNode.replaceChild(container, iframe)
+
+			// Mount PDFViewerEnhanced component
+			const app = createApp(PDFViewerEnhanced, {
+				src: pdfUrl,
+				documentName: pdfUrl.split('/').pop() || 'Document',
+				downloadUrl: pdfUrl,
+				minHeight: '500px',
+				maxHeight: '80vh',
+				showControls: true,
+				showFooter: true
+			})
+
+			app.mount(container)
+		}
+	})
+
+	// Also process PDF tool placeholders
+	const pdfPlaceholders = editorDiv.querySelectorAll('.pdf-viewer-placeholder')
+	pdfPlaceholders.forEach((placeholder) => {
+		const pdfUrl = placeholder.getAttribute('data-pdf-url')
+		const caption = placeholder.getAttribute('data-pdf-caption')
+		const height = placeholder.getAttribute('data-pdf-height')
+
+		if (pdfUrl) {
+			// Create a container for the Vue component
+			const container = document.createElement('div')
+			container.className = 'pdf-viewer-enhanced-container'
+			container.style.marginTop = '1rem'
+			container.style.marginBottom = '1rem'
+			container.style.position = 'relative'
+			container.style.isolation = 'isolate'
+			container.style.contain = 'layout style'
+
+			// Replace placeholder with container
+			placeholder.parentNode.replaceChild(container, placeholder)
+
+			// Mount PDFViewerEnhanced component
+			const app = createApp(PDFViewerEnhanced, {
+				src: pdfUrl,
+				documentName: caption || pdfUrl.split('/').pop() || 'Document',
+				downloadUrl: pdfUrl,
+				minHeight: height || '500px',
+				maxHeight: '80vh',
+				showControls: true,
+				showFooter: true
+			})
+
+			app.mount(container)
+		}
+	})
+}
+
+// --- Override markProgress ---
+const markProgress = () => {
+  if (user.data && lesson.data && !lesson.data.progress) {
+    // If there are videos, only mark complete if all are done
+    if (videoFiles.value.length > 0) {
+      if (completedVideos.value.size < videoFiles.value.length) return
+	  console.log("progress ", completedVideos.value)
+      progress.submit({ completed_videos: JSON.stringify(Array.from(completedVideos.value)) })
+    } else {
+      progress.submit()
+    }
+  }
+}
+
 
 const progress = createResource({
 	url: 'lms.lms.doctype.course_lesson.course_lesson.save_progress',
-	makeParams() {
+	makeParams(values) {
 		return {
+			...(values || {}), // Ensure completed_videos and any other params are included
 			lesson: lesson.data.name,
-			course: props.courseName,
+			course: props.courseName
 		}
 	},
 	onSuccess(data) {
+		console.log("progress onSuccess, data:", data)
 		lessonProgress.value = data
+		if(parseInt(data)==100){
+			setCourseCompletion({
+				courseName: props.courseName,
+				showDocument: true
+			})
+		}
 	},
 })
 
@@ -601,7 +954,19 @@ watch(
 		if (newChapterNumber || newLessonNumber) {
 			plyrSources.value = []
 			await nextTick()
+
+			// Save current lesson timer state before switching
+			await saveTimerState()
+			if (timerFrame) cancelAnimationFrame(timerFrame)
+			if (timerSaveInterval) clearInterval(timerSaveInterval)
+
 			resetLessonState(newChapterNumber, newLessonNumber)
+
+			// Check enrollment status for the new lesson
+			if (user.data) {
+				await checkEnrollmentStatus()
+			}
+
 			startTimer()
 			updateNotes()
 			checkIfDiscussionsAllowed()
@@ -670,12 +1035,72 @@ const cleanYouTubeUrl = (url) => {
 watch(
 	() => lesson.data,
 	async (data) => {
-		setupLesson(data)
-		getPlyrSource()
-		updateNotes()
-		if (data.icon == 'icon-youtube') clearInterval(timerInterval)
+		if (data) {
+			setupLesson(data)
+			getPlyrSource()
+			updateNotes()
+
+			// Check enrollment status when lesson loads
+			if (user.data) {
+				await checkEnrollmentStatus()
+			}
+
+			// Start timer after lesson setup if duration is available
+			if (data.duration && videoFiles.value.length === 0) {
+				startTimer()
+			}
+			if (data.icon == 'icon-youtube') clearInterval(timerInterval)
+		}
+	},
+	{ immediate: true }
+)
+
+watch(
+	() => lesson.data,
+	(data) => {
+		if (data && data.content) {
+			try {
+				const blocks = JSON.parse(data.content).blocks
+				console.log("Parsed blocks:", blocks)
+				videoFiles.value = extractVideoFiles(blocks)
+				completedVideos.value = new Set()
+			} catch (e) {
+				videoFiles.value = []
+				completedVideos.value = new Set()
+			}
+		} else {
+			videoFiles.value = []
+			completedVideos.value = new Set()
+		}
+	},
+	{ immediate: true }
+)
+
+// Watch for changes in the number of video files and start/stop the timer accordingly
+watch(
+	() => videoFiles.value.length,
+	(newLength) => {
+		// Only restart timer if videos were removed (going from video lesson to non-video)
+		if (newLength === 0 && lesson?.data?.duration) {
+			startTimer()
+		}
 	}
 )
+
+function isVideoFile(type) {
+	const result = ["mp4", "mov", "avi", "mkv", "webm"].includes((type || "").toLowerCase())
+	return result
+}
+
+function extractVideoFiles(blocks) {
+	const files = blocks
+		.filter(b => {
+			const isVideo = isVideoFile(b.data.file_type)
+			return b.type === 'upload' && isVideo
+		})
+		.map(b => b.data.file_url)
+	return files
+}
 
 const getPlyrSource = async () => {
 	await nextTick()
@@ -730,18 +1155,272 @@ const updateVideoTime = (video) => {
 	}
 }
 
-const startTimer = () => {
-	let timerInterval = setInterval(() => {
-		timer.value++
-		if (timer.value == 30) {
-			clearInterval(timerInterval)
-			markProgress()
+// Enrollment and Re-enrollment functions
+const checkEnrollmentStatus = async () => {
+	if (!user.data || !props.courseName) return
+
+	try {
+		const response = await call('lms.lms.doctype.lms_enrollment.lms_enrollment.get_current_enrollment', {
+			course: props.courseName
+		})
+
+		if (response.success) {
+			const enrollment = response.enrollment
+			currentEnrollmentVersion.value = enrollment.enrollment_version
+			enrollmentId.value = enrollment.name
+
+			// Check if this is a re-enrollment
+			if (enrollment.enrollment_version > 1 && enrollment.progress === 0) {
+				isReEnrollment.value = true
+				showReEnrollmentNotification()
+			}
+
+			// Load timer data from backend
+			await loadTimerFromBackend()
 		}
-	}, 1000)
+	} catch (error) {
+		console.error('Error checking enrollment status:', error)
+	}
+}
+
+const showReEnrollmentNotification = () => {
+	// Show a notification that the user has been re-enrolled
+	if (window.frappe && window.frappe.show_alert) {
+		window.frappe.show_alert({
+			message: 'You have been re-enrolled in this course. Your progress has been reset.',
+			indicator: 'blue'
+		}, 5)
+	}
+}
+
+// Backend timer persistence functions
+const saveTimerToBackend = async () => {
+	if (!user.data || !props.courseName || !lesson.data?.name) return
+
+	const lessonId = `${props.chapterNumber}.${props.lessonNumber}`
+	const duration = lesson.data?.duration || 30
+	const completed = timer.value >= duration
+
+	try {
+		await call('lms.lms.doctype.lms_enrollment.lms_enrollment.save_lesson_timer_progress_by_course', {
+			course: props.courseName,
+			lesson_id: lessonId,
+			current_time: timer.value,
+			duration: duration,
+			completed: completed
+		})
+	} catch (error) {
+		console.error('Error saving timer to backend:', error)
+		// Fallback to localStorage on error
+		saveTimerStateLocal()
+	}
+}
+
+const loadTimerFromBackend = async () => {
+	if (!user.data || !props.courseName) return 0
+
+	const lessonId = `${props.chapterNumber}.${props.lessonNumber}`
+
+	try {
+		const response = await call('lms.lms.doctype.lms_enrollment.lms_enrollment.get_lesson_timer_progress_by_course', {
+			course: props.courseName,
+			lesson_id: lessonId
+		})
+
+		if (response.success && response.timer_data) {
+			const timerData = response.timer_data
+
+			// Check if enrollment version changed (re-enrollment occurred)
+			if (response.enrollment_version !== currentEnrollmentVersion.value && currentEnrollmentVersion.value !== null) {
+				// Reset timer for new enrollment
+				currentEnrollmentVersion.value = response.enrollment_version
+				return 0
+			}
+
+			if (timerData.current_time !== undefined) {
+				return timerData.current_time || 0
+			}
+		}
+	} catch (error) {
+		console.error('Error loading timer from backend:', error)
+	}
+
+	// Fallback to localStorage if backend fails
+	return loadTimerStateLocal()
+}
+
+// Setup periodic timer saving
+const setupTimerAutoSave = () => {
+	if (timerSaveInterval) clearInterval(timerSaveInterval)
+
+	// Save timer every 5 seconds
+	timerSaveInterval = setInterval(() => {
+		if (!timerPaused && timer.value > 0) {
+			saveTimerToBackend()
+		}
+	}, 5000)
+}
+
+// Local storage fallback functions (renamed from original)
+const getTimerKey = () => {
+  if (!lesson.data?.name || !props.courseName || !props.chapterNumber || !props.lessonNumber) return null
+  return `lesson_timer_${props.courseName}_${props.chapterNumber}_${props.lessonNumber}_v${currentEnrollmentVersion.value || 1}`
+}
+
+const saveTimerStateLocal = () => {
+  const key = getTimerKey()
+  if (!key || timer.value === 0) return
+
+  const timerState = {
+    elapsed: timer.value,
+    timestamp: Date.now(),
+    lessonName: lesson.data?.name,
+    duration: lesson.data?.duration,
+    enrollmentVersion: currentEnrollmentVersion.value
+  }
+  localStorage.setItem(key, JSON.stringify(timerState))
+}
+
+const loadTimerStateLocal = () => {
+  const key = getTimerKey()
+  if (!key) return 0
+
+  const savedState = localStorage.getItem(key)
+  if (!savedState) return 0
+
+  try {
+    const timerState = JSON.parse(savedState)
+    // Check if it's the same lesson and enrollment version
+    if (timerState.lessonName !== lesson.data?.name ||
+        timerState.enrollmentVersion !== currentEnrollmentVersion.value) {
+      localStorage.removeItem(key)
+      return 0
+    }
+
+    // If lesson is already completed (timer reached duration), return the duration
+    if (timerState.elapsed >= timerState.duration) {
+      return timerState.duration
+    }
+
+    // Return the saved elapsed time
+    return timerState.elapsed || 0
+  } catch (e) {
+    console.error('Error loading timer state:', e)
+    localStorage.removeItem(key)
+    return 0
+  }
+}
+
+const clearTimerState = () => {
+  const key = getTimerKey()
+  if (key) {
+    localStorage.removeItem(key)
+  }
+}
+
+// Combined save function that saves to both backend and localStorage
+const saveTimerState = () => {
+  saveTimerToBackend()
+  saveTimerStateLocal()
+}
+
+// Combined load function that prioritizes backend
+const loadTimerState = async () => {
+  return await loadTimerFromBackend()
+}
+
+// --- Update startTimer to skip timer if videos exist ---
+const startTimer = async () => {
+  if (timerFrame) cancelAnimationFrame(timerFrame)
+
+  console.log("duration", lesson.data?.duration);
+  if (videoFiles.value.length > 0) return // Don't use timer for video lessons
+
+  let durationSeconds = Number(lesson.data?.duration)
+  if (isNaN(durationSeconds) || durationSeconds < 0) durationSeconds = 30
+  // Enforce a minimum visible duration of 2s
+  console.log("durationSeconds", durationSeconds);
+  if (durationSeconds > 0 && durationSeconds < 2) durationSeconds = 2
+  if (durationSeconds === 0) {
+    markProgress()
+    return
+  }
+
+  // Load saved timer state from backend
+  const savedTime = await loadTimerState()
+  timer.value = savedTime
+
+  // If lesson was already completed previously
+  if (savedTime >= durationSeconds) {
+    timer.value = durationSeconds
+    markProgress()
+    return
+  }
+
+  // Setup auto-save interval
+  setupTimerAutoSave()
+
+  let startTimestamp = null
+  let baseElapsed = savedTime // Start from saved time
+
+  const tick = (timestamp) => {
+    if (timerPaused) {
+      timerFrame = requestAnimationFrame(tick)
+      return
+    }
+
+    if (!startTimestamp) startTimestamp = timestamp
+    const elapsed = Math.floor((timestamp - startTimestamp) / 1000) + baseElapsed
+
+    if (elapsed > timer.value) {
+      timer.value = elapsed
+      // Local save every second for immediate persistence
+      if (elapsed % 1 === 0) {
+        saveTimerStateLocal()
+      }
+    }
+
+    if (timer.value >= durationSeconds) {
+      timer.value = durationSeconds
+      saveTimerState()
+      clearTimerState() // Clear saved state after completion
+      markProgress()
+      if (timerSaveInterval) clearInterval(timerSaveInterval)
+      return
+    }
+    timerFrame = requestAnimationFrame(tick)
+  }
+  timerFrame = requestAnimationFrame(tick)
+}
+
+// Handle page visibility changes
+const handleVisibilityChange = () => {
+  if (document.hidden) {
+    // Page is hidden (user switched tabs or minimized)
+    timerPaused = true
+    saveTimerState()
+  } else {
+    // Page is visible again
+    timerPaused = false
+    // Restart the timer if it hasn't completed and no videos exist
+    if (!timerPaused && timer.value < lesson.data?.duration && videoFiles.value.length === 0) {
+      if (!timerFrame) {
+        startTimer()
+      }
+    }
+  }
+}
+
+// Handle page unload
+const handleBeforeUnload = () => {
+  saveTimerState()
 }
 
 onBeforeUnmount(() => {
-	clearInterval(timerInterval)
+	if (timerFrame) cancelAnimationFrame(timerFrame)
+	saveTimerState()
+	document.removeEventListener('visibilitychange', handleVisibilityChange)
+	window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
 const checkIfDiscussionsAllowed = () => {
@@ -768,15 +1447,9 @@ const checkIfDiscussionsAllowed = () => {
 const allowEdit = () => {
 	if (window.read_only_mode) return false
 	if (user.data?.is_moderator) return true
-	if (lesson.data?.instructors?.includes(user.data?.name)) return true
 	return false
 }
 
-const allowInstructorContent = () => {
-	if (user.data?.is_moderator) return true
-	if (lesson.data?.instructors?.includes(user.data?.name)) return true
-	return false
-}
 
 const enrollment = createResource({
 	url: 'frappe.client.insert',
@@ -823,7 +1496,6 @@ const showVideoStats = () => {
 const canGoZen = () => {
 	if (
 		user.data?.is_moderator ||
-		user.data?.is_instructor ||
 		user.data?.is_evaluator
 	)
 		return true
@@ -853,15 +1525,16 @@ const showDiscussionsInZenMode = () => {
 	}
 }
 
-const scrollDiscussionsIntoView = () => {
-	nextTick(() => {
-		discussionsContainer.value?.scrollIntoView({
-			behavior: 'smooth',
-			block: 'center',
-			inline: 'nearest',
-		})
-	})
-}
+// Scroll discussions function commented out - Questions section removed
+// const scrollDiscussionsIntoView = () => {
+// 	nextTick(() => {
+// 		discussionsContainer.value?.scrollIntoView({
+// 			behavior: 'smooth',
+// 			block: 'center',
+// 			inline: 'nearest',
+// 		})
+// 	})
+// }
 
 const updateNotes = () => {
 	notes.update({
@@ -899,6 +1572,13 @@ const redirectToLogin = () => {
 	window.location.href = `/login?redirect-to=/lms/courses/${props.courseName}`
 }
 
+const goBackToCourse = () => {
+	router.push({
+		name: 'CourseDetail',
+		params: { courseName: props.courseName },
+	})
+}
+
 usePageMeta(() => {
 	return {
 		title: lesson?.data?.title,
@@ -907,14 +1587,6 @@ usePageMeta(() => {
 })
 </script>
 <style>
-.avatar-group {
-	display: inline-flex;
-	align-items: center;
-}
-
-.avatar-group .avatar {
-	transition: margin 0.1s ease-in-out;
-}
 
 .lesson-content p {
 	margin-bottom: 1rem;

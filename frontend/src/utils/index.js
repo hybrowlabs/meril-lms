@@ -17,6 +17,7 @@ import dayjs from '@/utils/dayjs'
 import Embed from '@editorjs/embed'
 import SimpleImage from '@editorjs/simple-image'
 import Table from '@editorjs/table'
+import PDFTool from '@/utils/editorjs-pdf-tool'
 import Plyr from 'plyr'
 import 'plyr/dist/plyr.css'
 import DOMPurify from 'dompurify'
@@ -155,6 +156,10 @@ export function getEditorTools() {
 		inlineCode: {
 			class: InlineCode,
 			shortcut: 'CMD+SHIFT+M',
+		},
+		pdf: {
+			class: PDFTool,
+			inlineToolbar: false,
 		},
 		embed: {
 			class: Embed,

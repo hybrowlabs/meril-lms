@@ -41,20 +41,6 @@
 						<span v-if="course.data.enrollment_count" class="mx-3"
 							>&middot;</span
 						>
-						<div class="flex items-center">
-							<span
-								class="h-6 mr-1"
-								:class="{
-									'avatar-group overlap': course.data.instructors.length > 1,
-								}"
-							>
-								<UserAvatar
-									v-for="instructor in course.data.instructors"
-									:user="instructor"
-								/>
-							</span>
-							<CourseInstructors :instructors="course.data.instructors" />
-						</div>
 					</div>
 					<div v-if="course.data.tags" class="flex my-4 w-fit">
 						<Badge
@@ -81,11 +67,6 @@
 							:getProgress="course.data.membership ? true : false"
 						/>
 					</div>
-					<CourseReviews
-						:courseName="course.data.name"
-						:avg_rating="course.data.rating"
-						:membership="course.data.membership"
-					/>
 				</div>
 				<div class="hidden md:block">
 					<CourseCardOverlay :course="course" />
@@ -109,9 +90,7 @@ import { sessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
 import CourseCardOverlay from '@/components/CourseCardOverlay.vue'
 import CourseOutline from '@/components/CourseOutline.vue'
-import CourseReviews from '@/components/CourseReviews.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import CourseInstructors from '@/components/CourseInstructors.vue'
 import RelatedCourses from '@/components/RelatedCourses.vue'
 
 const { brand } = sessionStore()

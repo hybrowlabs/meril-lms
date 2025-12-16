@@ -1,11 +1,15 @@
 <template>
-	<FrappeUIProvider>
+	<FrappeUIProvider aria-hidden="true">
 		<Layout class="isolate text-base">
-			<router-view />
+			<div class="text-base">
+				<router-view />
+			</div>
 		</Layout>
 		<InstallPrompt v-if="isMobile && !settings.data?.disable_pwa" />
 		<Dialogs />
 	</FrappeUIProvider>
+	<OtpDialog />
+	<DocumentDownloadModal />
 </template>
 <script setup>
 import { FrappeUIProvider } from 'frappe-ui'
@@ -20,6 +24,8 @@ import DesktopLayout from './components/DesktopLayout.vue'
 import MobileLayout from './components/MobileLayout.vue'
 import NoSidebarLayout from './components/NoSidebarLayout.vue'
 import InstallPrompt from './components/InstallPrompt.vue'
+import OtpDialog from '@/components/custom/OtpDialog.vue'
+import DocumentDownloadModal from './components/custom/DocumentDownloadModal.vue'
 
 const { isMobile } = useScreenSize()
 const router = useRouter()

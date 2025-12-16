@@ -359,6 +359,32 @@ const addProgrammingExercises = () => {
 	)
 	if (programmingExercisesLinkExists) return
 
+const addAdminLinks = () => {
+	if (userResource.data?.is_system_manager) {
+		sidebarLinks.value.push(
+			{
+				label: 'Course Management',
+				icon: 'Settings',
+				to: 'CourseEnrollmentManagement',
+				activeFor: ['CourseEnrollmentManagement'],
+			},
+			{
+				label: 'Reminders Dashboard',
+				icon: 'Bell',
+				to: 'RemindersManagementDashboard',
+				activeFor: ['RemindersManagementDashboard'],
+			},
+			{
+				label: 'Distributor Management',
+				icon: 'Users',
+				to: 'DistributorManagement',
+				activeFor: ['DistributorManagement'],
+			}
+		)
+	}
+}
+
+
 	sidebarLinks.value.splice(3, 0, {
 		label: 'Programming Exercises',
 		icon: 'Code',
@@ -684,6 +710,7 @@ watch(userResource, () => {
 		addProgrammingExercises()
 		addQuizzes()
 		addAssignments()
+		addAdminLinks()
 		setUpOnboarding()
 	}
 })

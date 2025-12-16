@@ -1,0 +1,143 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-19 18:48:05.749173",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "distributor",
+  "course",
+  "has_submitted_documents",
+  "is_certified",
+  "column_break_iqxo",
+  "entered_name",
+  "signature_style",
+  "submission_datetime",
+  "section_break_knpr",
+  "document_upload_datetime",
+  "enrollment_reference",
+  "enrollment_version",
+  "is_current_enrollment",
+  "section_break_ttbt",
+  "meril_company_table"
+ ],
+ "fields": [
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Distributor",
+   "options": "Distributor",
+   "reqd": 1
+  },
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Course",
+   "options": "LMS Course",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_iqxo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entered_name",
+   "fieldtype": "Data",
+   "label": "Entered Name"
+  },
+  {
+   "fieldname": "signature_style",
+   "fieldtype": "Link",
+   "label": "Signature Style",
+   "options": "Signature Type"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_submitted_documents",
+   "fieldtype": "Check",
+   "label": "has submitted documents"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_certified",
+   "fieldtype": "Check",
+   "label": "Is Certified"
+  },
+  {
+   "fieldname": "submission_datetime",
+   "fieldtype": "Datetime",
+   "label": "Submission Datetime"
+  },
+  {
+   "fieldname": "section_break_knpr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "document_upload_datetime",
+   "fieldtype": "Table",
+   "label": "Document Upload Datetime",
+   "options": "Distributor Document Upload Timdate"
+  },
+  {
+   "fieldname": "enrollment_reference",
+   "fieldtype": "Link",
+   "label": "Enrollment Reference",
+   "options": "LMS Enrollment"
+  },
+  {
+   "default": "1",
+   "fieldname": "enrollment_version",
+   "fieldtype": "Int",
+   "label": "Enrollment Version"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_current_enrollment",
+   "fieldtype": "Check",
+   "label": "Is Current Enrollment"
+  },
+  {
+   "fieldname": "section_break_ttbt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "meril_company_table",
+   "fieldtype": "Table",
+   "label": "Meril Company Table",
+   "options": "Meril Distributor Division Child"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-10-13 18:49:02.059303",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Distributor Course Documents",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "role": "Distributor"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

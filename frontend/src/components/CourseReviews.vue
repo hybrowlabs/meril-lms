@@ -8,7 +8,7 @@
 			{{ __('Write a Review') }}
 		</Button>
 		<div class="flex items-center font-semibold text-2xl text-ink-gray-9">
-			{{ __('Student Reviews') }}
+			{{ __('User Reviews') }}
 		</div>
 		<div class="grid gap-8 mt-10">
 			<div v-for="(review, index) in reviews.data">

@@ -50,7 +50,13 @@ export default defineConfig(({ mode }) => ({
 	],
 	server: {
 		host: '0.0.0.0', // Accept connections from any network interface
-		allowedHosts: ['ps', 'fs', 'home'], // Explicitly allow this host
+		allowedHosts: ['ps', 'fs', 'home', 'per2', '8080.grawish.com'], // Explicitly allow these hosts
+		proxy: {
+			'/api': {
+				target: 'http://localhost:8003',
+				changeOrigin: true,
+			},
+		},
 	},
 	resolve: {
 		alias: {

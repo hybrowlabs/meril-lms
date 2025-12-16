@@ -14,7 +14,7 @@
   "member",
   "member_name",
   "member_username",
-  "member_image",
+  "course_reminder_count",
   "certification_section",
   "purchased_certificate",
   "certificate",
@@ -24,7 +24,18 @@
   "batch_old",
   "column_break_12",
   "member_type",
-  "role"
+  "role",
+  "completion_section",
+  "completion_status",
+  "access_restricted",
+  "column_break_completion",
+  "completed_on",
+  "re_enrolled_by",
+  "re_enrolled_on",
+  "re_enrollment_count",
+  "lesson_timer_data",
+  "original_enrollment_date",
+  "enrollment_version"
  ],
  "fields": [
   {
@@ -98,8 +109,7 @@
   {
    "fieldname": "progress",
    "fieldtype": "Float",
-   "label": "Progress",
-   "read_only": 1
+   "label": "Progress"
   },
   {
    "fieldname": "cohort",
@@ -146,16 +156,86 @@
    "options": "LMS Certificate"
   },
   {
-   "fetch_from": "member.user_image",
-   "fieldname": "member_image",
-   "fieldtype": "Attach Image",
-   "label": "Member Image"
+   "fieldname": "completion_section",
+   "fieldtype": "Section Break",
+   "label": "Course Completion & Access Control"
+  },
+  {
+   "default": "Active",
+   "fieldname": "completion_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Completion Status",
+   "options": "Active\nCompleted\nRe-enrolled",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "access_restricted",
+   "fieldtype": "Check",
+   "label": "Access Restricted",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_completion",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "re_enrolled_by",
+   "fieldtype": "Link",
+   "label": "Re-enrolled By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "re_enrolled_on",
+   "fieldtype": "Datetime",
+   "label": "Re-enrolled On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "course_reminder_count",
+   "fieldtype": "Int",
+   "label": "Course Reminder Count"
+  },
+  {
+   "default": "0",
+   "fieldname": "re_enrollment_count",
+   "fieldtype": "Int",
+   "label": "Re-enrollment Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lesson_timer_data",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "Lesson Timer Data"
+  },
+  {
+   "fieldname": "original_enrollment_date",
+   "fieldtype": "Datetime",
+   "label": "Original Enrollment Date",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enrollment_version",
+   "fieldtype": "Int",
+   "label": "Enrollment Version",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-02 21:27:30.733482",
+ "modified": "2025-10-13 12:30:00.000000",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Enrollment",

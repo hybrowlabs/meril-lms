@@ -15,24 +15,6 @@
 					  }
 			"
 		>
-			<!-- <div class="flex items-center flex-wrap relative top-4 px-2 w-fit">
-				<div
-					v-if="course.featured"
-					class="flex items-center space-x-1 text-xs text-ink-amber-3 bg-surface-white border border-outline-amber-1 px-2 py-0.5 rounded-md mr-1 mb-1"
-				>
-					<Star class="size-3 stroke-2" />
-					<span>
-						{{ __('Featured') }}
-					</span>
-				</div>
-				<div
-					v-if="course.tags"
-					v-for="tag in course.tags?.split(', ')"
-					class="text-xs border bg-surface-white text-ink-gray-9 px-2 py-0.5 rounded-md mb-1 mr-1"
-				>
-					{{ tag }}
-				</div>
-			</div> -->
 			<div
 				v-if="!course.image"
 				class="flex items-center justify-center text-white flex-1 font-extrabold my-auto px-5 text-center leading-6 h-full"
@@ -79,6 +61,16 @@
 				<Tooltip v-if="course.featured" :text="__('Featured')">
 					<Award class="size-4 stroke-2 text-ink-amber-3" />
 				</Tooltip>
+
+				<div v-if="course.status != 'Approved'">
+					<Badge
+						variant="subtle"
+						:theme="course.status === 'Under Review' ? 'orange' : 'blue'"
+						size="sm"
+					>
+						{{ course.status }}
+					</Badge>
+				</div>
 			</div>
 
 			<div
@@ -93,28 +85,37 @@
 				{{ course.short_introduction }}
 			</div>
 
-			<ProgressBar
-				v-if="user && course.membership"
-				:progress="course.membership.progress"
-			/>
+			<!-- Progress Bar and Completion Status -->
+			<div v-if="user && course.membership">
+				<ProgressBar
+					:progress="course.membership.progress"
+				/>
 
-			<div v-if="user && course.membership" class="text-sm mt-2 mb-4">
-				{{ Math.ceil(course.membership.progress) }}% {{ __('completed') }}
+				<!-- Completion Information -->
+				<div v-if="isCompleted" class="mt-2 mb-4">
+					<div class="flex items-center text-sm text-ink-gray-7 mb-1">
+						<CheckCircle class="h-4 w-4 mr-1 text-green-600" />
+						{{ __('Course Completed') }}
+					</div>
+					<div class="text-xs text-ink-gray-6">
+						{{ __('Completed on') }}: {{ formatCompletionDate }}
+					</div>
+					<div v-if="isReEnrolled" class="text-xs text-blue-600 mt-1">
+						{{ __('Re-enrolled on') }}: {{ formatReEnrollmentDate }}
+					</div>
+				</div>
+
+				<!-- Active Progress -->
+				<div
+					v-else-if="course.membership.progress"
+					class="text-sm text-ink-gray-7 mt-2 mb-4"
+				>
+					{{ Math.ceil(course.membership.progress) }}% completed
+				</div>
 			</div>
 
 			<div class="flex items-center justify-between mt-auto">
-				<div class="flex avatar-group overlap">
-					<div
-						class="h-6 mr-1"
-						:class="{ 'avatar-group overlap': course.instructors.length > 1 }"
-					>
-						<UserAvatar
-							v-for="instructor in course.instructors"
-							:user="instructor"
-						/>
-					</div>
-					<CourseInstructors :instructors="course.instructors" />
-				</div>
+				<div></div>
 
 				<div class="flex items-center space-x-2">
 					<div v-if="course.paid_course" class="font-semibold">
@@ -133,12 +134,11 @@
 	</div>
 </template>
 <script setup>
-import { Award, BookOpen, GraduationCap, Star, Users } from 'lucide-vue-next'
+import { Award, BookOpen, CheckCircle, GraduationCap, Star, Users } from 'lucide-vue-next'
+import { computed } from 'vue'
 import { sessionStore } from '@/stores/session'
-import { Tooltip } from 'frappe-ui'
+import { Badge, Tooltip } from 'frappe-ui'
 import { formatAmount } from '@/utils'
-import CourseInstructors from '@/components/CourseInstructors.vue'
-import UserAvatar from '@/components/UserAvatar.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import colors from '@/utils/frappe-ui-colors.json'
 
@@ -157,19 +157,72 @@ const getGradientColor = () => {
 	let color = props.course.card_gradient?.toLowerCase() || 'blue'
 	let colorMap = colors[theme][color]
 	return `linear-gradient(to top right, black, ${colorMap[400]})`
-	/* return `bg-gradient-to-br from-${color}-100 via-${color}-200 to-${color}-400` */
-	/* return `linear-gradient(to bottom right, ${colorMap[100]}, ${colorMap[400]})` */
-	/* return `radial-gradient(ellipse at 80% 20%, black 20%, ${colorMap[500]} 100%)` */
-	/* return `radial-gradient(ellipse at 30% 70%, black 50%, ${colorMap[500]} 100%)` */
-	/* return `radial-gradient(ellipse at 80% 20%, ${colorMap[100]} 0%, ${colorMap[300]} 50%, ${colorMap[500]} 100%)` */
-	/* return `conic-gradient(from 180deg at 50% 50%, ${colorMap[100]} 0%, ${colorMap[200]} 50%, ${colorMap[400]} 100%)` */
-	/* return `linear-gradient(135deg, ${colorMap[100]}, ${colorMap[300]}), linear-gradient(120deg, rgba(255,255,255,0.4) 0%, transparent 60%) ` */
-	/* return `radial-gradient(circle at 20% 30%, ${colorMap[100]} 0%, transparent 40%),
-		radial-gradient(circle at 80% 40%, ${colorMap[200]} 0%, transparent 50%),
-		linear-gradient(135deg, ${colorMap[300]} 0%, ${colorMap[400]} 100%);` */
 }
+
+// Computed properties for completion status
+const isCompleted = computed(() => {
+	return props.course.membership?.completion_status === 'Completed'
+})
+
+const isReEnrolled = computed(() => {
+	return props.course.membership?.completion_status === 'Re-enrolled'
+})
+
+const completionStatus = computed(() => {
+	return props.course.membership?.completion_status || 'Active'
+})
+
+const showCompletionBadge = computed(() => {
+	return user && props.course.membership &&
+		   (completionStatus.value === 'Completed' || completionStatus.value === 'Re-enrolled')
+})
+
+const completionBadgeText = computed(() => {
+	switch (completionStatus.value) {
+		case 'Completed':
+			return __('Completed')
+		case 'Re-enrolled':
+			return __('Re-enrolled')
+		default:
+			return ''
+	}
+})
+
+const completionBadgeTheme = computed(() => {
+	switch (completionStatus.value) {
+		case 'Completed':
+			return 'green'
+		case 'Re-enrolled':
+			return 'blue'
+		default:
+			return 'gray'
+	}
+})
+
+const formatCompletionDate = computed(() => {
+	if (!props.course.membership?.completed_on) return ''
+
+	const date = new Date(props.course.membership.completed_on)
+	return date.toLocaleDateString()
+})
+
+const formatReEnrollmentDate = computed(() => {
+	if (!props.course.membership?.re_enrolled_on) return ''
+
+	const date = new Date(props.course.membership.re_enrolled_on)
+	return date.toLocaleDateString()
+})
 </script>
 <style>
+.course-image {
+	height: 168px;
+	width: 100%;
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	position: relative;
+}
+
 .course-card-pills {
 	background: #ffffff;
 	margin-left: 0;

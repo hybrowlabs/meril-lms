@@ -94,6 +94,7 @@
    "label": "Show Submission History"
   },
   {
+   "default": "80",
    "fieldname": "passing_percentage",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -134,8 +135,10 @@
   },
   {
    "fieldname": "duration",
-   "fieldtype": "Data",
-   "label": "Duration (in minutes)"
+   "fieldtype": "Int",
+   "label": "Duration (in minutes)",
+   "non_negative": 1,
+   "reqd": 1
   },
   {
    "default": "0",
@@ -159,8 +162,8 @@
    "link_fieldname": "quiz"
   }
  ],
- "modified": "2025-06-27 20:00:15.660323",
- "modified_by": "sayali@frappe.io",
+ "modified": "2025-08-11 15:55:54.380450",
+ "modified_by": "Administrator",
  "module": "LMS",
  "name": "LMS Quiz",
  "owner": "Administrator",
@@ -202,18 +205,12 @@
    "write": 1
   },
   {
-   "email": 1,
-   "export": 1,
-   "print": 1,
    "read": 1,
-   "report": 1,
    "role": "LMS Student",
-   "share": 1
+   "select": 1
   }
  ],
- "row_format": "Dynamic",
- "show_title_field_in_link": 1,
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "title_field": "title",

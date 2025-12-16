@@ -126,15 +126,23 @@ def quiz_summary(quiz, results):
 	percentage = (score / score_out_of) * 100 if score_out_of else 0
 	submission = create_submission(quiz, results, score_out_of, quiz_details.passing_percentage)
 
-	save_progress_after_quiz(quiz_details, percentage)
+	# Check if quiz passed (percentage >= passing_percentage)
+	passing_percentage = quiz_details.passing_percentage or 0
+	quiz_passed = percentage >= passing_percentage if passing_percentage > 0 else True
+	
+	# Only save progress if quiz passed
+	if quiz_passed:
+		save_progress_after_quiz(quiz_details, percentage)
 
 	return {
 		"score": score,
 		"score_out_of": score_out_of,
 		"submission": submission.name,
-		"pass": percentage == quiz_details.passing_percentage,
+		"pass": quiz_passed,
 		"percentage": percentage,
 		"is_open_ended": is_open_ended,
+		"passing_percentage": passing_percentage,
+		"requires_reattempt": not quiz_passed and passing_percentage > 0,
 	}
 
 

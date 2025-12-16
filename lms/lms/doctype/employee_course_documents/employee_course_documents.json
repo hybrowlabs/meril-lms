@@ -1,0 +1,213 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-07-25 14:04:43.963682",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "course",
+  "employee",
+  "has_submitted_documents",
+  "is_certified",
+  "column_break_ymyl",
+  "entered_name",
+  "reporting_head_name",
+  "hod_name",
+  "region",
+  "login_reminder_count",
+  "course_reminder_count",
+  "submission_datetime",
+  "section_break_template",
+  "selected_template",
+  "template_version_used",
+  "document_options_json",
+  "section_break_compliance",
+  "compliance_officer",
+  "compliance_review_status",
+  "compliance_review_date",
+  "compliance_review_notes",
+  "workflow_state",
+  "section_break_knpr",
+  "document_upload_datetime",
+  "enrollment_reference",
+  "enrollment_version",
+  "is_current_enrollment"
+ ],
+ "fields": [
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_submitted_documents",
+   "fieldtype": "Check",
+   "label": "Has Submitted Documents"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_certified",
+   "fieldtype": "Check",
+   "label": "Is Certified"
+  },
+  {
+   "fieldname": "submission_datetime",
+   "fieldtype": "Datetime",
+   "label": "Submission datetime"
+  },
+  {
+   "fieldname": "section_break_template",
+   "fieldtype": "Section Break",
+   "label": "Template Information"
+  },
+  {
+   "fieldname": "selected_template",
+   "fieldtype": "Link",
+   "label": "Selected Template",
+   "options": "Document Template Registry"
+  },
+  {
+   "fieldname": "template_version_used",
+   "fieldtype": "Data",
+   "label": "Template Version Used",
+   "length": 20
+  },
+  {
+   "fieldname": "document_options_json",
+   "fieldtype": "JSON",
+   "label": "Document Options"
+  },
+  {
+   "fieldname": "section_break_compliance",
+   "fieldtype": "Section Break",
+   "label": "Compliance Review"
+  },
+  {
+   "fieldname": "compliance_officer",
+   "fieldtype": "Link",
+   "label": "Compliance Officer",
+   "options": "User"
+  },
+  {
+   "fieldname": "compliance_review_status",
+   "fieldtype": "Select",
+   "label": "Compliance Review Status",
+   "options": "\nPending\nIn Review\nApproved\nRejected\nRevision Required"
+  },
+  {
+   "fieldname": "compliance_review_date",
+   "fieldtype": "Datetime",
+   "label": "Compliance Review Date"
+  },
+  {
+   "fieldname": "compliance_review_notes",
+   "fieldtype": "Text",
+   "label": "Compliance Review Notes"
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Data",
+   "label": "Workflow State",
+   "length": 50
+  },
+  {
+   "fieldname": "section_break_knpr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "document_upload_datetime",
+   "fieldtype": "Table",
+   "label": "Document Upload Datetime",
+   "options": "Employee Document Upload Timdate"
+  },
+  {
+   "fieldname": "column_break_ymyl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entered_name",
+   "fieldtype": "Data",
+   "label": "Entered Name"
+  },
+  {
+   "fieldname": "reporting_head_name",
+   "fieldtype": "Data",
+   "label": "Reporting Head Name"
+  },
+  {
+   "fieldname": "hod_name",
+   "fieldtype": "Data",
+   "label": "HOD Name"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region"
+  },
+  {
+   "default": "0",
+   "fieldname": "login_reminder_count",
+   "fieldtype": "Int",
+   "label": "Login Reminder Count"
+  },
+  {
+   "default": "0",
+   "fieldname": "course_reminder_count",
+   "fieldtype": "Int",
+   "label": "Course Reminder Count"
+  },
+  {
+   "fieldname": "enrollment_reference",
+   "fieldtype": "Link",
+   "label": "Enrollment Reference",
+   "options": "LMS Enrollment"
+  },
+  {
+   "default": "1",
+   "fieldname": "enrollment_version",
+   "fieldtype": "Int",
+   "label": "Enrollment Version"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_current_enrollment",
+   "fieldtype": "Check",
+   "label": "Is Current Enrollment"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-10-23 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Employee Course Documents",
+ "owner": "Administrator",
+ "default_print_format": "Employee Declaration Form",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

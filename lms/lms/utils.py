@@ -384,16 +384,42 @@ def is_eligible_to_review(course):
 
 
 def get_course_progress(course, member=None):
-	"""Returns the course progress of the session user"""
+	"""Returns the course progress of the session user for a specific enrollment"""
+	member = member or frappe.session.user
+
+	# Get the most recent active enrollment for this member and course
+	enrollment = frappe.db.get_value(
+		"LMS Enrollment",
+		{
+			"course": course,
+			"member": member,
+			"docstatus": ("!=", 2)
+		},
+		["name", "completion_status"],
+		order_by="creation desc"
+	)
+
+	if not enrollment:
+		return 0
+
 	lesson_count = get_lessons(course, get_details=False)
 	if not lesson_count:
 		return 0
+
+	# Count completed lessons for this specific enrollment
 	completed_lessons = frappe.db.count(
 		"LMS Course Progress",
-		{"course": course, "member": member or frappe.session.user, "status": "Complete"},
+		{
+			"enrollment": enrollment[0],  # enrollment[0] is the name
+			"status": "Complete",
+			"is_complete": 1
+		}
 	)
+
 	precision = cint(frappe.db.get_default("float_precision")) or 3
-	return flt(((completed_lessons / lesson_count) * 100), precision)
+	progress = flt(((completed_lessons / lesson_count) * 100), precision)
+
+	return progress
 
 
 def get_initial_members(course):
@@ -971,6 +997,112 @@ def change_currency(amount, currency, country=None):
 	amount, currency = check_multicurrency(amount, currency, country)
 	return fmt_money(amount, 0, currency)
 
+def has_privileged_role(user=None):
+	"""Check if user has Supervisor or System Manager role."""
+	if not user:
+		user = frappe.session.user
+
+	roles = frappe.get_roles(user)
+	privileged_roles = {"Supervisor", "System Manager", "Administrator"}
+	return bool(privileged_roles.intersection(set(roles)))
+
+
+def get_user_country(user=None):
+	"""Get the country of the user from their profile."""
+	if not user:
+		user = frappe.session.user
+
+	return frappe.db.get_value("User", user, "country")
+
+
+def apply_country_based_course_filtering(filters):
+	"""Apply country-based filtering for courses based on user role and country."""
+	if filters is None:
+		filters = {}
+
+	# Skip filtering for privileged users
+	if has_privileged_role():
+		return filters
+
+	# Get user's country
+	user_country = get_user_country()
+
+	if not user_country:
+		# If user has no country set, they won't see any courses
+		# You can adjust this behavior as needed
+		filters["name"] = ["in", []]  # Empty list means no courses
+		return filters
+
+	# Get courses that are assigned to the user's country
+	# We need to check the child table custom_assigned_to_countries
+	assigned_courses = frappe.db.sql("""
+		SELECT DISTINCT parent
+		FROM `tabOption Country`
+		WHERE country = %s
+		AND parenttype = 'LMS Course'
+		AND parentfield = 'custom_assigned_to_countries'
+	""", (user_country,), as_list=True)
+
+	course_names = [course[0] for course in assigned_courses] if assigned_courses else []
+
+	# Apply filter to show only courses assigned to user's country
+	if course_names:
+		if "name" in filters and isinstance(filters["name"], list) and filters["name"][0] == "in":
+			# If there's already a name filter, intersect with it
+			existing_courses = set(filters["name"][1])
+			filters["name"] = ["in", list(existing_courses.intersection(set(course_names)))]
+		else:
+			filters["name"] = ["in", course_names]
+	else:
+		# No courses assigned to user's country
+		filters["name"] = ["in", []]
+
+	return filters
+
+
+def apply_role_based_course_filtering(filters):
+	"""Apply role-based filtering for courses based on user role."""
+	if filters is None:
+		filters = {}
+
+	# Skip filtering for privileged users
+	if has_privileged_role():
+		return filters
+
+	# Get user's roles
+	user_roles = frappe.get_roles(frappe.session.user)
+
+	if not user_roles:
+		# If user has no roles, they won't see any courses
+		filters["name"] = ["in", []]
+		return filters
+
+	# Get courses that are assigned to user's roles or "All"
+	# Build the query to check custom_assigned_to_role field
+	role_placeholders = ",".join(["%s"] * len(user_roles))
+	query_params = tuple(user_roles) + ("All",)
+
+	assigned_courses = frappe.db.sql(f"""
+		SELECT DISTINCT name
+		FROM `tabLMS Course`
+		WHERE (custom_assigned_to_role IN ({role_placeholders}) OR custom_assigned_to_role = %s)
+		AND published = 1
+	""", query_params, as_list=True)
+
+	course_names = [course[0] for course in assigned_courses] if assigned_courses else []
+
+	# Apply filter to show only courses assigned to user's roles
+	if course_names:
+		if "name" in filters and isinstance(filters["name"], list) and filters["name"][0] == "in":
+			# If there's already a name filter, intersect with it
+			existing_courses = set(filters["name"][1])
+			filters["name"] = ["in", list(existing_courses.intersection(set(course_names)))]
+		else:
+			filters["name"] = ["in", course_names]
+	else:
+		# No courses assigned to user's roles
+		filters["name"] = ["in", []]
+	return filters
 
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=500, seconds=60 * 60)
@@ -980,17 +1112,23 @@ def get_courses(filters=None, start=0):
 	if not filters:
 		filters = {}
 
+	# Apply country-based filtering for non-privileged users
+	filters = apply_country_based_course_filtering(filters)
+
+	# Apply role-based filtering for non-privileged users
+	filters = apply_role_based_course_filtering(filters)
+
 	filters, or_filters, show_featured = update_course_filters(filters)
 	fields = get_course_fields()
 
-	courses = frappe.get_all(
+	courses = frappe.get_list(
 		"LMS Course",
 		filters=filters,
 		fields=fields,
 		or_filters=or_filters,
 		order_by="enrollments desc",
 		start=start,
-		page_length=30,
+		page_length=page_length
 	)
 
 	if show_featured:
@@ -998,6 +1136,7 @@ def get_courses(filters=None, start=0):
 
 	courses = get_enrollment_details(courses)
 	courses = get_course_card_details(courses)
+
 	return courses
 
 
@@ -1109,13 +1248,53 @@ def get_course_fields():
 		"enable_certification",
 		"lessons",
 		"enrollments",
-		"rating",
+		"rating"
 	]
 
 
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=500, seconds=60 * 60)
 def get_course_details(course):
+	# Check if user has access to view this course based on country
+	if not frappe.session.user == "Guest" and not has_privileged_role():
+		# First check if user is enrolled in the course (including completed enrollments)
+		is_enrolled = frappe.db.exists("LMS Enrollment", {
+			"course": course,
+			"member": frappe.session.user
+		})
+
+		# If enrolled, allow access regardless of country restrictions or completion status
+		if not is_enrolled:
+			user_country = get_user_country()
+			if user_country:
+				# Check if course is assigned to user's country
+				has_access = frappe.db.sql("""
+					SELECT COUNT(*)
+					FROM `tabOption Country`
+					WHERE parent = %s
+					AND country = %s
+					AND parenttype = 'LMS Course'
+					AND parentfield = 'custom_assigned_to_countries'
+				""", (course, user_country))[0][0]
+
+				if not has_access:
+					frappe.throw(_("You do not have access to view this course."))
+			else:
+				frappe.throw(_("Please set your country in your user profile to access courses."))
+
+			# Check if course is assigned to user's role
+			user_roles = frappe.get_roles(frappe.session.user)
+			course_assigned_role = frappe.db.get_value("LMS Course", course, "custom_assigned_to_role")
+
+			# Allow access if course is assigned to "All" or if user has the assigned role
+			has_role_access = (
+				course_assigned_role == "All" or
+				course_assigned_role in user_roles
+			)
+
+			if not has_role_access:
+				frappe.throw(_("You do not have the required role to access this course."))
+
 	course_details = frappe.db.get_value(
 		"LMS Course",
 		course,
@@ -1277,11 +1456,34 @@ def get_lesson(course, chapter, lesson):
 			"disable_self_learning": course_info.disable_self_learning,
 		}
 
+	# Check lesson-level access restrictions for completed lessons
+	if (
+		frappe.session.user != "Guest"
+		and membership
+		and not has_course_moderator_role()
+		and not is_instructor(course)
+	):
+		from lms.lms.api import validate_lesson_access
+		access_result = validate_lesson_access(course, lesson_name)
+
+		if not access_result.get("access_granted", True):
+			return {
+				"access_restricted": 1,
+				"title": lesson_details.title,
+				"course_title": course_info.title,
+				"restriction_message": access_result.get("message", "Access restricted"),
+				"lesson_completed": access_result.get("lesson_completed", False)
+		}
+
+	# Removed prerequisite checking - users can now complete lessons in any order
+	# This allows flexible learning where users can jump to any lesson they prefer
+
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",
 		lesson_name,
 		[
 			"name",
+			"duration",
 			"title",
 			"include_in_preview",
 			"body",
@@ -1938,6 +2140,7 @@ def get_lesson_creation_details(course, chapter, lesson):
 			[
 				"name",
 				"title",
+				"duration",
 				"include_in_preview",
 				"body",
 				"content",

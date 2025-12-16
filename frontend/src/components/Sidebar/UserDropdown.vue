@@ -133,31 +133,10 @@ const userDropdownOptions = computed(() => {
 			group: '',
 			items: [
 				{
-					icon: User,
-					label: 'My Profile',
-					onClick: () => {
-						router.push(`/user/${userResource.data?.username}`)
-					},
-					condition: () => {
-						return isLoggedIn
-					},
-				},
-				{
 					icon: theme.value === 'light' ? Moon : Sun,
 					label: 'Toggle Theme',
 					onClick: () => {
 						toggleTheme()
-					},
-				},
-				{
-					component: markRaw(Apps),
-					condition: () => {
-						let cookies = new URLSearchParams(
-							document.cookie.split('; ').join('&')
-						)
-						let system_user = cookies.get('system_user')
-						if (system_user === 'yes') return true
-						else return false
 					},
 				},
 				{

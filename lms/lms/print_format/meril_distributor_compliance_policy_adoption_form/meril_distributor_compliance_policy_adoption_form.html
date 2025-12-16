@@ -1,0 +1,130 @@
+{%- set distributor = frappe.get_doc("Distributor", doc.distributor) -%}
+{%- set meril_company = distributor.meril_company_table[0].meril_company_name if distributor.meril_company_table else "______" -%}
+{%- set today_date = frappe.utils.format_date(frappe.utils.nowdate(), "d MMMM yyyy") -%}
+{%- set current_datetime = frappe.utils.format_datetime(frappe.utils.now(), "d MMMM yyyy, h:mm a") -%}
+{%- set user = frappe.get_doc("User", distributor.user_id) if distributor.user_id else None -%}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @page {
+            size: A4;
+            margin: 40px;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 14pt;
+            color: #000;
+            margin: 40px;
+            line-height: 1.5;
+        }
+        .letterhead {
+            text-align: center;
+            font-style: italic;
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px dashed #ccc;
+        }
+        .title {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 30px;
+        }
+        .content {
+            text-align: justify;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 14pt;
+        }
+        .info-section {
+            margin-top: 30px;
+        }
+        .info-line {
+            margin-bottom: 10px;
+        }
+        .signature-section {
+            margin-top: 40px;
+        }
+        .date-time {
+            margin-bottom: 20px;
+            font-size: 12pt;
+        }
+    </style>
+</head>
+<body>
+    
+
+    <div class="title">
+        Meril Distributor - Compliance Policy Adoption Form
+    </div>
+
+    <div class="date-time">
+        {{ current_datetime }}
+    </div>
+
+    <div class="content">
+        <p>
+            We <strong>{{ distributor.distributor_company_name }}</strong>, being the Distributor of Meril Companies :
+            <strong>
+                {%- if distributor.meril_company_table and distributor.meril_company_table|length > 0 -%}
+                    {%- for c in distributor.meril_company_table -%}
+                        {{ c.meril_company_name }}{%- if not loop.last %}, {% endif -%}
+                    {%- endfor -%}
+                {%- else -%}
+                    ______
+                {%- endif -%}
+            </strong>
+            do hereby certify that we have willingly adopted
+            attached Meril Distributor Compliance Policy as our own Compliance Policy with effect from
+            <strong>{{ today_date }}</strong> and declare to abide by the same.
+        </p>
+
+        <p>
+            All employees, partners, directors, proprietor of our organization are expected to observe
+            and adhere to this Policy.
+        </p>
+    </div>
+
+    <div class="section-title">
+        Nomination of Compliance Officer:
+    </div>
+
+    <div class="content">
+        <p>
+            <strong>{{ doc.entered_name or "_______" }}</strong> is nominated as
+            Compliance Officer of our organization with effect from <strong>{{ today_date }}</strong>
+        </p>
+    </div>
+
+    <div class="info-section">
+        <p style="font-weight: bold; margin-bottom: 20px;">
+            Authorized representative of {{ distributor.distributor_company_name }}
+        </p>
+
+        <div class="info-line">
+            <strong>Name:</strong> {{ distributor.distributor_name}}
+        </div>
+
+        <div class="info-line">
+            <strong>Email Id:</strong> {{ distributor.distributor_email_address or (user.email if user else "Not provided") }}
+        </div>
+
+        <div class="info-line">
+            <strong>Contact number:</strong> {{ distributor.distributor_contact_number or (user.mobile_no if user else "Not provided") }}
+        </div>
+
+        <div class="signature-section">
+            <strong>Sign and Seal:</strong> ________________________________
+            <br>
+        </div>
+    </div>
+</body>
+</html>

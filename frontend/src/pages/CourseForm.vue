@@ -139,6 +139,31 @@
 
 					<div class="px-5 md:px-10 pb-5 mb-5 space-y-5 border-b">
 						<div class="text-lg font-semibold text-ink-gray-9">
+							{{ __('Assigned Course To') }}
+						</div>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+							<!-- Role -->
+							<FormControl
+								type="select"
+								v-model="course.custom_assigned_to_role"
+								:label="__('Role')"
+								:options="[
+									{ label: __('All'), value: 'All' },
+									{ label: __('Employee'), value: 'Employee' },
+									{ label: __('Distributor'), value: 'Distributor' }
+								]"
+								:placeholder="__('Select a role')"
+							/>
+							<!-- Countries -->
+							<MultiSelect
+								v-model="assigned_countries"
+								doctype="Country"
+								:label="__('Countries')"
+							/>
+						</div>
+					</div>
+					<div class="px-5 md:px-10 pb-5 mb-5 space-y-5 border-b">
+						<div class="text-lg font-semibold text-ink-gray-9">
 							{{ __('Settings') }}
 						</div>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -371,6 +396,7 @@ const { brand } = sessionStore()
 const router = useRouter()
 const instructors = ref([])
 const related_courses = ref([])
+const assigned_countries = ref([])
 const app = getCurrentInstance()
 const { updateOnboardingStep } = useOnboarding('learning')
 const { $dialog } = app.appContext.config.globalProperties
@@ -402,6 +428,8 @@ const course = reactive({
 	currency: '',
 	evaluator: '',
 	timezone: '',
+	custom_assigned_to_role: '',
+	custom_country: ''
 })
 
 const meta = reactive({
@@ -444,6 +472,8 @@ onBeforeUnmount(() => {
 	stopRecording()
 })
 
+// Country select now uses Link control which fetches options server-side
+
 const courseCreationResource = createResource({
 	url: 'frappe.client.insert',
 	makeParams(values) {
@@ -457,6 +487,9 @@ const courseCreationResource = createResource({
 				related_courses: related_courses.value.map((course) => ({
 					course: course,
 				})),
+                custom_assigned_to_countries: assigned_countries.value.map((c) => ({
+                    country: c,
+                })),
 				...values,
 			},
 		}
@@ -478,6 +511,9 @@ const courseEditResource = createResource({
 				related_courses: related_courses.value.map((course) => ({
 					course: course,
 				})),
+                custom_assigned_to_countries: assigned_countries.value.map((c) => ({
+                    country: c,
+                })),
 				...course,
 			},
 		}
@@ -505,6 +541,11 @@ const courseResource = createResource({
 				data.related_courses.forEach((course) => {
 					related_courses.value.push(course.course)
 				})
+            } else if (key == 'custom_assigned_to_countries') {
+                assigned_countries.value = []
+                data.custom_assigned_to_countries.forEach((row) => {
+                    row.country && assigned_countries.value.push(row.country)
+                })
 			} else if (Object.hasOwn(course, key)) course[key] = data[key]
 		})
 		let checkboxes = [

@@ -1,0 +1,42 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"2gWoSDKnny\",\"type\":\"chart\",\"data\":{\"chart_name\":\"documents submissions\",\"col\":6}},{\"id\":\"sVuVW3TSc5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Distributor Table</b></span>\",\"col\":12}},{\"id\":\"KNm2koww0q\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Distributor Report\",\"col\":12}},{\"id\":\"5cDdkVvluz\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Employee Table</b></span>\",\"col\":12}},{\"id\":\"X41xyoC9VE\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Employee Report\",\"col\":12}}]",
+ "creation": "2025-08-07 11:20:25.991780",
+ "custom_blocks": [
+  {
+   "custom_block_name": "Employee Report",
+   "label": "Employee Report"
+  },
+  {
+   "custom_block_name": "Distributor Report",
+   "label": "Distributor Report"
+  }
+ ],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "folder-normal",
+ "idx": 0,
+ "indicator_color": "",
+ "is_hidden": 0,
+ "label": "Admin Dashboard",
+ "links": [],
+ "modified": "2025-09-12 12:32:41.969058",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "Admin Dashboard",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "LMS",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Supervisor"
+  }
+ ],
+ "sequence_id": 2.0,
+ "shortcuts": [],
+ "title": "Admin Dashboard"
+}

@@ -1,0 +1,91 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{user}-{course}",
+ "creation": "2025-07-02 20:04:30.099024",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "submited_document",
+  "signature",
+  "column_break_siss",
+  "course",
+  "section_break_qxui",
+  "distributor_completion_certificate",
+  "employee_declaration_form"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "default": "0",
+   "fieldname": "submited_document",
+   "fieldtype": "Check",
+   "label": "Submited document"
+  },
+  {
+   "fieldname": "column_break_siss",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "course",
+   "fieldtype": "Link",
+   "label": "Course",
+   "options": "LMS Course"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Link",
+   "label": "Signature",
+   "options": "Signature Type"
+  },
+  {
+   "fieldname": "section_break_qxui",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "distributor_completion_certificate",
+   "fieldtype": "Link",
+   "label": "Distributor Completion Certificate",
+   "options": "Print Format"
+  },
+  {
+   "fieldname": "employee_declaration_form",
+   "fieldtype": "Link",
+   "label": "Employee Declaration Form",
+   "options": "Print Format"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-07-17 14:21:19.557494",
+ "modified_by": "Administrator",
+ "module": "LMS",
+ "name": "User Course Documents",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

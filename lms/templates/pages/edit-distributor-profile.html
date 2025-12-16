@@ -1,0 +1,383 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+    <div class="container " style="max-width: 700px;">
+    <h4 class="mb-4 mx-auto text-center">Edit Distributor Profile</h4>
+        <p class="alert alert-info d-none" id="distributor-profile-info">You are logged in as a distributor. Please update your profile details below.</p>
+        <p class="alert alert-warning d-none" id="non-distributor-profile-info">You are not logged in as a distributor. Please log in to edit your profile.</p>
+    <form id="edit-distributor-profile-form">  
+        <div class="row">
+            <div class="form-group col-12">
+                <label>Meril Company Table <span class="text-danger">*</span></label>
+                <div id="meril-company-table-container" class="table-responsive">
+                    <table class="table table-bordered mb-0" id="meril-company-table">
+                        <thead>
+                            <tr>
+                                <th>Division</th>
+                                <th>Meril Company Name</th>
+                                <th>RSM</th>
+                                <th>BU Head</th>
+                                <th>Distributor Code</th>
+                            </tr>
+                        </thead>
+                        <tbody id="meril-company-table-body">
+                        </tbody>
+                    </table>
+                    <div id="meril-company-table-error" class="text-danger mt-2" style="display:none;">At least one record is required for Meril Company Table.</div>
+                </div>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="input-region">Region</label>
+                <input type="text" class="form-control" id="input-region" name="region" value="{{ frappe.session.user_doc.region or '' }}" readonly>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="input-state">State</label>
+                <input type="text" class="form-control" id="input-state" name="state" value="{{ frappe.session.user_doc.state or '' }}" readonly>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="input-city">City</label>
+                <input type="text" class="form-control" id="input-city" name="city" value="{{ frappe.session.user_doc.city or '' }}" readonly>
+            </div>
+            <!-- Distributor code field removed as per instructions -->
+
+            <!-- Distributor Company Name (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-distributor_company_name">Distributor Company Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="input-distributor_company_name" name="distributor_company_name" value="{{ frappe.session.user_doc.distributor_company_name or '' }}" readonly required>
+            </div>
+            <!-- Distributor Email (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-distributor_email">Distributor Email <span class="text-danger">*</span></label>
+                <input type="email" class="form-control" id="input-distributor_email" name="distributor_email" value="{{ frappe.session.user_doc.distributor_email or '' }}" readonly required>
+            </div>
+            <!-- Distributor Address (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-distributor_address">Distributor Address <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="input-distributor_address" name="distributor_address" value="{{ frappe.session.user_doc.distributor_address or '' }}" readonly required>
+            </div>
+            <!-- Distributor Contact (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-distributor_contact">Distributor Contact <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="input-distributor_contact" name="distributor_contact" value="{{ frappe.session.user_doc.distributor_contact or '' }}" readonly required>
+            </div>
+            <!-- Attendee Name (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-attendee_name">Attendee Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="input-attendee_name" name="attendee_name" value="{{ frappe.session.user_doc.attendee_name or '' }}" required>
+                <small class="form-text text-muted">Enter the name of the enrolled person</small>
+            </div>
+            <!-- Designation (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-designation">Designation <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="input-designation" name="designation" value="{{ frappe.session.user_doc.designation or '' }}" required>
+                <small class="form-text text-muted">Enter the designation of the enrolled person</small>
+            </div>
+            <!-- Country Name (Mandatory) -->
+            <div class="form-group col-md-6">
+                <label for="input-country">Country <span class="text-danger">*</span></label>
+                <select class="form-control" id="input-country" name="country" disabled required>
+                    <option value="">Select Country</option>
+                </select>
+            </div>
+            <div class="form-group col-12">
+                <button type="submit" class="btn btn-primary btn-block w-100 mt-3 mx-auto">Save</button>
+            </div>
+        </div>
+    </form>
+    </div>
+
+    <script>
+        const responsiveTableStyles = `
+            #meril-company-table-container.table-responsive { overflow-x: auto; }
+            #meril-company-table { table-layout: auto; }
+            #meril-company-table th, #meril-company-table td { white-space: nowrap; }
+            /* Make inputs/selects in table shrink to their text width */
+            #meril-company-table input.form-control,
+            #meril-company-table select.form-control {
+                display: inline-block;
+                width: -moz-fit-content;
+                width: fit-content;
+                width: max-content;
+                min-width: 0;
+                max-width: 150px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            @media (max-width: 576px) {
+                #meril-company-table th, #meril-company-table td { padding: 0.5rem; font-size: 0.85rem; }
+                #meril-company-table .form-control { padding: 0.25rem 0.5rem; height: auto; font-size: 0.85rem; }
+            }
+        `;
+        (function injectResponsiveStyles(){
+            if (!document.getElementById('meril-table-responsive-style')) {
+                const style = document.createElement('style');
+                style.id = 'meril-table-responsive-style';
+                style.type = 'text/css';
+                style.appendChild(document.createTextNode(responsiveTableStyles));
+                document.head.appendChild(style);
+            }
+        })();
+        // Store division-company list for division/company mapping
+        let divisionCompanyList = [];
+        // Store country list from backend
+        let countryList = [];
+
+        frappe.ready(function(){
+            get_distributor_profile();
+        });
+        setTimeout(()=>{
+            document.querySelector("body > footer").remove()
+        },100)
+        
+        function populateCountryOptions(selectedCountry = "") {
+            let html = '<option value="">Select Country</option>';
+            countryList.forEach(function(country) {
+                html += `<option value="${country}"${selectedCountry && country === selectedCountry ? ' selected' : ''}>${country}</option>`;
+            });
+            $('#input-country').html(html);
+        }
+
+        const get_distributor_profile = async () => {
+            try{
+                const res = await frappe.call({
+                    method: "lms.lms.user.get_distributor_profile",
+                    type: "GET",
+                    args: {
+                        "user_id": frappe.session.user
+                    }
+                });
+                $("#distributor-profile-info").removeClass("d-none");
+                if(res?.message) {
+                    // Use division_company_list for division/company mapping
+                    divisionCompanyList = Array.isArray(res.message.division_company_list) ? res.message.division_company_list : [];
+                    // Use country_list from backend for country select
+                    countryList = Array.isArray(res.message.country_list) ? res.message.country_list : [];
+                    console.log('Full response:', res.message);
+                    console.log('Division Company List:', divisionCompanyList);
+                    console.log('Meril Company Table Data:', res.message.meril_company_table);
+                    fill_distributor_profile(res.message);
+                }
+                else
+                    window.location.href = res.redirect || "/lms";
+            } catch (error) {
+                console.log("error ", error);
+                frappe.throw("Error fetching distributor profile", error); 
+            }
+
+            $("#edit-distributor-profile-form").on("submit", function(e){
+                e.preventDefault();
+                // Validate mandatory fields before submitting
+                if (!validateMandatoryFields()) {
+                    return;
+                }
+                update_distributor_profile();
+            });
+        }
+        
+        const update_distributor_profile = async () => {
+            try{
+                const data = get_form_data();
+                let res = await frappe.call({
+                    method: "lms.lms.user.update_distributor_profile",
+                    type: "POST",
+                    args: {
+                        "data": data
+                    }
+                });
+                console.log("response ", res)
+                if(res?.redirect){
+                    window.location.href = res.redirect;
+                }
+            } catch (error) {
+                frappe.throw("Error updating User Profile", error);
+                console.log("error ", error);
+            }
+        }
+        
+        function get_form_data(){
+            const data = {};
+            data.region = $('#input-region').val();
+            data.state = $('#input-state').val();
+            data.city = $('#input-city').val();
+            data.account__distributor_code = $('#input-distributor_code').val();
+            data.distributor_company_name = $('#input-distributor_company_name').val();
+            data.distributor_email_address = $('#input-distributor_email').val();
+            data.distributor_company_address = $('#input-distributor_address').val();
+            data.distributor_contact_number = $('#input-distributor_contact').val();
+            data.attendee_name = $('#input-attendee_name').val();
+            data.designation = $('#input-designation').val();
+            data.country = $('#input-country').val();
+
+            // Get child table data
+            data.meril_company_table = getMerilCompanyTableData();
+
+            return data;
+        }
+
+        function getMerilCompanyTableData() {
+            const tableData = [];
+            $('#meril-company-table-body tr').each(function() {
+                const division = $(this).find('.division-input').val();
+                const merilCompanyName = $(this).find('.meril-company-name').val();
+                const rsm = $(this).find('.rsm-input').val();
+                const buHead = $(this).find('.bu-head-input').val();
+                const distributorCode = $(this).find('.distributor-code-input').val();
+                if (division || merilCompanyName || rsm || buHead || distributorCode) {
+                    tableData.push({
+                        division: division,
+                        meril_company_name: merilCompanyName,
+                        rsm: rsm,
+                        bu_head: buHead,
+                        distributor_code: distributorCode
+                    });
+                }
+            });
+            return tableData;
+        }
+
+        // Helper to create select options HTML for divisions
+        function getDivisionOptionsHtml(selectedValue) {
+            let html = '<option value="">Select</option>';
+
+            // If we have divisions list, use it
+            if (divisionCompanyList && divisionCompanyList.length > 0) {
+                divisionCompanyList.forEach(function(opt) {
+                    // Division doctype has 'name' field
+                    let value = opt.name || '';
+                    let display = opt.name || '';
+                    html += `<option value="${value}"${selectedValue && value === selectedValue ? ' selected' : ''}>${display}</option>`;
+                });
+            }
+            // If no list but we have a selected value, at least show that
+            else if (selectedValue) {
+                html += `<option value="${selectedValue}" selected>${selectedValue}</option>`;
+            }
+
+            return html;
+        }
+
+        // Get company name for a given division
+        function getCompanyNameForDivision(division) {
+            if (!divisionCompanyList || divisionCompanyList.length === 0) {
+                console.log('Division company list is empty');
+                return '';
+            }
+            let found = divisionCompanyList.find(function(opt) {
+                // Match by name field from Division doctype
+                return opt.name === division;
+            });
+            console.log('Looking for division:', division, 'Found:', found);
+            // Return the company field from the division record
+            return found ? (found.company || found.meril_company || '') : '';
+        }
+
+
+        // When division changes, update company name in the same row
+        window.onDivisionChange = function(selectElem, rowId) {
+            const division = $(selectElem).val();
+            const companyName = getCompanyNameForDivision(division);
+            $('#' + rowId).find('.meril-company-name').val(companyName);
+        }
+
+
+        function fill_distributor_profile(data) {
+            $('#input-region').val(data.region || '');
+            $('#input-state').val(data.state || '');
+            $('#input-city').val(data.city || '');
+            $('#input-distributor_code').val(data.account__distributor_code || '');
+            $('#input-distributor_company_name').val(data.distributor_company_name || '');
+            $('#input-distributor_email').val(data.distributor_email_address || '');
+            $('#input-distributor_address').val(data.distributor_company_address || '');
+            $('#input-distributor_contact').val(data.distributor_contact_number || '');
+            $('#input-attendee_name').val(data.attendee_name || '');
+            $('#input-designation').val(data.designation || '');
+            // Set country select
+            populateCountryOptions(data.country || '');
+
+            // Fill child table data
+            $('#meril-company-table-body').empty();
+            if (data.meril_company_table && Array.isArray(data.meril_company_table)) {
+                console.log('Filling Meril Company Table with:', data.meril_company_table);
+                data.meril_company_table.forEach(function(item) {
+                    // Division field is linked to Division doctype
+                    const divisionValue = item.division || '';
+                    const companyName = item.meril_company_name || '';
+                    const rsmValue = item.rsm || '';
+                    const buHeadValue = item.bu_head || '';
+                    const distributorCodeValue = item.distributor_code || '';
+                    console.log('Adding row - item:', item, 'division:', divisionValue, 'company:', companyName, 'rsm:', rsmValue, 'bu_head:', buHeadValue, 'distributor_code:', distributorCodeValue);
+                    
+                    // Create row directly without add/remove functionality
+                    const rowId = 'row_' + Date.now() + Math.floor(Math.random()*1000);
+                    const divisionSelect = `<select class="form-control division-input" onchange="onDivisionChange(this, '${rowId}')" disabled>${getDivisionOptionsHtml(divisionValue)}</select>`;
+                    const companyInput = `<input type="text" class="form-control meril-company-name" value="${companyName || ''}" readonly tabindex="-1">`;
+                    const rsmInput = `<input type="text" class="form-control rsm-input" value="${rsmValue || ''}" readonly tabindex="-1">`;
+                    const buHeadInput = `<input type="text" class="form-control bu-head-input" value="${buHeadValue || ''}" readonly tabindex="-1">`;
+                    const distributorCodeInput = `<input type="text" class="form-control distributor-code-input" value="${distributorCodeValue || ''}" readonly tabindex="-1">`;
+                    const newRow = `
+                        <tr id="${rowId}">
+                            <td>${divisionSelect}</td>
+                            <td>${companyInput}</td>
+                            <td>${rsmInput}</td>
+                            <td>${buHeadInput}</td>
+                            <td>${distributorCodeInput}</td>
+                        </tr>
+                    `;
+                    $('#meril-company-table-body').append(newRow);
+                });
+            } else if (!data.meril_company_table) {
+                console.log('No meril_company_table data received from backend');
+            }
+        }
+
+        // Validate mandatory fields before submitting
+        function validateMandatoryFields() {
+            // List of mandatory field selectors and their labels
+            const mandatoryFields = [
+                { selector: '#input-distributor_company_name', label: 'Distributor Company Name' },
+                { selector: '#input-distributor_email', label: 'Distributor Email' },
+                { selector: '#input-distributor_address', label: 'Distributor Address' },
+                { selector: '#input-distributor_contact', label: 'Distributor Contact' },
+                { selector: '#input-attendee_name', label: 'Attendee Name' },
+                { selector: '#input-designation', label: 'Designation' },
+                { selector: '#input-country', label: 'Country' }
+            ];
+
+            let missingFields = [];
+            mandatoryFields.forEach(function(field) {
+                if (!$(field.selector).val() || $(field.selector).val().trim() === '') {
+                    missingFields.push(field.label);
+                    $(field.selector).addClass('is-invalid');
+                } else {
+                    $(field.selector).removeClass('is-invalid');
+                }
+            });
+
+            // Check for at least one record in Meril Company Table
+            const merilCompanyTableData = getMerilCompanyTableData();
+            if (merilCompanyTableData.length === 0) {
+                $('#meril-company-table-error').show();
+            } else {
+                $('#meril-company-table-error').hide();
+            }
+
+            if (missingFields.length > 0 || merilCompanyTableData.length === 0) {
+                let message = '';
+                if (missingFields.length > 0) {
+                    message += __('Please fill the following mandatory fields:') + '<br><ul><li>' + missingFields.join('</li><li>') + '</li></ul>';
+                }
+                if (merilCompanyTableData.length === 0) {
+                    message += '<div class="mt-2">' + __('At least one record is required for Meril Company Table.') + '</div>';
+                }
+                frappe.msgprint({
+                    title: __('Missing Required Fields'),
+                    message: message,
+                    indicator: 'red'
+                });
+                return false;
+            }
+            return true;
+        }
+            
+    </script>
+{% endblock %}

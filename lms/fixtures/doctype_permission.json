@@ -1,0 +1,131 @@
+[
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Country Permission",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "LMS Student",
+    "script": "user_country = frappe.db.get_value('User', user, 'country')\nconditions = f\"custom_country = '{user_country}'\" if user_country else 'false'"
+   }
+  ],
+  "description": "Restrict access to LMS Courses to users whose country matches the course's country.",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-09-18 13:40:08.192548",
+  "name": "LMS Course Country Permission",
+  "ref_doctype": "LMS Course",
+  "testing": 0,
+  "title": "LMS Course Country Permission"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Admin Full Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Administrator",
+    "script": "conditions = 'true'"
+   }
+  ],
+  "description": "Allow Administrator to see all LMS Courses.",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-09-18 13:42:10.813152",
+  "name": "LMS Course Admin Full Access",
+  "ref_doctype": "LMS Course",
+  "testing": 0,
+  "title": "LMS Course Admin Full Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Distributor Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Distributor",
+    "script": "conditions = \"custom_assigned_to_role IN ('Distributor', 'All')\""
+   }
+  ],
+  "description": "Distributor can only access courses if it as assigned to him or all user",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-09-18 13:42:05.237366",
+  "name": "LMS Course Distributor Access",
+  "ref_doctype": "LMS Course",
+  "testing": 0,
+  "title": "LMS Course Distributor Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Employee Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Employee",
+    "script": "conditions = \"custom_assigned_to_role IN ('Employee', 'All')\""
+   }
+  ],
+  "description": "Employee can access course if it is assigned to him or all users",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-08-18 17:56:25.308608",
+  "name": "LMS Course Employee Access",
+  "ref_doctype": "LMS Course",
+  "testing": 0,
+  "title": "LMS Course Employee Access"
+ },
+ {
+  "amended_from": null,
+  "conditions": [
+   {
+    "parent": "LMS Course Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Distributor",
+    "script": "dis_country = frappe.db.get_value(\"Distributor\", {\"user_id\": user}, \"country\")\n\nconditions = f\"\"\"EXISTS(\n        SELECT 1\n        FROM `tabOption Country` child\n        WHERE child.parent = `tabLMS Course`.name  AND\n        child.country = '{dis_country}'\n    )\n    AND \n custom_assigned_to_role IN ('Distributor', 'All')\n\"\"\""
+   },
+   {
+    "parent": "LMS Course Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Full Access",
+    "role": "Administrator",
+    "script": "conditions = \"true\""
+   },
+   {
+    "parent": "LMS Course Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Full Access",
+    "role": "Supervisor",
+    "script": "conditions = \"true\""
+   },
+   {
+    "parent": "LMS Course Access",
+    "parentfield": "conditions",
+    "parenttype": "DocType Permission",
+    "perm_level": "Custom Query",
+    "role": "Employee",
+    "script": "emp_country = frappe.db.get_value(\"Employee\", {\"user_id\": user}, \"country\")\n\nconditions = f\"\"\"EXISTS(\n        SELECT 1\n        FROM `tabOption Country` child\n        WHERE child.parent = `tabLMS Course`.name  AND\n        child.country = '{emp_country}'\n    )\n    AND \n custom_assigned_to_role IN ('Employee', 'All')\n\"\"\""
+   }
+  ],
+  "description": "LMS Course Access According Country and Roles",
+  "docstatus": 0,
+  "doctype": "DocType Permission",
+  "modified": "2025-09-18 15:31:36.588999",
+  "name": "LMS Course Access",
+  "ref_doctype": "LMS Course",
+  "testing": 1,
+  "title": "LMS Course Access"
+ }
+]

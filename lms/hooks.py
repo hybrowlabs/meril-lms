@@ -11,6 +11,7 @@ app_color = "grey"
 app_email = "jannat@frappe.io"
 app_license = "AGPL"
 
+    
 # Includes in <head>
 # ------------------
 
@@ -34,7 +35,7 @@ web_include_js = []
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Department": "public/js/department.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -46,9 +47,9 @@ web_include_js = []
 # home_page = "login"
 
 # website user home page (by Role)
-# role_home_page = {
-# 	"Role": "home_page"
-# }
+role_home_page = {
+	"Can Edit Own Profile": "/edit-distributor-profile"
+}
 
 # Generators
 # ----------
@@ -89,6 +90,8 @@ setup_wizard_requires = "assets/lms/js/setup_wizard.js"
 
 override_doctype_class = {
 	"Web Template": "lms.overrides.web_template.CustomWebTemplate",
+	"Employee": "lms.overrides.employee.CustomEmployeeMaster",
+	"Department": "lms.overrides.department.CustomDepartment",
 }
 
 # Document Events
@@ -110,6 +113,8 @@ doc_events = {
 		"validate": "lms.lms.user.validate_username_duplicates",
 		"after_insert": "lms.lms.user.after_insert",
 	},
+    "Employee": {"after_insert": "lms.lms.user.create_user_from_employee"},
+	"Distributor": {"after_insert": "lms.lms.user.create_user_from_distributor_hook"},
 }
 
 # Scheduled Tasks
@@ -126,10 +131,15 @@ scheduler_events = {
 		"lms.lms.doctype.lms_payment.lms_payment.send_payment_reminder",
 		"lms.lms.doctype.lms_batch.lms_batch.send_batch_start_reminder",
 		"lms.lms.doctype.lms_live_class.lms_live_class.send_live_class_reminder",
+		"lms.lms.user.send_daily_login_reminders",  # daily login reminder function
+		"lms.lms.user.send_daily_course_reminders",  # daily course completion reminder function
 	],
+	
 }
 
-fixtures = ["Custom Field", "Function", "Industry", "LMS Category"]
+fixtures = ["Custom Field", "Function", "Industry", "LMS Category", "Role", "User Course Documents", "Print Format", "Custom HTML Block", "Property Setter",
+            {"doctype": "DocType Permission", "filters": [["ref_doctype", "=", "LMS Course"]]},
+            ]
 
 # Testing
 # -------
@@ -141,6 +151,7 @@ fixtures = ["Custom Field", "Function", "Industry", "LMS Category"]
 #
 override_whitelisted_methods = {
 	# "frappe.desk.search.get_names_for_mentions": "lms.lms.utils.get_names_for_mentions",
+	 "frappe.utils.print_format.download_pdf": "lms.lms.api.distributor_download_pdf"
 }
 #
 # each overriding function accepts a `data` argument;
@@ -183,6 +194,7 @@ website_redirects = [
 		"match_with_query_string": True,
 	},
 	{"source": "/statistics", "target": "/lms/statistics"},
+    {"source": "/#signup", "target": "/new-sign-up"},
 ]
 
 update_website_context = [
@@ -241,7 +253,9 @@ profile_url_prefix = "/users/"
 
 signup_form_template = "lms.plugins.show_custom_signup"
 
+# Login hook for tracking distributor activity
 on_login = "lms.lms.user.on_login"
+auth_hooks =  [ "lms.lms.user.user_after_login" ]
 
 get_site_info = "lms.activation.get_site_info"
 

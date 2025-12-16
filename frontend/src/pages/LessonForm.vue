@@ -22,6 +22,38 @@
 							class="mb-4"
 							:required="true"
 						/>
+						<div class="mb-4">
+							<label class="block font-medium text-ink-gray-5 mb-1">
+								{{ __('Duration') }}
+								<span v-if="duration_minutes || duration_seconds" class="ml-2 text-ink-gray-4 text-sm">
+									({{ (duration_minutes || 0) }}m {{ (duration_seconds || 0) }}s)
+								</span>
+							</label>
+							<div v-if="Object.keys(videoDurations).length > 0" class="text-xs text-ink-gray-4 mb-1">
+								{{ __('Duration is auto-set from total video length.') }}
+							</div>
+							<div class="flex gap-4">
+								<FormControl
+									v-model="duration_minutes"
+									label="minutes"
+									type="number"
+									min="0"
+									:required="true"
+									class="flex-1"
+									:readonly="Object.keys(videoDurations).length > 0"
+								/>
+								<FormControl
+									v-model="duration_seconds"
+									label="seconds"
+									type="number"
+									min="0"
+									max="59"
+									:required="true"
+									class="flex-1"
+									:readonly="Object.keys(videoDurations).length > 0"
+								/>
+							</div>
+						</div>
 						<FormControl
 							v-model="lesson.include_in_preview"
 							type="checkbox"
@@ -93,6 +125,8 @@ import {
 	inject,
 	ref,
 	onBeforeUnmount,
+	watch,
+	nextTick,
 } from 'vue'
 import { sessionStore } from '../stores/session'
 import EditorJS from '@editorjs/editorjs'
@@ -110,6 +144,16 @@ const openInstructorEditor = ref(false)
 const { updateOnboardingStep } = useOnboarding('learning')
 let autoSaveInterval
 let showSuccessMessage = false
+const videoDurations = ref({})
+
+function updateLessonDurationFromVideos() {
+  const durations = Object.values(videoDurations.value)
+  if (durations.length === 0) return
+  const totalSeconds = Math.round(durations.reduce((a, b) => a + b, 0))
+  duration_minutes.value = Math.floor(totalSeconds / 60)
+  duration_seconds.value = totalSeconds % 60
+  lesson.duration = totalSeconds
+}
 
 const props = defineProps({
 	courseName: {
@@ -126,16 +170,25 @@ const props = defineProps({
 	},
 })
 
-onMounted(() => {
+onMounted(async () => {
 	if (!user.data?.is_moderator && !user.data?.is_instructor) {
 		window.location.href = '/login'
 	}
 	capture('lesson_form_opened')
 	startRecording()
+	await nextTick() // Wait for DOM to be ready
 	editor.value = renderEditor('content')
 	instructorEditor.value = renderEditor('instructor-notes')
 	window.addEventListener('keydown', keyboardShortcut)
 	enablePlyr()
+	// Listen for video-duration events
+	window.addEventListener('video-duration', (e) => {
+		const { file, duration } = e.detail || {}
+		if (file && duration) {
+			videoDurations.value[file] = duration
+			updateLessonDurationFromVideos()
+		}
+	})
 })
 
 const renderEditor = (holder) => {
@@ -149,13 +202,20 @@ const renderEditor = (holder) => {
 	})
 }
 
+
 const lesson = reactive({
 	title: '',
+	duration: 0,
 	include_in_preview: false,
 	body: '',
 	instructor_notes: '',
 	content: '',
 })
+
+const duration_seconds = ref(0);
+const duration_minutes = ref(0);
+
+
 
 const lessonDetails = createResource({
 	url: 'lms.lms.utils.get_lesson_creation_details',
@@ -170,6 +230,8 @@ const lessonDetails = createResource({
 			Object.keys(data.lesson).forEach((key) => {
 				lesson[key] = data.lesson[key]
 			})
+			// Force reactivity for duration
+			lesson.duration = Number(data.lesson.duration || 0)
 			lesson.include_in_preview = data?.lesson?.include_in_preview
 				? true
 				: false
@@ -179,6 +241,21 @@ const lessonDetails = createResource({
 		}
 	},
 })
+
+// Update duration_minutes and duration_seconds when lessonDetails is fetched
+watch(
+	() => lessonDetails.data,
+	(data) => {
+		if (data && data.lesson && data.lesson.duration != null && !isNaN(data.lesson.duration)) {
+			duration_minutes.value = Math.floor(Number(data.lesson.duration) / 60)
+			duration_seconds.value = Number(data.lesson.duration) % 60
+		} else {
+			duration_minutes.value = 0
+			duration_seconds.value = 0
+		}
+	},
+	{ immediate: true }
+)
 
 const addLessonContent = (data) => {
 	editor.value.isReady.then(() => {
@@ -380,6 +457,11 @@ const convertToJSON = (lessonData) => {
 
 const saveLesson = (e) => {
 	showSuccessMessage = false
+
+	const minutes = Number(duration_minutes.value) || 0
+	const seconds = Number(duration_seconds.value) || 0
+	lesson.duration = minutes * 60 + seconds
+
 	if (typeof e != 'undefined' && e.showSuccessMessage) {
 		showSuccessMessage = true
 	}
