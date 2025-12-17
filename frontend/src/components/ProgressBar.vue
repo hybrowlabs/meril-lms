@@ -26,7 +26,8 @@ const props = defineProps({
 })
 
 const progressBarWidth = computed(() => {
-	const formattedPercentage = Math.min(Math.ceil(props.progress), 100)
+	// Clamp progress to 0-100 range
+	const formattedPercentage = Math.max(0, Math.min(Math.ceil(props.progress), 100))
 	return `${formattedPercentage}%`
 })
 

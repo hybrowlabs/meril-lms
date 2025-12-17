@@ -394,8 +394,10 @@ onMounted(() => {
 	document.addEventListener('visibilitychange', handleVisibilityChange)
 	window.addEventListener('beforeunload', handleBeforeUnload)
 	socket.on('update_lesson_progress', (data) => {
-		if (data.course === props.courseName) {
-			lessonProgress.value = data.progress
+		// Only update if for current user AND current course
+		if (data.course === props.courseName && data.member === user.data?.name) {
+			// Clamp on frontend as extra safety
+			lessonProgress.value = Math.max(0, Math.min(100, data.progress))
 		}
 	})
 	window.addEventListener('video-completed', handleVideoCompleted)
@@ -426,6 +428,7 @@ const attachFullscreenEvent = () => {
 onBeforeUnmount(() => {
 	document.removeEventListener('fullscreenchange', attachFullscreenEvent)
 	window.removeEventListener('video-completed', handleVideoCompleted)
+	socket.off('update_lesson_progress') // Clean up socket listener
 	if (timerFrame) cancelAnimationFrame(timerFrame)
 	if (timerSaveInterval) clearInterval(timerSaveInterval)
 	saveTimerToBackend() // Final save before unmounting

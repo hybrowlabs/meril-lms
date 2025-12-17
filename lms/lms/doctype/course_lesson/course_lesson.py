@@ -8,7 +8,6 @@ from frappe.model.document import Document
 from frappe.utils.telemetry import capture
 from lms.lms.utils import get_course_progress
 from ...md import find_macros
-from frappe.realtime import get_website_room
 
 
 class CourseLesson(Document):
@@ -181,7 +180,8 @@ def save_progress(lesson, course, completed_videos=None):
 	# Update enrollment progress and check completion
 	enrollment = frappe.get_doc("LMS Enrollment", membership)
 	previous_progress = enrollment.progress or 0
-	enrollment.progress = progress
+	# Clamp progress to 0-100 for safety
+	enrollment.progress = max(0, min(100, progress))
 	enrollment.save()
 	enrollment.run_method("on_change")
 
@@ -201,8 +201,8 @@ def save_progress(lesson, course, completed_videos=None):
 
 	frappe.publish_realtime(
 		event="update_lesson_progress",
-		room=get_website_room(),
-		message={"course": course, "lesson": lesson, "progress": progress},
+		user=frappe.session.user,
+		message={"course": course, "lesson": lesson, "progress": progress, "member": frappe.session.user},
 		after_commit=True,
 	)
 
