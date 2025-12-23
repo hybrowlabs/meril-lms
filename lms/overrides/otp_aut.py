@@ -90,11 +90,132 @@ def requires_mobile_otp():
     Defaults to True if country is not set (for safety).
     """
     country = get_user_country_for_otp()
+
+    # First check if mobile OTP is enabled in settings
+    otp_enabled_mobile = frappe.db.get_single_value("LMS Settings", "otp_enabled_mobile") or 0
+    if not otp_enabled_mobile:
+        return {"requires_mobile_otp": False}
+
     # India country code/name might be "India" or "IN" depending on system
     is_india = country and (country.upper() == "INDIA" or country.upper() == "IN")
     return {"requires_mobile_otp": is_india if country else True}
 
-        
+
+def is_otp_required_for_user(user=None):
+    """
+    Check if OTP verification is required for the given user based on:
+    1. Admin/System Manager/Supervisor bypass
+    2. OTP excluded users table
+    3. Role-based feature flags (Employee/Distributor)
+    4. Channel flags (email/mobile) - at least one must be enabled
+
+    Returns:
+        dict: {
+            "required": bool,
+            "reason": str,
+            "email_enabled": bool,
+            "mobile_enabled": bool
+        }
+    """
+    if user is None:
+        user = frappe.session.user
+
+    user_doc = frappe.get_doc("User", user)
+    roles = [role.role for role in user_doc.roles]
+
+    # 1. Admin bypass - always skip OTP
+    if "System Manager" in roles or "Administrator" in roles or "Supervisor" in roles:
+        return {
+            "required": False,
+            "reason": "Admin/Supervisor bypass",
+            "email_enabled": False,
+            "mobile_enabled": False
+        }
+
+    # 2. Check if user is in exclusion list
+    try:
+        lms_settings = frappe.get_single("LMS Settings")
+        excluded_users = lms_settings.get("otp_excluded_users", [])
+        for excluded_user in excluded_users:
+            if excluded_user.user == user and excluded_user.disabled == 1:
+                return {
+                    "required": False,
+                    "reason": "User excluded from OTP verification",
+                    "email_enabled": False,
+                    "mobile_enabled": False
+                }
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Error checking OTP excluded users")
+
+    # 3. Get feature flags from settings
+    otp_enabled_email = frappe.db.get_single_value("LMS Settings", "otp_enabled_email") or 0
+    otp_enabled_mobile = frappe.db.get_single_value("LMS Settings", "otp_enabled_mobile") or 0
+    otp_enabled_for_employees = frappe.db.get_single_value("LMS Settings", "otp_enabled_for_employees") or 0
+    otp_enabled_for_distributors = frappe.db.get_single_value("LMS Settings", "otp_enabled_for_distributors") or 0
+
+    # 4. Determine if OTP is required based on user roles
+    is_employee = "Employee" in roles
+    is_distributor = "Distributor" in roles
+
+    # User must have a qualifying role AND that role's flag must be enabled
+    role_requires_otp = False
+    if is_employee and otp_enabled_for_employees:
+        role_requires_otp = True
+    if is_distributor and otp_enabled_for_distributors:
+        role_requires_otp = True
+
+    # If no qualifying role or role flag disabled, OTP not required
+    if not role_requires_otp:
+        reason = "No qualifying role" if not (is_employee or is_distributor) else "Role OTP flag disabled"
+        return {
+            "required": False,
+            "reason": reason,
+            "email_enabled": False,
+            "mobile_enabled": False
+        }
+
+    # 5. At least one channel must be enabled for OTP to be required
+    if not otp_enabled_email and not otp_enabled_mobile:
+        return {
+            "required": False,
+            "reason": "All OTP channels disabled",
+            "email_enabled": False,
+            "mobile_enabled": False
+        }
+
+    return {
+        "required": True,
+        "reason": "OTP required",
+        "email_enabled": bool(otp_enabled_email),
+        "mobile_enabled": bool(otp_enabled_mobile)
+    }
+
+
+@frappe.whitelist(allow_guest=False)
+def get_otp_settings():
+    """Get OTP settings for frontend.
+
+    Returns:
+        dict: {
+            "otp_required": bool - whether OTP is required for current user,
+            "email_otp_enabled": bool - whether email OTP field should be shown,
+            "mobile_otp_enabled": bool - whether mobile OTP field should be shown
+        }
+    """
+    otp_check = is_otp_required_for_user()
+
+    # For mobile, also check country requirement
+    country = get_user_country_for_otp()
+    is_india = country and country.upper() in ["INDIA", "IN"]
+    mobile_applicable = otp_check["mobile_enabled"] and (is_india if country else True)
+
+    return {
+        "otp_required": otp_check["required"],
+        "email_otp_enabled": otp_check["email_enabled"] if otp_check["required"] else False,
+        "mobile_otp_enabled": mobile_applicable if otp_check["required"] else False
+    }
+
+
 @frappe.whitelist(allow_guest=False)
 def verify_email_otp(otp=None, otp1=None):
     user = frappe.session.user
@@ -550,22 +671,10 @@ def send_email_otp():
 def get_user_status():
     user = frappe.session.user
 
-    user_doc = frappe.get_doc("User", user)
-    roles = [role.role for role in user_doc.roles]
-
-    if "System Manager" in roles or "Administrator" in roles or "Supervisor" in roles:
-        return {"status": "unlocked", "message": "User is unlocked."}
-
-    # Check if user is excluded from OTP verification
-    try:
-        lms_settings = frappe.get_single("LMS Settings")
-        excluded_users = lms_settings.get("otp_excluded_users", [])
-        for excluded_user in excluded_users:
-            if excluded_user.user == user and excluded_user.disabled == 1:
-                return {"status": "unlocked", "message": "User is excluded from OTP verification"}
-    except Exception as e:
-        # If there's an error checking excluded users, log it but continue with normal flow
-        frappe.log_error(frappe.get_traceback(), "Error checking OTP excluded users")
+    # Check if OTP is required using feature flags
+    otp_check = is_otp_required_for_user(user)
+    if not otp_check["required"]:
+        return {"status": "unlocked", "message": otp_check["reason"]}
 
     email = frappe.db.get_value("User", user, "email")
     if not email:

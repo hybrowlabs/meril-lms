@@ -378,6 +378,44 @@ const tabsStructure = computed(() => {
 						},
 					],
 				},
+				{
+					label: 'OTP Settings',
+					icon: 'KeyRound',
+					description: 'Configure OTP verification for user roles',
+					fields: [
+						{
+							label: 'Enable Email OTP',
+							name: 'otp_enabled_email',
+							type: 'checkbox',
+							description:
+								'Require email OTP verification for users',
+						},
+						{
+							label: 'Enable Mobile OTP',
+							name: 'otp_enabled_mobile',
+							type: 'checkbox',
+							description:
+								'Require mobile OTP verification (India users only)',
+						},
+						{
+							type: 'Column Break',
+						},
+						{
+							label: 'Enable OTP for Employees',
+							name: 'otp_enabled_for_employees',
+							type: 'checkbox',
+							description:
+								'Require OTP verification for users with Employee role',
+						},
+						{
+							label: 'Enable OTP for Distributors',
+							name: 'otp_enabled_for_distributors',
+							type: 'checkbox',
+							description:
+								'Require OTP verification for users with Distributor role',
+						},
+					],
+				},
 			],
 		},
 	]

@@ -82,7 +82,13 @@
   "column_break_user_creation",
   "auto_create_employee_users",
   "otp_exclusions_section",
-  "otp_excluded_users"
+  "otp_excluded_users",
+  "otp_settings_section",
+  "otp_enabled_email",
+  "otp_enabled_mobile",
+  "column_break_otp",
+  "otp_enabled_for_employees",
+  "otp_enabled_for_distributors"
  ],
  "fields": [
   {
@@ -517,6 +523,43 @@
    "fieldtype": "Table",
    "label": "OTP Excluded Users",
    "options": "OTP Excluded Users"
+  },
+  {
+   "fieldname": "otp_settings_section",
+   "fieldtype": "Section Break",
+   "label": "OTP Settings"
+  },
+  {
+   "default": "1",
+   "description": "Require email OTP verification for users",
+   "fieldname": "otp_enabled_email",
+   "fieldtype": "Check",
+   "label": "Enable Email OTP"
+  },
+  {
+   "default": "1",
+   "description": "Require mobile OTP verification (India users only)",
+   "fieldname": "otp_enabled_mobile",
+   "fieldtype": "Check",
+   "label": "Enable Mobile OTP"
+  },
+  {
+   "fieldname": "column_break_otp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Require OTP verification for users with Employee role",
+   "fieldname": "otp_enabled_for_employees",
+   "fieldtype": "Check",
+   "label": "Enable OTP for Employees"
+  },
+  {
+   "default": "1",
+   "description": "Require OTP verification for users with Distributor role",
+   "fieldname": "otp_enabled_for_distributors",
+   "fieldtype": "Check",
+   "label": "Enable OTP for Distributors"
   }
  ],
  "grid_page_length": 50,
