@@ -239,12 +239,15 @@ def verify_email_otp(otp=None, otp1=None):
     if not otp:
         return {"status": "error", "message": "Email OTP is required"}
 
-    # Check if mobile OTP is required based on country
+    # Check if mobile OTP is required based on settings AND country
+    otp_enabled_mobile = frappe.db.get_single_value("LMS Settings", "otp_enabled_mobile") or 0
     country = get_user_country_for_otp()
     is_india = country and (country.upper() == "INDIA" or country.upper() == "IN")
-    requires_mobile = is_india if country else True  # Default to True for safety
 
-    # For non-India countries, mobile OTP is optional
+    # Mobile OTP required only if: feature flag enabled AND (India OR no country set)
+    requires_mobile = otp_enabled_mobile and (is_india if country else True)
+
+    # For non-India countries or when mobile OTP is disabled, mobile OTP is optional
     if requires_mobile:
         if not mobile:
             return {"status": "error", "message": "Missing mobile number"}
@@ -350,12 +353,15 @@ def send_email_otp():
         if not email:
             return {"status": "error", "message": "User email not found"}
 
-        # Check if mobile OTP is required based on country
+        # Check if mobile OTP is required based on settings AND country
+        otp_enabled_mobile = frappe.db.get_single_value("LMS Settings", "otp_enabled_mobile") or 0
         country = get_user_country_for_otp()
         is_india = country and (country.upper() == "INDIA" or country.upper() == "IN")
-        requires_mobile = is_india if country else True  # Default to True for safety
 
-        # For non-India countries, mobile is optional
+        # Mobile OTP required only if: feature flag enabled AND (India OR no country set)
+        requires_mobile = otp_enabled_mobile and (is_india if country else True)
+
+        # For non-India countries or when mobile OTP is disabled, mobile is optional
         if requires_mobile and not mobile:
             return {"status": "error", "message": "User mobile not found"}
 
