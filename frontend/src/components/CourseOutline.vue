@@ -79,7 +79,20 @@
 									isActiveLesson(lesson.number) ? 'bg-surface-gray-3' : ''
 								"
 							>
+								<!-- Locked lesson (non-clickable) -->
+								<div
+									v-if="lesson.is_locked && !allowEdit"
+									class="flex items-center text-sm leading-5 text-ink-gray-5 cursor-not-allowed"
+								>
+									<Lock class="h-4 w-4 stroke-1 mr-2" />
+									<span class="opacity-60">{{ lesson.title }}</span>
+									<Tooltip v-if="lesson.lock_message" :text="lesson.lock_message" placement="top">
+										<Lock class="h-3 w-3 ml-2 opacity-50" />
+									</Tooltip>
+								</div>
+								<!-- Unlocked lesson (clickable) -->
 								<router-link
+									v-else
 									:to="{
 										name: allowEdit ? 'LessonForm' : 'Lesson',
 										params: {
@@ -157,6 +170,7 @@ import {
 	FileText,
 	FilePenLine,
 	HelpCircle,
+	Lock,
 	MonitorPlay,
 	Trash2,
 } from 'lucide-vue-next'

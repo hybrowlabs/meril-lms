@@ -30,6 +30,7 @@
   "upcoming",
   "featured",
   "disable_self_learning",
+  "enable_sequential_lesson_locking",
   "section_break_18",
   "short_introduction",
   "column_break_viqw",
@@ -94,6 +95,13 @@
    "fieldname": "disable_self_learning",
    "fieldtype": "Check",
    "label": "Disable Self Learning"
+  },
+  {
+   "default": "1",
+   "description": "When enabled, users must complete all previous lessons and chapters before accessing subsequent lessons",
+   "fieldname": "enable_sequential_lesson_locking",
+   "fieldtype": "Check",
+   "label": "Enable Sequential Lesson Locking"
   },
   {
    "fieldname": "image",

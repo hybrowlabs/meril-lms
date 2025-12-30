@@ -84,6 +84,43 @@
 					</Button>
 				</div>
 			</div>
+			<!-- Prerequisite Locked Section -->
+			<div v-else-if="lesson.data.prerequisite_locked" class="border-r">
+				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+					<div class="flex items-center justify-center mt-4 space-x-2">
+						<LockKeyholeIcon class="size-4 stroke-2 text-ink-gray-5" />
+						<div class="text-lg font-semibold text-ink-gray-7">
+							{{ __('Complete Previous Lessons') }}
+						</div>
+					</div>
+					<div class="mt-1 mb-4 text-ink-gray-7">
+						{{ lesson.data.lock_message || __('You must complete previous lessons before accessing this one.') }}
+					</div>
+					<div class="flex justify-center space-x-2 mt-4">
+						<router-link
+							v-if="lesson.data.required_chapter && lesson.data.required_lesson"
+							:to="{
+								name: 'Lesson',
+								params: {
+									courseName: courseName,
+									chapterNumber: lesson.data.required_chapter,
+									lessonNumber: lesson.data.required_lesson,
+								},
+							}"
+						>
+							<Button variant="solid">
+								{{ __('Go to Required Lesson') }}
+							</Button>
+						</router-link>
+						<Button
+							@click="goBackToCourse()"
+							variant="subtle"
+						>
+							{{ __('Back to Course') }}
+						</Button>
+					</div>
+				</div>
+			</div>
 			<div
 				v-else
 				ref="lessonContainer"

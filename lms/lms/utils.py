@@ -161,6 +161,17 @@ def get_lesson_details(chapter, progress=False):
 		if progress:
 			lesson_details.is_complete = get_progress(lesson_details.course, lesson_details.name)
 
+			# Add lock status if sequential locking is enabled
+			enable_locking = frappe.db.get_value("LMS Course", lesson_details.course, "enable_sequential_lesson_locking")
+			if enable_locking:
+				sequential_access = check_sequential_lesson_access(
+					lesson_details.course,
+					chapter.idx,
+					row.idx
+				)
+				lesson_details.is_locked = sequential_access.get("is_locked", False)
+				lesson_details.lock_message = sequential_access.get("message", "")
+
 		lessons.append(lesson_details)
 	return lessons
 
@@ -333,6 +344,125 @@ def get_progress(course, lesson, member=None):
 		{"course": course, "member": member, "lesson": lesson},
 		["status"],
 	)
+
+
+def check_sequential_lesson_access(course, chapter_idx, lesson_idx, member=None):
+	"""
+	Checks if user can access a lesson based on sequential completion requirements.
+
+	Returns:
+		dict: {
+			"access_granted": bool,
+			"is_locked": bool,
+			"message": str,
+			"required_chapter": int (optional),
+			"required_lesson": int (optional),
+			"required_lesson_name": str (optional)
+		}
+	"""
+	if not member:
+		member = frappe.session.user
+
+	# Check if sequential locking is enabled for this course
+	enable_locking = frappe.db.get_value("LMS Course", course, "enable_sequential_lesson_locking")
+	if not enable_locking:
+		return {"access_granted": True, "is_locked": False}
+
+	# Admins bypass: check for moderator role or instructor status
+	if has_course_moderator_role() or is_instructor(course):
+		return {"access_granted": True, "is_locked": False}
+
+	# First lesson (1.1) is always accessible
+	chapter_idx = cint(chapter_idx)
+	lesson_idx = cint(lesson_idx)
+	if chapter_idx == 1 and lesson_idx == 1:
+		return {"access_granted": True, "is_locked": False}
+
+	# Get all chapters with their lessons in order
+	chapters = frappe.get_all(
+		"Chapter Reference",
+		{"parent": course},
+		["idx", "chapter"],
+		order_by="idx"
+	)
+
+	# Check all previous chapters are complete
+	for chapter in chapters:
+		if chapter.idx >= chapter_idx:
+			break
+
+		# Get all lessons in this chapter
+		lessons = frappe.get_all(
+			"Lesson Reference",
+			{"parent": chapter.chapter},
+			["idx", "lesson"],
+			order_by="idx"
+		)
+
+		for lesson in lessons:
+			lesson_complete = frappe.db.exists(
+				"LMS Course Progress",
+				{
+					"course": course,
+					"lesson": lesson.lesson,
+					"member": member,
+					"is_complete": 1
+				}
+			)
+			if not lesson_complete:
+				lesson_title = frappe.db.get_value("Course Lesson", lesson.lesson, "title")
+				chapter_title = frappe.db.get_value("Course Chapter", chapter.chapter, "title")
+				return {
+					"access_granted": False,
+					"is_locked": True,
+					"message": _("Please complete '{0}' in '{1}' before accessing this lesson").format(
+						lesson_title, chapter_title
+					),
+					"required_chapter": chapter.idx,
+					"required_lesson": lesson.idx,
+					"required_lesson_name": lesson.lesson
+				}
+
+	# Check all previous lessons in current chapter are complete
+	current_chapter_name = frappe.db.get_value(
+		"Chapter Reference",
+		{"parent": course, "idx": chapter_idx},
+		"chapter"
+	)
+
+	if current_chapter_name:
+		lessons_in_chapter = frappe.get_all(
+			"Lesson Reference",
+			{"parent": current_chapter_name},
+			["idx", "lesson"],
+			order_by="idx"
+		)
+
+		for lesson in lessons_in_chapter:
+			if lesson.idx >= lesson_idx:
+				break
+
+			lesson_complete = frappe.db.exists(
+				"LMS Course Progress",
+				{
+					"course": course,
+					"lesson": lesson.lesson,
+					"member": member,
+					"is_complete": 1
+				}
+			)
+			if not lesson_complete:
+				lesson_title = frappe.db.get_value("Course Lesson", lesson.lesson, "title")
+				return {
+					"access_granted": False,
+					"is_locked": True,
+					"message": _("Please complete '{0}' before accessing this lesson").format(lesson_title),
+					"required_chapter": chapter_idx,
+					"required_lesson": lesson.idx,
+					"required_lesson_name": lesson.lesson
+				}
+
+	return {"access_granted": True, "is_locked": False}
 
 
 def render_html(lesson):
@@ -1467,6 +1597,20 @@ def get_lesson(course, chapter, lesson):
 			"course_title": course_info.title,
 			"disable_self_learning": course_info.disable_self_learning,
 		}
+
+	# Check sequential lesson locking (if enabled for this course)
+	if membership and frappe.session.user != "Guest":
+		sequential_access = check_sequential_lesson_access(course, chapter, lesson)
+		if not sequential_access.get("access_granted"):
+			return {
+				"prerequisite_locked": 1,
+				"title": lesson_details.title,
+				"course_title": course_info.title,
+				"disable_self_learning": course_info.disable_self_learning,
+				"lock_message": sequential_access.get("message"),
+				"required_chapter": sequential_access.get("required_chapter"),
+				"required_lesson": sequential_access.get("required_lesson"),
+			}
 
 	# Check lesson-level access restrictions for completed lessons
 	if (
