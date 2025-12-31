@@ -405,12 +405,13 @@ const quiz = createResource({
 const populateQuestions = () => {
 	let data = quiz.data
 	if (data.shuffle_questions) {
-		questions = shuffleArray(data.questions)
+		let questionsCopy = [...data.questions]  // Create a copy to avoid mutating original
+		questions = shuffleArray(questionsCopy)
 		if (data.limit_questions_to) {
 			questions = questions.slice(0, data.limit_questions_to)
 		}
 	} else {
-		questions = data.questions
+		questions = [...data.questions]  // Also copy to prevent reference issues
 	}
 }
 
@@ -524,7 +525,7 @@ const questionDetails = createResource({
 
 watch(activeQuestion, (value) => {
 	if (value > 0) {
-		currentQuestion.value = quiz.data.questions[value - 1].question
+		currentQuestion.value = questions[value - 1].question  // Use limited questions array
 		questionDetails.reload()
 	}
 })
