@@ -216,7 +216,7 @@ function load_distributors_in_dialog(dialog) {
 		filters: filters,
 		fields: ['name', 'attendee_name', 'distributor_name', 'distributor_email_address',
 				 'distributor_company_name', 'country', 'state', 'city', 'user_id', 'is_active_user'],
-		limit_page_length: 100,
+		limit_page_length: 0,
 		order_by: 'creation desc'
 	};
 
@@ -523,7 +523,7 @@ function load_distributors_in_resend_dialog(dialog) {
 		filters: filters,
 		fields: ['name', 'attendee_name', 'distributor_name', 'distributor_email_address',
 				 'distributor_company_name', 'country', 'state', 'city', 'user_id', 'is_active_user'],
-		limit_page_length: 100,
+		limit_page_length: 0,
 		order_by: 'creation desc'
 	};
 

@@ -177,7 +177,7 @@ function load_employees_in_dialog(dialog) {
 			doctype: 'Employee',
 			filters: filters,
 			fields: ['name', 'first_name', 'last_name', 'company_email', 'company', 'department', 'designation', 'custom_country', 'user_id'],
-			limit_page_length: 100,
+			limit_page_length: 0,
 			order_by: 'creation desc'
 		},
 		callback: function(r) {
@@ -587,7 +587,7 @@ function load_employees_in_resend_dialog(dialog) {
 			doctype: 'Employee',
 			filters: filters,
 			fields: ['name', 'first_name', 'last_name', 'company_email', 'company', 'department', 'designation', 'custom_country', 'user_id'],
-			limit_page_length: 100,
+			limit_page_length: 0,
 			order_by: 'creation desc'
 		},
 		callback: function(r) {

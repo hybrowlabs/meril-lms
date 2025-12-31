@@ -253,7 +253,6 @@ def get_distributors_by_division(division, filters=None):
 		LEFT JOIN `tabMeril Distributor Division Child` c ON d.name = c.parent
 		WHERE {' AND '.join(conditions)}
 		ORDER BY d.creation DESC
-		LIMIT 100
 	"""
 
 	result = frappe.db.sql(query, sql_params, as_dict=True)
