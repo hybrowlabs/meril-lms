@@ -19,10 +19,55 @@ frappe.listview_settings['Distributor'] = {
 		listview.page.add_inner_button(__("Resend Email"), function() {
 			open_bulk_resend_email_dialog(listview);
 		});
+
+		// Actions menu - Direct Send Email (no dialog)
+		listview.page.add_actions_menu_item(__("Send Email"), function() {
+			send_email_to_selected_distributors(listview);
+		}, false);
+
+		// Actions menu - Direct Resend Email (no dialog)
+		listview.page.add_actions_menu_item(__("Resend Email"), function() {
+			resend_email_to_selected_distributors(listview);
+		}, false);
 	}
 };
 
+// Direct action function for Actions menu - Send Email (no dialog)
+function send_email_to_selected_distributors(listview) {
+	let selected = listview.get_checked_items(true);
+	if (!selected.length) {
+		frappe.msgprint(__('Please select at least one distributor'));
+		return;
+	}
+
+	frappe.confirm(
+		__('Create users and send emails for {0} selected distributors?', [selected.length]),
+		function() {
+			process_bulk_user_creation(selected, {});
+		}
+	);
+}
+
+// Direct action function for Actions menu - Resend Email (no dialog)
+function resend_email_to_selected_distributors(listview) {
+	let selected = listview.get_checked_items(true);
+	if (!selected.length) {
+		frappe.msgprint(__('Please select at least one distributor'));
+		return;
+	}
+
+	frappe.confirm(
+		__('Resend initial email to {0} selected distributors?', [selected.length]),
+		function() {
+			process_bulk_resend_emails(selected, {});
+		}
+	);
+}
+
 function open_bulk_user_creation_dialog(listview) {
+	// Check if rows are pre-selected in list view
+	let pre_selected = listview.get_checked_items(true);
+
 	let dialog = new frappe.ui.Dialog({
 		title: __('Create Users & Send Emails'),
 		fields: [
@@ -124,14 +169,19 @@ function open_bulk_user_creation_dialog(listview) {
 		},
 		secondary_action_label: __('Search'),
 		secondary_action: function() {
+			// Clear pre-selection when user manually searches
+			dialog.pre_selected_ids = null;
 			load_distributors_in_dialog(dialog);
 		}
 	});
 
+	// Store pre-selected IDs in dialog for use in load function
+	dialog.pre_selected_ids = pre_selected.length > 0 ? pre_selected : null;
+
 	// Set up field dependencies
 	setup_dialog_field_dependencies(dialog);
 
-	// Initial load
+	// Initial load with pre-selected filter if any
 	load_distributors_in_dialog(dialog);
 
 	dialog.show();
@@ -208,6 +258,11 @@ function get_dialog_filters(dialog) {
 
 function load_distributors_in_dialog(dialog) {
 	let filters = get_dialog_filters(dialog);
+
+	// If pre-selected IDs exist, filter by them
+	if (dialog.pre_selected_ids && dialog.pre_selected_ids.length > 0) {
+		filters['name'] = ['in', dialog.pre_selected_ids];
+	}
 
 	// Also need to join with child table for division filter
 	let method = 'frappe.client.get_list';
@@ -330,6 +385,9 @@ function get_selected_distributors_from_dialog(dialog) {
 }
 
 function open_bulk_resend_email_dialog(listview) {
+	// Check if rows are pre-selected in list view
+	let pre_selected = listview.get_checked_items(true);
+
 	let dialog = new frappe.ui.Dialog({
 		title: __('Resend Initial Email'),
 		fields: [
@@ -431,14 +489,19 @@ function open_bulk_resend_email_dialog(listview) {
 		},
 		secondary_action_label: __('Search'),
 		secondary_action: function() {
+			// Clear pre-selection when user manually searches
+			dialog.pre_selected_ids = null;
 			load_distributors_in_resend_dialog(dialog);
 		}
 	});
 
+	// Store pre-selected IDs in dialog for use in load function
+	dialog.pre_selected_ids = pre_selected.length > 0 ? pre_selected : null;
+
 	// Set up field dependencies
 	setup_resend_dialog_field_dependencies(dialog);
 
-	// Initial load
+	// Initial load with pre-selected filter if any
 	load_distributors_in_resend_dialog(dialog);
 
 	dialog.show();
@@ -515,6 +578,11 @@ function get_resend_dialog_filters(dialog) {
 
 function load_distributors_in_resend_dialog(dialog) {
 	let filters = get_resend_dialog_filters(dialog);
+
+	// If pre-selected IDs exist, filter by them
+	if (dialog.pre_selected_ids && dialog.pre_selected_ids.length > 0) {
+		filters['name'] = ['in', dialog.pre_selected_ids];
+	}
 
 	// Also need to join with child table for division filter
 	let method = 'frappe.client.get_list';

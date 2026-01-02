@@ -19,10 +19,55 @@ frappe.listview_settings['Employee'] = {
 		listview.page.add_inner_button(__("Resend Email"), function() {
 			open_bulk_resend_email_dialog(listview);
 		});
+
+		// Actions menu - Direct Send Email (no dialog)
+		listview.page.add_actions_menu_item(__("Send Email"), function() {
+			send_email_to_selected_employees(listview);
+		}, false);
+
+		// Actions menu - Direct Resend Email (no dialog)
+		listview.page.add_actions_menu_item(__("Resend Email"), function() {
+			resend_email_to_selected_employees(listview);
+		}, false);
 	}
 };
 
+// Direct action function for Actions menu - Send Email (no dialog)
+function send_email_to_selected_employees(listview) {
+	let selected = listview.get_checked_items(true);
+	if (!selected.length) {
+		frappe.msgprint(__('Please select at least one employee'));
+		return;
+	}
+
+	frappe.confirm(
+		__('Create users and send emails for {0} selected employees?', [selected.length]),
+		function() {
+			process_bulk_employee_user_creation(selected, {});
+		}
+	);
+}
+
+// Direct action function for Actions menu - Resend Email (no dialog)
+function resend_email_to_selected_employees(listview) {
+	let selected = listview.get_checked_items(true);
+	if (!selected.length) {
+		frappe.msgprint(__('Please select at least one employee'));
+		return;
+	}
+
+	frappe.confirm(
+		__('Resend initial email to {0} selected employees?', [selected.length]),
+		function() {
+			process_bulk_resend_emails_employee(selected, {});
+		}
+	);
+}
+
 function open_bulk_user_creation_dialog(listview) {
+	// Check if rows are pre-selected in list view
+	let pre_selected = listview.get_checked_items(true);
+
 	let dialog = new frappe.ui.Dialog({
 		title: __('Create Users & Send Emails'),
 		fields: [
@@ -104,14 +149,19 @@ function open_bulk_user_creation_dialog(listview) {
 		},
 		secondary_action_label: __('Search'),
 		secondary_action: function() {
+			// Clear pre-selection when user manually searches
+			dialog.pre_selected_ids = null;
 			load_employees_in_dialog(dialog);
 		}
 	});
 
+	// Store pre-selected IDs in dialog for use in load function
+	dialog.pre_selected_ids = pre_selected.length > 0 ? pre_selected : null;
+
 	// Set up field dependencies
 	setup_dialog_field_dependencies(dialog);
 
-	// Initial load
+	// Initial load with pre-selected filter if any
 	load_employees_in_dialog(dialog);
 
 	dialog.show();
@@ -170,6 +220,11 @@ function get_dialog_filters(dialog) {
 
 function load_employees_in_dialog(dialog) {
 	let filters = get_dialog_filters(dialog);
+
+	// If pre-selected IDs exist, filter by them
+	if (dialog.pre_selected_ids && dialog.pre_selected_ids.length > 0) {
+		filters['name'] = ['in', dialog.pre_selected_ids];
+	}
 
 	frappe.call({
 		method: 'frappe.client.get_list',
@@ -433,6 +488,9 @@ function show_bulk_creation_results(results) {
 }
 
 function open_bulk_resend_email_dialog(listview) {
+	// Check if rows are pre-selected in list view
+	let pre_selected = listview.get_checked_items(true);
+
 	let dialog = new frappe.ui.Dialog({
 		title: __('Resend Initial Email'),
 		fields: [
@@ -514,14 +572,19 @@ function open_bulk_resend_email_dialog(listview) {
 		},
 		secondary_action_label: __('Search'),
 		secondary_action: function() {
+			// Clear pre-selection when user manually searches
+			dialog.pre_selected_ids = null;
 			load_employees_in_resend_dialog(dialog);
 		}
 	});
 
+	// Store pre-selected IDs in dialog for use in load function
+	dialog.pre_selected_ids = pre_selected.length > 0 ? pre_selected : null;
+
 	// Set up field dependencies
 	setup_resend_dialog_field_dependencies_employee(dialog);
 
-	// Initial load
+	// Initial load with pre-selected filter if any
 	load_employees_in_resend_dialog(dialog);
 
 	dialog.show();
@@ -580,6 +643,11 @@ function get_resend_dialog_filters_employee(dialog) {
 
 function load_employees_in_resend_dialog(dialog) {
 	let filters = get_resend_dialog_filters_employee(dialog);
+
+	// If pre-selected IDs exist, filter by them
+	if (dialog.pre_selected_ids && dialog.pre_selected_ids.length > 0) {
+		filters['name'] = ['in', dialog.pre_selected_ids];
+	}
 
 	frappe.call({
 		method: 'frappe.client.get_list',
