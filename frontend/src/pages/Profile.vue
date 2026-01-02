@@ -21,22 +21,22 @@
 				class="absolute bottom-0 left-1/2 mb-4 flex -translate-x-1/2 space-x-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
 				v-if="isSessionUser()"
 			>
-				<EditCoverImage
-					@select="(imageUrl) => coverImage.submit({ url: imageUrl })"
-				>
-					<template v-slot="{ togglePopover }">
-						<Button
-							v-if="!readOnlyMode"
-							variant="outline"
-							@click="togglePopover()"
-						>
-							<template #prefix>
-								<Edit class="w-4 h-4 stroke-1.5 text-ink-gray-7" />
-							</template>
-							{{ __('Edit') }}
-						</Button>
-					</template>
-				</EditCoverImage>
+<!--				<EditCoverImage-->
+<!--					@select="(imageUrl) => coverImage.submit({ url: imageUrl })"-->
+<!--				>-->
+<!--					<template v-slot="{ togglePopover }">-->
+<!--						<Button-->
+<!--							v-if="!readOnlyMode"-->
+<!--							variant="outline"-->
+<!--							@click="togglePopover()"-->
+<!--						>-->
+<!--							<template #prefix>-->
+<!--								<Edit class="w-4 h-4 stroke-1.5 text-ink-gray-7" />-->
+<!--							</template>-->
+<!--							{{ __('Edit') }}-->
+<!--						</Button>-->
+<!--					</template>-->
+<!--				</EditCoverImage>-->
 			</div>
 		</div>
 		<div class="mx-auto -mt-10 md:-mt-4 max-w-4xl translate-x-0 px-5">
@@ -61,16 +61,16 @@
 						{{ profile.data.headline }}
 					</div>
 				</div>
-				<Button
-					v-if="isSessionUser() && !readOnlyMode"
-					class="mt-3 sm:mt-0 md:ml-auto"
-					@click="editProfile()"
-				>
-					<template #prefix>
-						<Edit class="w-4 h-4 stroke-1.5 text-ink-gray-7" />
-					</template>
-					{{ __('Edit Profile') }}
-				</Button>
+<!--				<Button-->
+<!--					v-if="isSessionUser() && !readOnlyMode"-->
+<!--					class="mt-3 sm:mt-0 md:ml-auto"-->
+<!--					@click="editProfile()"-->
+<!--				>-->
+<!--					<template #prefix>-->
+<!--						<Edit class="w-4 h-4 stroke-1.5 text-ink-gray-7" />-->
+<!--					</template>-->
+<!--					{{ __('Edit Profile') }}-->
+<!--				</Button>-->
 			</div>
 
 			<div class="mb-4 mt-6">
@@ -186,9 +186,9 @@ watch(
 	}
 )
 
-const editProfile = () => {
-	showProfileModal.value = true
-}
+// const editProfile = () => {
+// 	showProfileModal.value = true
+// }
 
 const isSessionUser = () => {
 	return $user.data?.email === profile.data?.email
