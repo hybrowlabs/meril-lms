@@ -75,7 +75,7 @@
             </div>
 
             <!-- Compliance Officer Nomination Field (appears after adoption form preview) -->
-            <div v-if="docType === 'Meril Distributor Compliance Policy Adoption Form' && userRole === 'Distributor'" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+            <div v-if="docType === 'Meril Distributor Compliance Policy Adoption Form' && userRole === 'Distributor'" class="compliance-officer-highlight bg-blue-50 rounded-lg p-4 mt-4">
               <label for="compliance-officer-name-dynamic" class="block text-sm font-medium text-gray-700 mb-2">
                 Compliance Officer Name <span class="text-red-500">*</span>
               </label>
@@ -84,7 +84,7 @@
                 v-model="localComplianceOfficerName"
                 type="text"
                 placeholder="Enter compliance officer name"
-                class="w-full"
+                class="w-full compliance-officer-input"
                 required
                 :min-length="3"
               />
@@ -133,7 +133,7 @@
         </div>
 
         <!-- Compliance Officer Nomination Field (appears right after adoption form) -->
-        <div v-if="showDeclaration('Meril Distributor Compliance Policy Adoption Form') && userRole === 'Distributor'" class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div v-if="showDeclaration('Meril Distributor Compliance Policy Adoption Form') && userRole === 'Distributor'" class="compliance-officer-highlight bg-blue-50 rounded-lg p-4">
           <label for="compliance-officer-name" class="block text-sm font-medium text-gray-700 mb-2">
             Compliance Officer Name <span class="text-red-500">*</span>
           </label>
@@ -142,7 +142,7 @@
             v-model="localComplianceOfficerName"
             type="text"
             placeholder="Enter compliance officer name"
-            class="w-full"
+            class="w-full compliance-officer-input"
             required
             :min-length="3"
           />
@@ -708,3 +708,24 @@ onMounted(() => {
   fetchDocumentConfiguration()
 })
 </script>
+
+<style scoped>
+/* Compliance Officer Field Highlighting */
+.compliance-officer-highlight {
+  border: 2px solid #dc3545 !important;
+  box-shadow: 0 0 6px rgba(220, 53, 69, 0.4);
+}
+
+.compliance-officer-highlight :deep(input),
+.compliance-officer-highlight :deep(.compliance-officer-input input) {
+  border: 2px solid #dc3545 !important;
+  box-shadow: 0 0 4px rgba(220, 53, 69, 0.3);
+}
+
+.compliance-officer-highlight :deep(input:focus),
+.compliance-officer-highlight :deep(.compliance-officer-input input:focus) {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 6px rgba(220, 53, 69, 0.5);
+  outline: none;
+}
+</style>

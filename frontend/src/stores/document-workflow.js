@@ -9,6 +9,9 @@ const state = reactive({
   currentStep: 1,
   courseName: null,
 
+  // Force certification mode - when true, user cannot close modal until certified
+  forceCertificationMode: false,
+
   // User and role information
   userRole: null,
   declarationInfo: null,
@@ -278,10 +281,28 @@ const openModal = (courseName) => {
 }
 
 const closeModal = () => {
+  // If in force certification mode and not certified, don't allow closing
+  if (state.forceCertificationMode && !state.certification.isCompleted) {
+    return false
+  }
+
   // Save current state before closing
   saveStateToStorage()
   state.isOpen = false
+
+  // Reset force certification mode after successful close
+  if (state.forceCertificationMode && state.certification.isCompleted) {
+    state.forceCertificationMode = false
+  }
+
   // Don't reset state on close - keep it for next time
+  return true
+}
+
+// Force open modal for certification - user cannot close until they certify
+const forceOpenForCertification = (courseName) => {
+  state.forceCertificationMode = true
+  openModal(courseName)
 }
 
 const nextStep = () => {
@@ -312,6 +333,7 @@ const resetState = (clearStorage = false) => {
 
   state.currentStep = 1
   state.courseName = null
+  state.forceCertificationMode = false
   state.userRole = null
   state.declarationInfo = null
   state.uploadedDocuments.clear()
@@ -459,6 +481,11 @@ const initializeWorkflow = async () => {
     // Set certification status from backend response
     if (submissionResponse.is_certified !== undefined) {
       state.certification.isCompleted = submissionResponse.is_certified
+    }
+
+    // Check if forced certification is needed (employee completed course but didn't certify)
+    if (submissionResponse.needs_forced_certification && !state.certification.isCompleted) {
+      state.forceCertificationMode = true
     }
 
     // Set required documents based on enabled flags
@@ -728,6 +755,7 @@ export {
   canProceedToNextStep,
   openModal,
   closeModal,
+  forceOpenForCertification,
   nextStep,
   previousStep,
   goToStep,

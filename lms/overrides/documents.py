@@ -613,6 +613,15 @@ def has_user_submited_document(course=None):
                 for doc_name in documents_list
             ]
 
+            # Get certification status if record exists
+            is_certified = False
+            if exists:
+                is_certified = bool(frappe.db.get_value(
+                    "Employee Course Documents",
+                    exists,
+                    "is_certified"
+                ))
+
             if not exists:
                 return {
                     "submited": False,
@@ -620,7 +629,9 @@ def has_user_submited_document(course=None):
                     "documents_list": documents_list,
                     "course_documents_record_id": None,
                     "doctype": "Employee Course Documents",
-                    "role_is": "Employee"
+                    "role_is": "Employee",
+                    "is_certified": False,
+                    "needs_forced_certification": True  # Course completed, no certification yet
                 }
 
             return {
@@ -629,7 +640,9 @@ def has_user_submited_document(course=None):
                 "documents_list": documents_list,
                 "course_documents_record_id": exists,
                 "doctype": "Employee Course Documents",
-                "role_is": "Employee"
+                "role_is": "Employee",
+                "is_certified": is_certified,
+                "needs_forced_certification": not is_certified  # Force if not certified
             }
 
         # Other users (students, etc.)
@@ -654,6 +667,101 @@ def has_user_submited_document(course=None):
             "success": False,
             "error": str(e),
             "message": "An error occurred while checking document status"
+        }
+
+
+@frappe.whitelist(allow_guest=False)
+def check_needs_forced_certification(course=None):
+    """
+    Check if an employee needs to be forced to complete certification.
+    This is called when an employee returns to a completed course.
+
+    Returns:
+        - needs_forced_certification: True if employee has completed course but not certified
+        - is_certified: Current certification status
+        - course_completed: Whether the course is 100% complete
+    """
+    user = frappe.session.user
+    if not course:
+        return {"needs_forced_certification": False, "message": "No course provided"}
+
+    try:
+        # Check if course exists
+        if not frappe.db.exists("LMS Course", course):
+            return {"needs_forced_certification": False, "message": "Course does not exist"}
+
+        # Check enrollment and progress
+        enrollment = frappe.db.get_value(
+            "LMS Enrollment",
+            {"course": course, "member": user},
+            ["name", "progress"],
+            as_dict=True
+        )
+
+        if not enrollment:
+            return {
+                "needs_forced_certification": False,
+                "course_completed": False,
+                "message": "User is not enrolled in this course"
+            }
+
+        progress = enrollment.get("progress") or 0
+        if int(progress) < 100:
+            return {
+                "needs_forced_certification": False,
+                "course_completed": False,
+                "progress": progress,
+                "message": "Course not yet completed"
+            }
+
+        # Course is completed, check if user is an employee
+        user_doc = frappe.get_doc("User", user)
+        roles = [role.role for role in user_doc.roles]
+
+        if "Employee" not in roles:
+            return {
+                "needs_forced_certification": False,
+                "course_completed": True,
+                "message": "User is not an employee"
+            }
+
+        # Check Employee Course Documents for certification status
+        employee_doc = frappe.get_doc("Employee", {"user_id": user})
+        exists = frappe.db.exists(
+            "Employee Course Documents",
+            {"employee": employee_doc.name, "course": course}
+        )
+
+        if not exists:
+            # Course completed but no document record - needs forced certification
+            return {
+                "needs_forced_certification": True,
+                "is_certified": False,
+                "course_completed": True,
+                "message": "Employee has completed course but has not certified"
+            }
+
+        # Check if already certified
+        is_certified = bool(frappe.db.get_value(
+            "Employee Course Documents",
+            exists,
+            "is_certified"
+        ))
+
+        return {
+            "needs_forced_certification": not is_certified,
+            "is_certified": is_certified,
+            "course_completed": True,
+            "course_documents_record_id": exists,
+            "message": "Certification complete" if is_certified else "Employee has completed course but has not certified"
+        }
+
+    except Exception as e:
+        frappe.log_error(f"Error in check_needs_forced_certification: {str(e)}")
+        return {
+            "needs_forced_certification": False,
+            "error": str(e),
+            "message": "An error occurred while checking certification status"
         }
 
 

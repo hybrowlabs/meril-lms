@@ -107,6 +107,21 @@
                 #meril-company-table th, #meril-company-table td { padding: 0.5rem; font-size: 0.85rem; }
                 #meril-company-table .form-control { padding: 0.25rem 0.5rem; height: auto; font-size: 0.85rem; }
             }
+            /* Mandatory field highlighting */
+            .mandatory-field-highlight {
+                border: 2px solid #dc3545 !important;
+                box-shadow: 0 0 4px rgba(220, 53, 69, 0.3);
+            }
+            .mandatory-field-highlight:focus {
+                border-color: #dc3545 !important;
+                box-shadow: 0 0 6px rgba(220, 53, 69, 0.5);
+            }
+            /* Highlight for Meril Company Table container */
+            .mandatory-table-highlight {
+                border: 2px solid #dc3545 !important;
+                border-radius: 4px;
+                box-shadow: 0 0 4px rgba(220, 53, 69, 0.3);
+            }
         `;
         (function injectResponsiveStyles(){
             if (!document.getElementById('meril-table-responsive-style')) {
@@ -280,6 +295,18 @@
         }
 
 
+        // Highlight only editable mandatory fields on page load
+        function highlightMandatoryFields() {
+            // Only highlight fields that the user can actually edit
+            const editableMandatorySelectors = [
+                '#input-attendee_name',
+                '#input-designation'
+            ];
+            editableMandatorySelectors.forEach(function(selector) {
+                $(selector).addClass('mandatory-field-highlight');
+            });
+        }
+
         function fill_distributor_profile(data) {
             $('#input-region').val(data.region || '');
             $('#input-state').val(data.state || '');
@@ -293,6 +320,9 @@
             $('#input-designation').val(data.designation || '');
             // Set country select
             populateCountryOptions(data.country || '');
+
+            // Highlight mandatory fields after filling the profile
+            highlightMandatoryFields();
 
             // Fill child table data
             $('#meril-company-table-body').empty();
