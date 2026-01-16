@@ -527,6 +527,7 @@ const updateRequiredDocuments = async () => {
         label: doc.label || doc.name,
         printFormat: doc.print_format || null,
         requiresDeclaration: doc.requires_declaration,
+        showPreview: doc.show_preview,  // Controls preview visibility for employees
         downloadOnly: !doc.uploadable
       }))
 

@@ -2856,29 +2856,35 @@ def get_document_configuration(course=None):
                 doc_name = doc_type.name1
 
                 # Map document names to configuration flags
-                if doc_name == "Employee Declaration Form" and enabled_flags.get("employee_declaration_form", False):
+                # Always include employee documents for download, but control preview visibility via show_preview
+                if doc_name == "Employee Declaration Form":
+                    declaration_enabled = enabled_flags.get("employee_declaration_form", False)
                     doc = {
                         "key": "employee_declaration_form",
                         "name": "Employee Declaration Form",
                         "label": declaration_template["display_name"],
-                        "requires_declaration": True,
+                        "requires_declaration": declaration_enabled,  # Controls preview in Step 1
+                        "show_preview": declaration_enabled,  # Controls whether preview is shown for employees
                         "uploadable": True  # Employees can upload documents in 4-step workflow
                     }
                     if declaration_template["print_format"]:
                         doc["print_format"] = declaration_template["print_format"]
-                    document_types.append(doc)
-                    uploadable_documents.append(doc)
+                    document_types.append(doc)  # Always add for download
+                    if declaration_enabled:
+                        uploadable_documents.append(doc)
 
-                elif doc_name == "Employee Completion Certificate" and enabled_flags.get("employee_completion_certificate", False):
+                elif doc_name == "Employee Completion Certificate":
+                    certificate_enabled = enabled_flags.get("employee_completion_certificate", False)
                     display_name = get_employee_completion_certificate_name(employee_doc, course, course_title)
                     doc = {
                         "key": "employee_completion_certificate",
                         "name": "Employee Completion Certificate",
                         "label": display_name,
                         "requires_declaration": False,
+                        "show_preview": certificate_enabled,  # Controls whether preview is shown for employees
                         "uploadable": False  # Certificates are download-only
                     }
-                    document_types.append(doc)
+                    document_types.append(doc)  # Always add for download
 
             result["document_types"] = document_types
             result["uploadable_documents"] = uploadable_documents

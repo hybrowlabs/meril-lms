@@ -6,7 +6,7 @@
         Download Required Documents
       </h3>
       <p class="text-sm text-gray-600">
-        Download the generated documents, sign them, and prepare for upload.
+        {{ headerDescription }}
       </p>
     </div>
 
@@ -21,9 +21,10 @@
           <div class="text-sm text-blue-700 mt-1">
             <ol class="list-decimal list-inside space-y-1">
               <li>Download each required document using the buttons below</li>
-              <li v-if="hasDocumentRequiringLetterhead">Insert your company's letterhead at the top of the Compliance Policy Adoption Form</li>
+              <li v-if="hasDocumentRequiringLetterhead && !isEmployee">Insert your company's letterhead at the top of the Compliance Policy Adoption Form</li>
               <li>Sign all downloaded documents</li>
-              <li>Keep the signed documents ready for upload in the next step</li>
+              <li v-if="!isEmployee">Keep the signed documents ready for upload in the next step</li>
+              <li v-else>Keep the signed documents for your records</li>
             </ol>
           </div>
         </div>
@@ -100,16 +101,19 @@
       </div>
     </div>
 
-    <!-- Next Step Preview -->
+    <!-- Next Step Preview / Downloads Complete -->
     <div v-if="allDownloadsCompleted" class="bg-green-50 border border-green-200 rounded-lg p-4">
       <div class="flex">
         <svg class="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
         <div class="ml-3">
-          <h4 class="text-sm font-medium text-green-800">Ready for Next Step</h4>
+          <h4 class="text-sm font-medium text-green-800">{{ isEmployee ? 'Downloads Complete' : 'Ready for Next Step' }}</h4>
           <p class="text-sm text-green-700 mt-1">
-            All documents have been downloaded. You can now proceed to the upload step.
+            {{ isEmployee
+              ? 'All documents have been downloaded. You can close this dialog.'
+              : 'All documents have been downloaded. You can now proceed to the upload step.'
+            }}
           </p>
         </div>
       </div>
@@ -155,6 +159,10 @@ const props = defineProps({
   complianceOfficerName: {
     type: String,
     default: ''
+  },
+  userRole: {
+    type: String,
+    default: null
   }
 })
 
@@ -176,6 +184,15 @@ const hasDocumentRequiringLetterhead = computed(() => {
   return props.requiredDocuments.some(doc =>
     doc.name === 'Meril Distributor Compliance Policy Adoption Form'
   )
+})
+
+const isEmployee = computed(() => props.userRole === 'Employee')
+
+const headerDescription = computed(() => {
+  if (isEmployee.value) {
+    return 'Download the generated documents for your records.'
+  }
+  return 'Download the generated documents, sign them, and prepare for upload.'
 })
 
 const getDocumentDescription = (documentName) => {

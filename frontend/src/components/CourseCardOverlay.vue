@@ -62,9 +62,11 @@
 					variant="solid"
 					class="w-full"
 					size="md"
+					:disabled="enrolling"
+					:loading="enrolling"
 				>
 					<span>
-						{{ __('Start Learning') }}
+						{{ enrolling ? __('Enrolling...') : __('Start Learning') }}
 					</span>
 				</Button>
 				<Button
@@ -152,6 +154,7 @@ const user = inject('$user')
 const readOnlyMode = window.read_only_mode
 const showDownloadForm = ref(false)
 const showFormModal = ref(false)
+const enrolling = ref(false)
 
 const props = defineProps({
 	course: {
@@ -173,31 +176,39 @@ function enrollStudent() {
 		setTimeout(() => {
 			window.location.href = `/login?redirect-to=${window.location.pathname}`
 		}, 500)
-	} else {
-		call('lms.lms.doctype.lms_enrollment.lms_enrollment.create_membership', {
-			course: props.course.data.name,
-		})
-			.then(() => {
-				capture('enrolled_in_course', {
-					course: props.course.data.name,
-				})
-				toast.success(__('You have been enrolled in this course'))
-				setTimeout(() => {
-					router.push({
-						name: 'Lesson',
-						params: {
-							courseName: props.course.data.name,
-							chapterNumber: 1,
-							lessonNumber: 1,
-						},
-					})
-				}, 1000)
-			})
-			.catch((err) => {
-				toast.warning(__(err.messages?.[0] || err))
-				console.error(err)
-			})
+		return
 	}
+
+	// Prevent multiple clicks
+	if (enrolling.value) return
+	enrolling.value = true
+
+	call('lms.lms.doctype.lms_enrollment.lms_enrollment.create_membership', {
+		course: props.course.data.name,
+	})
+		.then(() => {
+			capture('enrolled_in_course', {
+				course: props.course.data.name,
+			})
+			toast.success(__('You have been enrolled in this course'))
+			setTimeout(() => {
+				router.push({
+					name: 'Lesson',
+					params: {
+						courseName: props.course.data.name,
+						chapterNumber: 1,
+						lessonNumber: 1,
+					},
+				})
+			}, 1000)
+		})
+		.catch((err) => {
+			toast.warning(__(err.messages?.[0] || err))
+			console.error(err)
+		})
+		.finally(() => {
+			enrolling.value = false
+		})
 }
 
 const is_instructor = () => {

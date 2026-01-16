@@ -99,8 +99,10 @@
 					batch.data.accept_enrollments
 				"
 				@click="enrollInBatch()"
+				:disabled="enrolling"
+				:loading="enrolling"
 			>
-				{{ __('Enroll Now') }}
+				{{ enrolling ? __('Enrolling...') : __('Enroll Now') }}
 			</Button>
 			<router-link
 				v-if="isModerator"
@@ -121,7 +123,7 @@
 	</div>
 </template>
 <script setup>
-import { inject, computed } from 'vue'
+import { inject, computed, ref } from 'vue'
 import { Badge, Button, createResource, toast } from 'frappe-ui'
 import { BookOpen, Clock, Globe } from 'lucide-vue-next'
 import { formatNumberIntoCurrency, formatTime } from '@/utils'
@@ -131,6 +133,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const user = inject('$user')
 const readOnlyMode = window.read_only_mode
+const enrolling = ref(false)
 
 const props = defineProps({
 	batch: {
@@ -151,7 +154,13 @@ const enroll = createResource({
 const enrollInBatch = () => {
 	if (!user.data) {
 		window.location.href = `/login?redirect-to=/batches/details/${props.batch.data.name}`
+		return
 	}
+
+	// Prevent multiple clicks
+	if (enrolling.value) return
+	enrolling.value = true
+
 	enroll.submit(
 		{},
 		{
@@ -164,6 +173,12 @@ const enrollInBatch = () => {
 					},
 				})
 			},
+			onError(err) {
+				enrolling.value = false
+			},
+			onFinally() {
+				enrolling.value = false
+			}
 		}
 	)
 }

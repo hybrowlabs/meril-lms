@@ -106,6 +106,7 @@
             :course-name="state.courseName"
             :compliance-officer-name="state.complianceOfficerName"
             :completed-downloads="state.downloads.completedDownloads"
+            :user-role="state.userRole"
             @download-complete="handleDownloadComplete"
           />
 

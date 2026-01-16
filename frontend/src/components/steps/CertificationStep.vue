@@ -434,10 +434,11 @@ const getDocumentTypes = () => {
     return []
   }
 
-  // For employees, only get employee-specific documents that require declaration
+  // For employees, only get documents with preview enabled that require declaration
   if (props.userRole === 'Employee') {
     return documentConfiguration.value.document_types
-      .filter(doc => doc.requires_declaration && (doc.name.includes('Employee') || doc.key === 'employee_declaration_form'))
+      .filter(doc => doc.show_preview !== false && doc.requires_declaration &&
+              (doc.name.includes('Employee') || doc.key === 'employee_declaration_form'))
       .map(doc => doc.name)
   }
 
@@ -452,9 +453,10 @@ const getAllDocumentTypes = () => {
     return []
   }
 
-  // For employees, only return employee-specific documents
+  // For employees, only return documents with show_preview enabled
   if (props.userRole === 'Employee') {
     return documentConfiguration.value.document_types
+      .filter(doc => doc.show_preview !== false)  // Only show preview if show_preview is true/undefined
       .filter(doc => doc.name.includes('Employee') || doc.key === 'employee_declaration_form')
       .map(doc => doc.name)
   }

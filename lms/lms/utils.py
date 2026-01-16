@@ -2278,9 +2278,17 @@ def enroll_in_course(course, payment_name):
 
 @frappe.whitelist()
 def enroll_in_batch(batch, payment_name=None):
-	if not frappe.db.exists(
-		"LMS Batch Enrollment", {"batch": batch, "member": frappe.session.user}
-	):
+	# Use lock to prevent race conditions from multiple clicks
+	lock_key = f"batch_enrollment_{batch}_{frappe.session.user}"
+
+	with frappe.lock(lock_key, timeout=10):
+		# Check inside lock to prevent race condition
+		if frappe.db.exists(
+			"LMS Batch Enrollment", {"batch": batch, "member": frappe.session.user}
+		):
+			# Already enrolled - return silently (idempotent)
+			return
+
 		batch_doc = frappe.db.get_value(
 			"LMS Batch", batch, ["name", "seat_count"], as_dict=True
 		)
