@@ -438,46 +438,42 @@ def create_membership(
 
 	member = member or frappe.session.user
 
-	# Use lock to prevent race conditions from multiple clicks
-	lock_key = f"enrollment_{course}_{member}"
+	# Check if enrollment already exists (idempotent - return existing instead of creating duplicate)
+	existing = frappe.db.exists(
+		"LMS Enrollment",
+		{"course": course, "member": member}
+	)
 
-	with frappe.lock(lock_key, timeout=10):
-		# Check if enrollment already exists (inside lock to prevent race condition)
-		existing = frappe.db.exists(
+	if existing:
+		# Get the most recent enrollment (idempotent - return existing instead of error)
+		enrollment = frappe.get_all(
 			"LMS Enrollment",
-			{"course": course, "member": member}
+			filters={"course": course, "member": member},
+			fields=["name"],
+			order_by="enrollment_version desc",
+			limit=1
 		)
+		return frappe.get_doc("LMS Enrollment", enrollment[0].name)
 
-		if existing:
-			# Get the most recent enrollment (idempotent - return existing instead of error)
-			enrollment = frappe.get_all(
-				"LMS Enrollment",
-				filters={"course": course, "member": member},
-				fields=["name"],
-				order_by="enrollment_version desc",
-				limit=1
-			)
-			return frappe.get_doc("LMS Enrollment", enrollment[0].name)
-
-		# Create new enrollment with proper initialization (inside lock)
-		enrollment = frappe.new_doc("LMS Enrollment")
-		enrollment.update(
-			{
-				"doctype": "LMS Enrollment",
-				"batch_old": batch,
-				"course": course,
-				"role": role,
-				"member_type": member_type,
-				"member": member,
-				"completion_status": "Active",
-				"access_restricted": 0,
-				"enrollment_version": 1,
-				"re_enrollment_count": 0,
-				"original_enrollment_date": now()
-			}
-		)
-		enrollment.insert()
-		return enrollment
+	# Create new enrollment with proper initialization
+	enrollment = frappe.new_doc("LMS Enrollment")
+	enrollment.update(
+		{
+			"doctype": "LMS Enrollment",
+			"batch_old": batch,
+			"course": course,
+			"role": role,
+			"member_type": member_type,
+			"member": member,
+			"completion_status": "Active",
+			"access_restricted": 0,
+			"enrollment_version": 1,
+			"re_enrollment_count": 0,
+			"original_enrollment_date": now()
+		}
+	)
+	enrollment.insert()
+	return enrollment
 
 
 @frappe.whitelist()
@@ -538,49 +534,45 @@ def check_course_access(course, member=None):
 def re_enroll_user_in_course(course, member, reset_progress=True):
 	"""API endpoint to re-enroll a user in a course"""
 
-	# Use lock to prevent race conditions from multiple clicks
-	lock_key = f"re_enrollment_{course}_{member}"
+	# Get the most recent enrollment record
+	current_enrollment = frappe.get_all(
+		"LMS Enrollment",
+		filters={"course": course, "member": member},
+		fields=["name", "enrollment_version"],
+		order_by="enrollment_version desc",
+		limit=1
+	)
 
-	with frappe.lock(lock_key, timeout=10):
-		# Get the most recent enrollment record (inside lock)
-		current_enrollment = frappe.get_all(
-			"LMS Enrollment",
-			filters={"course": course, "member": member},
-			fields=["name", "enrollment_version"],
-			order_by="enrollment_version desc",
-			limit=1
-		)
+	if not current_enrollment:
+		frappe.throw(_("Enrollment record not found"))
 
-		if not current_enrollment:
-			frappe.throw(_("Enrollment record not found"))
+	enrollment = frappe.get_doc("LMS Enrollment", current_enrollment[0].name)
 
-		enrollment = frappe.get_doc("LMS Enrollment", current_enrollment[0].name)
+	# Check if re-enrollment was already done (idempotent check)
+	# If completion_status is Active, user was already re-enrolled
+	if enrollment.completion_status == "Active":
+		return {
+			"success": True,
+			"enrollment_id": enrollment.name,
+			"enrollment_version": enrollment.enrollment_version,
+			"message": _("User is already enrolled in the course with an active enrollment.")
+		}
 
-		# Check if re-enrollment was already done (idempotent check)
-		# If completion_status is Active, user was already re-enrolled
-		if enrollment.completion_status == "Active":
-			return {
-				"success": True,
-				"enrollment_id": enrollment.name,
-				"enrollment_version": enrollment.enrollment_version,
-				"message": _("User is already enrolled in the course with an active enrollment.")
-			}
+	# Create new enrollment record for re-enrollment
+	new_enrollment = enrollment.re_enroll_user(frappe.session.user, reset_progress)
 
-		# Create new enrollment record for re-enrollment (inside lock)
-		new_enrollment = enrollment.re_enroll_user(frappe.session.user, reset_progress)
-
-		if new_enrollment:
-			return {
-				"success": True,
-				"enrollment_id": new_enrollment.name,
-				"enrollment_version": new_enrollment.enrollment_version,
-				"message": _("User has been successfully re-enrolled in the course. A new enrollment record has been created with progress reset to 0%.")
-			}
-		else:
-			return {
-				"success": False,
-				"message": _("Failed to re-enroll user")
-			}
+	if new_enrollment:
+		return {
+			"success": True,
+			"enrollment_id": new_enrollment.name,
+			"enrollment_version": new_enrollment.enrollment_version,
+			"message": _("User has been successfully re-enrolled in the course. A new enrollment record has been created with progress reset to 0%.")
+		}
+	else:
+		return {
+			"success": False,
+			"message": _("Failed to re-enroll user")
+		}
 
 
 @frappe.whitelist()

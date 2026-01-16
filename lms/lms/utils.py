@@ -2278,43 +2278,38 @@ def enroll_in_course(course, payment_name):
 
 @frappe.whitelist()
 def enroll_in_batch(batch, payment_name=None):
-	# Use lock to prevent race conditions from multiple clicks
-	lock_key = f"batch_enrollment_{batch}_{frappe.session.user}"
+	# Check if already enrolled (idempotent - return silently if already enrolled)
+	if frappe.db.exists(
+		"LMS Batch Enrollment", {"batch": batch, "member": frappe.session.user}
+	):
+		return
 
-	with frappe.lock(lock_key, timeout=10):
-		# Check inside lock to prevent race condition
-		if frappe.db.exists(
-			"LMS Batch Enrollment", {"batch": batch, "member": frappe.session.user}
-		):
-			# Already enrolled - return silently (idempotent)
-			return
+	batch_doc = frappe.db.get_value(
+		"LMS Batch", batch, ["name", "seat_count"], as_dict=True
+	)
+	students = frappe.db.count("LMS Batch Enrollment", {"batch": batch})
+	if batch_doc.seat_count and students >= batch_doc.seat_count:
+		frappe.throw(_("The batch is full. Please contact the Administrator."))
 
-		batch_doc = frappe.db.get_value(
-			"LMS Batch", batch, ["name", "seat_count"], as_dict=True
+	new_student = frappe.new_doc("LMS Batch Enrollment")
+	new_student.update(
+		{
+			"member": frappe.session.user,
+			"batch": batch,
+		}
+	)
+
+	if payment_name:
+		payment = frappe.db.get_value(
+			"LMS Payment", payment_name, ["name", "source"], as_dict=True
 		)
-		students = frappe.db.count("LMS Batch Enrollment", {"batch": batch})
-		if batch_doc.seat_count and students >= batch_doc.seat_count:
-			frappe.throw(_("The batch is full. Please contact the Administrator."))
-
-		new_student = frappe.new_doc("LMS Batch Enrollment")
 		new_student.update(
 			{
-				"member": frappe.session.user,
-				"batch": batch,
+				"payment": payment.name,
+				"source": payment.source,
 			}
 		)
-
-		if payment_name:
-			payment = frappe.db.get_value(
-				"LMS Payment", payment_name, ["name", "source"], as_dict=True
-			)
-			new_student.update(
-				{
-					"payment": payment.name,
-					"source": payment.source,
-				}
-			)
-		new_student.save()
+	new_student.save()
 
 
 def update_certificate_purchase(course, payment_name):

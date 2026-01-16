@@ -1648,30 +1648,46 @@ def get_users_for_re_enrollment(course_name=None):
 	current_user_roles = frappe.get_roles()
 	if not any(role in ["System Manager", "Administrator", "Moderator"] for role in current_user_roles):
 		frappe.throw(_("You don't have permission to view this data"))
-	
+
 	filters = {
 		"completion_status": "Completed",
 		"access_restricted": 1
 	}
-	
+
 	if course_name:
 		filters["course"] = course_name
-	
+
 	completed_enrollments = frappe.get_all(
 		"LMS Enrollment",
 		filters=filters,
 		fields=[
-			"name", "member", "member_name", "course", "completed_on", 
+			"name", "member", "member_name", "course", "completed_on",
 			"progress", "member_type"
 		]
 	)
-	
-	# Add course titles
+
+	# Filter out users who already have an active enrollment for the same course
+	# (i.e., they were already re-enrolled)
+	filtered_enrollments = []
 	for enrollment in completed_enrollments:
-		course_title = frappe.db.get_value("LMS Course", enrollment.course, "title")
-		enrollment.course_title = course_title
-	
-	return completed_enrollments
+		# Check if user has an active enrollment for this course
+		active_enrollment = frappe.db.exists(
+			"LMS Enrollment",
+			{
+				"member": enrollment.member,
+				"course": enrollment.course,
+				"access_restricted": 0,
+				"completion_status": ["in", ["Active", "Re-enrolled"]]
+			}
+		)
+
+		if not active_enrollment:
+			# User doesn't have an active enrollment, can be re-enrolled
+			course_title = frappe.db.get_value("LMS Course", enrollment.course, "title")
+			enrollment.course_title = course_title
+			filtered_enrollments.append(enrollment)
+
+	return filtered_enrollments
 
 
 @frappe.whitelist()
