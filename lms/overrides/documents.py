@@ -440,11 +440,25 @@ def complete_certification(course=None, name=None, date=None):
                 doc.insert(ignore_permissions=True)
 
             frappe.db.commit()
+
+            # Also update LMS Enrollment is_certified field
+            from lms.lms.doctype.lms_enrollment.lms_enrollment import certify_enrollment
+            enrollment_result = certify_enrollment(course, user)
+
+            if not enrollment_result.get("success") and not enrollment_result.get("already_certified"):
+                frappe.log_error(f"Failed to certify enrollment: {enrollment_result.get('message')}")
+
             return {"success": True, "message": "Certification completed successfully"}
 
         # Handle Employee certification (if needed)
         elif "Employee" in roles:
-            # Similar logic can be added for Employee Course Documents if needed
+            # Also update LMS Enrollment is_certified field for employees
+            from lms.lms.doctype.lms_enrollment.lms_enrollment import certify_enrollment
+            enrollment_result = certify_enrollment(course, user)
+
+            if not enrollment_result.get("success") and not enrollment_result.get("already_certified"):
+                frappe.log_error(f"Failed to certify enrollment: {enrollment_result.get('message')}")
+
             return {"success": True, "message": "Employee certification completed"}
 
         else:

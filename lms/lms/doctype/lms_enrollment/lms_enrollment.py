@@ -32,10 +32,12 @@ class LMSEnrollment(Document):
 		# Skip completion check for admin and moderator roles
 		if self.is_admin_or_moderator():
 			return
-			
-		# Check if course is completed (100% progress)
+
+		# Course is only complete when progress is 100% AND user has certified
 		if self.progress and flt(self.progress) >= 100.0:
-			self.mark_course_completed()
+			if self.is_certified:
+				self.mark_course_completed()
+			# If not certified, keep status as Active (do nothing)
 		elif self.completion_status == "Completed" and flt(self.progress or 0) < 100.0:
 			# If completion status is marked as completed but progress is less than 100%
 			# This might happen during re-enrollment, so update status accordingly
@@ -53,6 +55,16 @@ class LMSEnrollment(Document):
 
 			# Log completion event
 			frappe.logger().info(f"Course {self.course} completed by {self.member}")
+
+	def certify_completion(self):
+		"""Mark the enrollment as certified by the user"""
+		if flt(self.progress or 0) < 100.0:
+			frappe.throw(_("Cannot certify: Course progress is not 100%. Current progress: {0}%").format(self.progress))
+
+		self.is_certified = 1
+		self.check_course_completion()  # This will now trigger mark_course_completed()
+
+		frappe.logger().info(f"Course {self.course} certified by {self.member}")
 
 	def is_admin_or_moderator(self):
 		"""Check if the user has admin or moderator roles"""
@@ -206,7 +218,8 @@ class LMSEnrollment(Document):
 			"original_enrollment_date": original_date,
 			"enrollment_version": total_enrollments + 1,
 			"re_enrollment_count": total_enrollments,
-			"lesson_timer_data": None  # Reset timer data
+			"lesson_timer_data": None,  # Reset timer data
+			"is_certified": 0  # Reset certification for new enrollment
 		})
 
 		# Set flag to bypass validation for re-enrollment
@@ -924,3 +937,35 @@ def migrate_course_documents():
 				doc.save(ignore_permissions=True)
 
 	print(f"Updated {len(dist_docs)} distributor and {len(emp_docs)} employee course documents")
+
+
+@frappe.whitelist()
+def certify_enrollment(course, member=None):
+	"""API endpoint to certify an enrollment"""
+	member = member or frappe.session.user
+
+	enrollment = frappe.get_all(
+		"LMS Enrollment",
+		filters={"course": course, "member": member},
+		fields=["name", "progress", "is_certified", "completion_status"],
+		order_by="enrollment_version desc",
+		limit=1
+	)
+
+	if not enrollment:
+		return {"success": False, "message": _("Enrollment not found")}
+
+	enrollment_doc = frappe.get_doc("LMS Enrollment", enrollment[0].name)
+
+	if enrollment_doc.is_certified:
+		return {"success": True, "message": _("Already certified"), "already_certified": True}
+
+	enrollment_doc.certify_completion()
+	enrollment_doc.save(ignore_permissions=True)
+
+	return {
+		"success": True,
+		"message": _("Course certification completed successfully"),
+		"enrollment_id": enrollment_doc.name,
+		"completion_status": enrollment_doc.completion_status
+	}

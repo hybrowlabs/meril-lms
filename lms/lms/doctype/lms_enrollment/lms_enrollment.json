@@ -28,6 +28,7 @@
   "completion_section",
   "completion_status",
   "access_restricted",
+  "is_certified",
   "column_break_completion",
   "completed_on",
   "re_enrolled_by",
@@ -176,6 +177,14 @@
    "fieldtype": "Check",
    "label": "Access Restricted",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_certified",
+   "fieldtype": "Check",
+   "label": "Is Certified",
+   "read_only": 1,
+   "description": "User has explicitly certified completion of course content"
   },
   {
    "fieldname": "column_break_completion",
