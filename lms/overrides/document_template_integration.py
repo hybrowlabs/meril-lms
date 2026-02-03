@@ -140,7 +140,7 @@ def get_employee_completion_certificate_name_dynamic(employee_doc, course_name=N
                     pass
 
         # Default for ROW courses
-        return "Employee Completion Certificate"
+        return "International Completion Certificate"
 
     # Try to get country-specific mapping
     mapped_template_name = CountryTemplateMapping.get_template_for_country(

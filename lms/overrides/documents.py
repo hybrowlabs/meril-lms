@@ -32,8 +32,8 @@ def get_employee_completion_certificate_name(employee_doc, course_name: str | No
     """
     # Automatic certificate selection logic
     if _is_row_course(course_name) or _is_row_course(course_title):
-        certificate_format = "Employee Completion Certificate"
-        reason = "ROW1/ROW2 course detected"
+        certificate_format = "International Completion Certificate"
+        reason = "ROW1/ROW2 course detected - international format"
     else:
         country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
         if country == "india":
