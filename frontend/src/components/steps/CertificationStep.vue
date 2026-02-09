@@ -10,6 +10,49 @@
       </p>
     </div>
 
+    <!-- Certification Form -->
+    <div class="max-w-md mx-auto space-y-4">
+      <!-- Name field for non-compliance forms and non-employee users -->
+      <div v-if="!showDeclaration('Meril Distributor Compliance Policy Adoption Form') && userRole !== 'Employee'">
+        <label for="certification-name" class="block text-sm font-medium text-gray-700 mb-1">
+          Name <span class="text-red-500">*</span>
+        </label>
+        <TextInput
+          id="certification-name"
+          v-model="localName"
+          type="text"
+          placeholder="Enter your name"
+          class="w-full"
+          required
+          :min-length="3"
+        />
+        <p v-if="nameError" class="text-sm text-red-600 mt-1">{{ nameError }}</p>
+      </div>
+
+      <div>
+        <label for="certification-date" class="block text-sm font-medium text-gray-700 mb-1">
+          Date
+        </label>
+        <input
+          id="certification-date"
+          v-model="localDate"
+          type="datetime-local"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+          readonly
+        />
+      </div>
+
+      <Button
+        theme="gray"
+        variant="solid"
+        class="w-full"
+        @click="handleCertify"
+        :disabled="!isValid"
+      >
+        {{ userRole === 'Employee' ? 'Certify' : 'I Certify' }}
+      </Button>
+    </div>
+
     <!-- Initial Loading State -->
     <div v-if="!documentConfiguration && !configurationError && configurationLoading" class="max-w-3xl mx-auto">
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
@@ -276,49 +319,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Certification Form -->
-    <div class="max-w-md mx-auto space-y-4">
-      <!-- Name field for non-compliance forms and non-employee users -->
-      <div v-if="!showDeclaration('Meril Distributor Compliance Policy Adoption Form') && userRole !== 'Employee'">
-        <label for="certification-name" class="block text-sm font-medium text-gray-700 mb-1">
-          Name <span class="text-red-500">*</span>
-        </label>
-        <TextInput
-          id="certification-name"
-          v-model="localName"
-          type="text"
-          placeholder="Enter your name"
-          class="w-full"
-          required
-          :min-length="3"
-        />
-        <p v-if="nameError" class="text-sm text-red-600 mt-1">{{ nameError }}</p>
-      </div>
-
-      <div>
-        <label for="certification-date" class="block text-sm font-medium text-gray-700 mb-1">
-          Date
-        </label>
-        <input
-          id="certification-date"
-          v-model="localDate"
-          type="datetime-local"
-          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-          readonly
-        />
-      </div>
-
-      <Button
-        theme="gray"
-        variant="solid"
-        class="w-full"
-        @click="handleCertify"
-        :disabled="!isValid"
-      >
-        {{ userRole === 'Employee' ? 'Certify' : 'I Certify' }}
-      </Button>
     </div>
   </div>
 </template>
