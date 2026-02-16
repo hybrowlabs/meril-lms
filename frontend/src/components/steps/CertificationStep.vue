@@ -363,6 +363,7 @@ const emit = defineEmits(['certification-complete', 'officer-nominated', 'valida
 
 const localName = ref('')
 const localDate = ref('')
+const utcDate = ref('')
 const nameError = ref('')
 const localComplianceOfficerName = ref('')
 const complianceOfficerError = ref('')
@@ -651,7 +652,7 @@ const handleCertify = () => {
 
   emit('certification-complete', {
     name: certificationName,
-    date: localDate.value
+    date: utcDate.value
   })
 }
 
@@ -667,6 +668,7 @@ watch(() => props.certificationData, (newData) => {
   }
   if (newData.date && !localDate.value) {
     localDate.value = newData.date
+    utcDate.value = newData.date
   }
 }, { immediate: true })
 
@@ -703,8 +705,15 @@ watch(() => props.complianceOfficerName, (newName) => {
 }, { immediate: true })
 
 onMounted(() => {
-  // Set current date/time
-  localDate.value = new Date().toISOString().slice(0, 16)
+  // Set current date/time — display in browser's local timezone, store UTC for submission
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  localDate.value = `${year}-${month}-${day}T${hours}:${minutes}`
+  utcDate.value = now.toISOString().slice(0, 16)
 
   // Fetch document configuration first, which will then fetch previews
   fetchDocumentConfiguration()
