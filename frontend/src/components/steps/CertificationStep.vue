@@ -43,13 +43,14 @@
       </div>
 
       <Button
+        v-if="userRole === 'Employee'"
         theme="gray"
         variant="solid"
         class="w-full"
         @click="handleCertify"
         :disabled="!isValid"
       >
-        {{ userRole === 'Employee' ? 'Certify' : 'I Certify' }}
+        Certify
       </Button>
     </div>
 
@@ -137,6 +138,18 @@
           </div>
         </template>
 
+        <!-- Distributor "I Certify" Button (at the bottom after all previews - Dynamic Section) -->
+        <div v-if="userRole === 'Distributor'" class="max-w-md mx-auto mt-6">
+          <Button
+            theme="gray"
+            variant="solid"
+            class="w-full"
+            @click="handleCertify"
+            :disabled="!isValid"
+          >
+            I Certify
+          </Button>
+        </div>
       </div>
 
       <!-- Static Fallback for Distributor Declaration -->
@@ -277,6 +290,19 @@
             </div>
           </div>
         </div>
+
+        <!-- Distributor "I Certify" Button (at the bottom after all previews) -->
+        <div class="max-w-md mx-auto mt-6">
+          <Button
+            theme="gray"
+            variant="solid"
+            class="w-full"
+            @click="handleCertify"
+            :disabled="!isValid"
+          >
+            I Certify
+          </Button>
+        </div>
       </div>
 
 
@@ -400,16 +426,19 @@ const isValid = computed(() => {
     return true
   }
 
-  const isNameValid = localName.value.trim().length >= 3
   // For adoption form (distributors), also check compliance officer name
   const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
     (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
 
+  // For adoption form (distributors), ONLY check compliance officer name
+  // (name field is hidden, so don't validate it)
   if (isCompliancePolicyForm && props.userRole === 'Distributor') {
     const isOfficerValid = localComplianceOfficerName.value.trim().length >= 3
-    return isNameValid && isOfficerValid
+    return isOfficerValid
   }
 
+  // For other forms, check the name field
+  const isNameValid = localName.value.trim().length >= 3
   return isNameValid
 })
 
@@ -618,14 +647,14 @@ const validateComplianceOfficer = () => {
 }
 
 const handleCertify = () => {
-  // Skip name validation for employees
-  if (props.userRole !== 'Employee' && !validateName()) {
-    return
-  }
-
   // For adoption form, also validate compliance officer
   const isCompliancePolicyForm = showDeclaration('Meril Distributor Compliance Policy Adoption Form') ||
     (useStaticPreview.value && props.documentType === 'Meril Distributor Compliance Policy Adoption Form')
+
+  // Skip name validation for employees and for adoption forms (name field is hidden)
+  if (props.userRole !== 'Employee' && !(isCompliancePolicyForm && props.userRole === 'Distributor') && !validateName()) {
+    return
+  }
 
   if (isCompliancePolicyForm && props.userRole === 'Distributor') {
     if (!validateComplianceOfficer()) {
