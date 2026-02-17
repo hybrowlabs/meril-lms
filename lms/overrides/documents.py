@@ -533,12 +533,11 @@ def has_user_submited_document(course=None):
                 }
             )
 
-            # Get uploaded documents and certification status if any record exists
+            # Get uploaded documents and certification status
             uploaded_documents = []
-            is_certified = False
+            is_certified = bool(frappe.db.get_value("LMS Enrollment", enrollment_name, "is_certified"))
             if any_exists:
                 doc = frappe.get_doc("Distributor Course Documents", any_exists)
-                is_certified = bool(doc.get("is_certified", 0))
                 if doc.document_upload_datetime:
                     for upload in doc.document_upload_datetime:
                         doc_name = getattr(upload, 'document', None) or getattr(upload, 'document_name', None)
@@ -627,14 +626,8 @@ def has_user_submited_document(course=None):
                 for doc_name in documents_list
             ]
 
-            # Get certification status if record exists
-            is_certified = False
-            if exists:
-                is_certified = bool(frappe.db.get_value(
-                    "Employee Course Documents",
-                    exists,
-                    "is_certified"
-                ))
+            # Get certification status from LMS Enrollment
+            is_certified = bool(frappe.db.get_value("LMS Enrollment", enrollment_name, "is_certified"))
 
             if not exists:
                 return {
