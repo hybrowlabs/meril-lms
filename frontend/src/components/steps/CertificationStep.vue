@@ -44,13 +44,17 @@
 
       <Button
         v-if="userRole === 'Employee'"
-        theme="gray"
+        :theme="certified ? 'green' : 'gray'"
         variant="solid"
         class="w-full"
         @click="handleCertify"
-        :disabled="!isValid"
+        :disabled="!isValid || certified"
       >
-        Certify
+        <span v-if="certified" class="flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+          Certified
+        </span>
+        <span v-else>Certify</span>
       </Button>
     </div>
 
@@ -141,13 +145,17 @@
         <!-- Distributor "I Certify" Button (at the bottom after all previews - Dynamic Section) -->
         <div v-if="userRole === 'Distributor'" class="max-w-md mx-auto mt-6">
           <Button
-            theme="gray"
+            :theme="certified ? 'green' : 'gray'"
             variant="solid"
             class="w-full"
             @click="handleCertify"
-            :disabled="!isValid"
+            :disabled="!isValid || certified"
           >
-            I Certify
+            <span v-if="certified" class="flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              Certified
+            </span>
+            <span v-else>I Certify</span>
           </Button>
         </div>
       </div>
@@ -294,13 +302,17 @@
         <!-- Distributor "I Certify" Button (at the bottom after all previews) -->
         <div class="max-w-md mx-auto mt-6">
           <Button
-            theme="gray"
+            :theme="certified ? 'green' : 'gray'"
             variant="solid"
             class="w-full"
             @click="handleCertify"
-            :disabled="!isValid"
+            :disabled="!isValid || certified"
           >
-            I Certify
+            <span v-if="certified" class="flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              Certified
+            </span>
+            <span v-else>I Certify</span>
           </Button>
         </div>
       </div>
@@ -391,6 +403,7 @@ const localName = ref('')
 const localDate = ref('')
 const utcDate = ref('')
 const nameError = ref('')
+const certified = ref(props.certificationData?.isCompleted || false)
 const localComplianceOfficerName = ref('')
 const complianceOfficerError = ref('')
 const documentPreviews = ref({})
@@ -679,6 +692,8 @@ const handleCertify = () => {
     return localName.value.trim()
   })()
 
+  certified.value = true
+
   emit('certification-complete', {
     name: certificationName,
     date: utcDate.value
@@ -698,6 +713,9 @@ watch(() => props.certificationData, (newData) => {
   if (newData.date && !localDate.value) {
     localDate.value = newData.date
     utcDate.value = newData.date
+  }
+  if (newData.isCompleted !== undefined) {
+    certified.value = newData.isCompleted
   }
 }, { immediate: true })
 
