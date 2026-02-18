@@ -9,6 +9,7 @@ from frappe.utils import ceil, now, flt
 
 class LMSEnrollment(Document):
 	def validate(self):
+		self.clamp_progress()
 		# Skip validation for re-enrollment to allow multiple enrollment records
 		# for the same user/course combination (needed for re-enrollment functionality)
 		if not getattr(self.flags, 'is_re_enrollment', False):
@@ -17,6 +18,11 @@ class LMSEnrollment(Document):
 		else:
 			# Log that validation was skipped for re-enrollment
 			frappe.logger().info(f"Skipping enrollment validation for re-enrollment: {self.member} in course {self.course}")
+
+	def clamp_progress(self):
+		"""Ensure progress never exceeds 100 or goes below 0."""
+		if self.progress is not None:
+			self.progress = max(0, min(100, flt(self.progress)))
 
 	def on_update(self):
 		self.update_program_progress()

@@ -24,4 +24,4 @@ class CourseChapter(Document):
 			)
 			for enrollment in enrolled_members:
 				new_progress = get_course_progress(self.course, enrollment.member)
-				frappe.db.set_value("LMS Enrollment", enrollment.name, "progress", new_progress)
+				frappe.db.set_value("LMS Enrollment", enrollment.name, "progress", max(0, min(100, new_progress)))

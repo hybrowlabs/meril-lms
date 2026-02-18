@@ -17,4 +17,4 @@ class LMSCourseProgress(Document):
 			},
 			"name",
 		)
-		frappe.db.set_value("LMS Enrollment", membership, "progress", progress)
+		frappe.db.set_value("LMS Enrollment", membership, "progress", max(0, min(100, progress)))

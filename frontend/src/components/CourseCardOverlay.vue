@@ -225,7 +225,7 @@ const canGetCertificate = computed(() => {
 	console.log(props.course.data)
 	if (
 		props.course.data?.enable_certification &&
-		props.course.data?.membership?.progress == 100
+		props.course.data?.membership?.progress >= 100
 	) {
 		return true
 	}
