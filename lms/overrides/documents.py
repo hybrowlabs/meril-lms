@@ -14,7 +14,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops
 import requests
 from frappe.utils.file_manager import get_file_path
 
-
 def _normalize_course_name(course_name: str | None) -> str:
     if not course_name:
         return ""
@@ -1039,6 +1038,7 @@ def upload_distributor_document_with_datetime(
         valid_types = [
             "Meril Distributor Compliance Policy Adoption Form",
             "Distributor Self Declaration",
+            "Distributor Self Declaration Malaysia",
             "Meril Distributor Compliance Code of Conduct",
             "Meril Distributor Compliance Policy",
             "Meril Distributor Compliance Policy for Endo"
@@ -2533,6 +2533,7 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
             print_format_map = {
                 "Meril Distributor Compliance Policy Adoption Form": "Meril Distributor Compliance Policy Adoption Form",
                 "Distributor Self Declaration": "Distributor Self Declaration",
+                "Distributor Self Declaration Malaysia": "Distributor Self Declaration Malaysia",
                 "Meril Distributor Compliance Code of Conduct": "Meril Distributor Compliance Code of Conduct",
                 # "Distributor Declaration - Ethical Practices & Compliance": "Distributor Declaration - Ethical Practices & Compliance",  # REMOVED
                 "Meril Distributor Compliance Policy": "Meril Distributor Compliance Policy",
@@ -2760,6 +2761,25 @@ def get_document_configuration(course=None):
             document_types = []
             uploadable_documents = []
             download_only_documents = []
+
+            # Malaysia distributors: only Self Declaration + Completion Certificate
+            distributor_country = (distributor_doc.country or "").strip().lower()
+            if distributor_country == "malaysia":
+                if enabled_flags.get("distributor_self_declaration"):
+                    doc = {
+                        "key": "distributor_self_declaration_malaysia",
+                        "name": "Distributor Self Declaration Malaysia",
+                        "requires_declaration": True,
+                        "uploadable": True
+                    }
+                    document_types.append(doc)
+                    uploadable_documents.append(doc)
+
+                result["document_types"] = document_types
+                result["uploadable_documents"] = uploadable_documents
+                result["download_only_documents"] = download_only_documents
+
+                return result
 
             # Add uploadable documents based on enabled flags
             if enabled_flags.get("meril_distributor_compliance_policy_adoption_form"):

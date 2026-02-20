@@ -182,12 +182,20 @@ const canProceedToNextStep = computed(() => {
   const certificationName = (state.certification.name || '').trim()
   const officerName = (state.complianceOfficerName || '').trim()
 
+  // Check if compliance officer name is needed (only for distributors with the adoption form)
+  const needsOfficerName = state.requiredDocuments.some(doc =>
+    doc.key === 'meril_distributor_compliance_policy_adoption_form'
+  )
+
   switch (currentStep.key) {
     case 'certify':
       if (isEmployeeWorkflow.value) {
         return state.certification.isCompleted
       }
-      return state.certification.isCompleted && certificationName.length >= 3 && officerName.length >= 3
+      if (needsOfficerName) {
+        return state.certification.isCompleted && certificationName.length >= 3 && officerName.length >= 3
+      }
+      return state.certification.isCompleted && certificationName.length >= 3
     case 'download':
       return state.downloads.isStepCompleted
     case 'upload':
@@ -470,7 +478,9 @@ const initializeWorkflow = async () => {
     // Detect Endo divisions from the documents list
     detectEndoDivisions(submissionResponse.documents_list)
 
-    // Handle uploaded documents
+    // Reset uploaded documents from backend (authoritative source), clearing any stale localStorage values
+    state.uploadedDocuments.clear()
+    state.uploadedDocumentsList = []
     if (submissionResponse.uploaded_documents && submissionResponse.uploaded_documents.length > 0) {
       state.uploadedDocumentsList = submissionResponse.uploaded_documents
       submissionResponse.uploaded_documents.forEach(doc => {
