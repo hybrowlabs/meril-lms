@@ -261,8 +261,8 @@ const handleDownloadComplete = (documentName) => {
   markDownloadCompleted(documentName)
 }
 
-const handleUploadComplete = (documentName) => {
-  markDocumentUploaded(documentName)
+const handleUploadComplete = (documentName, fileInfo) => {
+  markDocumentUploaded(documentName, fileInfo)
 }
 
 const handleUploadProgress = (documentName, progress) => {

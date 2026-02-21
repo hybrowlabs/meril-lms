@@ -442,8 +442,12 @@ const handleUpload = async () => {
       // Complete the progress
       emit('upload-progress', props.currentDocument.name, 100)
 
-      // Mark as uploaded
-      emit('upload-complete', props.currentDocument.name)
+      // Mark as uploaded, passing file info for the completion step
+      emit('upload-complete', props.currentDocument.name, {
+        file_url: response.file_url,
+        file_name: response.file_name,
+        upload_datetime: new Date().toISOString()
+      })
 
       // Reset form
       selectedFile.value = null

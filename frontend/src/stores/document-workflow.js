@@ -298,6 +298,9 @@ const closeModal = () => {
   saveStateToStorage()
   state.isOpen = false
 
+  // Reset the course completion trigger so the watcher can fire again on next open
+  resetCourseCompletion()
+
   // Reset force certification mode after successful close
   if (state.forceCertificationMode && state.certification.isCompleted) {
     state.forceCertificationMode = false
@@ -715,8 +718,19 @@ const markDownloadCompleted = (documentName) => {
   saveStateToStorage()
 }
 
-const markDocumentUploaded = (documentName) => {
+const markDocumentUploaded = (documentName, fileInfo) => {
   state.uploadedDocuments.add(documentName)
+
+  // Add to uploadedDocumentsList so CompletionStep can show download buttons
+  if (fileInfo && fileInfo.file_url) {
+    // Remove any existing entry for this document to avoid duplicates
+    state.uploadedDocumentsList = state.uploadedDocumentsList.filter(doc => doc.name !== documentName)
+    state.uploadedDocumentsList.push({
+      name: documentName,
+      file_url: fileInfo.file_url,
+      upload_datetime: fileInfo.upload_datetime || new Date().toISOString()
+    })
+  }
 
   // Update upload progress
   state.uploads.uploadProgress[documentName] = 100
