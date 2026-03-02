@@ -14,6 +14,43 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops
 import requests
 from frappe.utils.file_manager import get_file_path
 
+# ---------------------------------------------------------------------------
+# Country-specific self-declaration document variants
+# Maps distributor countries to their region-specific declaration format.
+# Countries not listed here use the default (India) document set.
+# "exclusive" = True means ONLY the self-declaration is shown (no other docs).
+# ---------------------------------------------------------------------------
+_APAC_MEA_COUNTRIES = frozenset([
+    "australia", "bahrain", "brunei darussalam", "cambodia", "china",
+    "hong kong", "indonesia", "iran", "iraq", "jordan", "kuwait",
+    "lao peoples democratic republic", "lebanon", "mongolia",
+    "new zealand", "oman", "philippines", "qatar", "saudi arab",
+    "saudi arabia", "singapore", "south korea", "syria", "taiwan",
+    "thailand", "uae", "vietnam", "yemen",
+])
+
+COUNTRY_DECLARATION_VARIANTS = {
+    "malaysia": {
+        "key": "distributor_self_declaration_malaysia",
+        "name": "Distributor Self Declaration Malaysia",
+        "exclusive": True,
+    },
+}
+# Register all APAC & MEA countries (Malaysia already has its own variant above)
+for _country in _APAC_MEA_COUNTRIES:
+    COUNTRY_DECLARATION_VARIANTS[_country] = {
+        "key": "distributor_self_declaration_apac_mea",
+        "name": "Distributor Self Declaration APAC MEA",
+        "exclusive": True,
+    }
+
+
+def _get_country_declaration_variant(country):
+    """Return country-specific self-declaration config, or None for default (India)."""
+    normalized = (country or "").strip().lower()
+    return COUNTRY_DECLARATION_VARIANTS.get(normalized)
+
+
 def _normalize_course_name(course_name: str | None) -> str:
     if not course_name:
         return ""
@@ -553,25 +590,35 @@ def has_user_submited_document(course=None):
                             })
 
             # Build documents_list (static downloads available regardless of submission)
-            documents_list = [
-                "Distributor Completion Certificate",
-                "Distributor Self Declaration",
-                "Meril Distributor Compliance Code of Conduct"
-            ]
+            distributor_country = (distributor_doc.country or "").strip().lower()
+            country_variant = _get_country_declaration_variant(distributor_country)
 
-            # Add Endo/Non-Endo compliance policy documents based on company names
-            has_endo = False
-            has_non_endo = False
-            for company in distributor_doc.meril_company_table:
-                name = (company.division or "").lower()
-                if "endo" in name:
-                    has_endo = True
-                else:
-                    has_non_endo = True
-            if has_endo:
-                documents_list.append("Meril Distributor Compliance Policy for Endo")
-            if has_non_endo:
-                documents_list.append("Meril Distributor Compliance Policy")
+            if country_variant and country_variant.get("exclusive"):
+                # Region-specific distributors: only their self-declaration + certificate
+                documents_list = [
+                    "Distributor Completion Certificate",
+                    country_variant["name"]
+                ]
+            else:
+                documents_list = [
+                    "Distributor Completion Certificate",
+                    "Distributor Self Declaration",
+                    "Meril Distributor Compliance Code of Conduct"
+                ]
+
+                # Add Endo/Non-Endo compliance policy documents based on company names
+                has_endo = False
+                has_non_endo = False
+                for company in distributor_doc.meril_company_table:
+                    name = (company.division or "").lower()
+                    if "endo" in name:
+                        has_endo = True
+                    else:
+                        has_non_endo = True
+                if has_endo:
+                    documents_list.append("Meril Distributor Compliance Policy for Endo")
+                if has_non_endo:
+                    documents_list.append("Meril Distributor Compliance Policy")
 
             if not submitted_exists:
                 return {
@@ -1039,6 +1086,7 @@ def upload_distributor_document_with_datetime(
             "Meril Distributor Compliance Policy Adoption Form",
             "Distributor Self Declaration",
             "Distributor Self Declaration Malaysia",
+            "Distributor Self Declaration APAC MEA",
             "Meril Distributor Compliance Code of Conduct",
             "Meril Distributor Compliance Policy",
             "Meril Distributor Compliance Policy for Endo"
@@ -2534,6 +2582,7 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
                 "Meril Distributor Compliance Policy Adoption Form": "Meril Distributor Compliance Policy Adoption Form",
                 "Distributor Self Declaration": "Distributor Self Declaration",
                 "Distributor Self Declaration Malaysia": "Distributor Self Declaration Malaysia",
+                "Distributor Self Declaration APAC MEA": "Distributor Self Declaration APAC MEA",
                 "Meril Distributor Compliance Code of Conduct": "Meril Distributor Compliance Code of Conduct",
                 # "Distributor Declaration - Ethical Practices & Compliance": "Distributor Declaration - Ethical Practices & Compliance",  # REMOVED
                 "Meril Distributor Compliance Policy": "Meril Distributor Compliance Policy",
@@ -2762,24 +2811,26 @@ def get_document_configuration(course=None):
             uploadable_documents = []
             download_only_documents = []
 
-            # Malaysia distributors: only Self Declaration + Completion Certificate
+            # Check for country-specific self-declaration variant
             distributor_country = (distributor_doc.country or "").strip().lower()
-            if distributor_country == "malaysia":
+            country_variant = _get_country_declaration_variant(distributor_country)
+
+            if country_variant:
                 if enabled_flags.get("distributor_self_declaration"):
                     doc = {
-                        "key": "distributor_self_declaration_malaysia",
-                        "name": "Distributor Self Declaration Malaysia",
+                        "key": country_variant["key"],
+                        "name": country_variant["name"],
                         "requires_declaration": True,
                         "uploadable": True
                     }
                     document_types.append(doc)
                     uploadable_documents.append(doc)
 
-                result["document_types"] = document_types
-                result["uploadable_documents"] = uploadable_documents
-                result["download_only_documents"] = download_only_documents
-
-                return result
+                if country_variant.get("exclusive"):
+                    result["document_types"] = document_types
+                    result["uploadable_documents"] = uploadable_documents
+                    result["download_only_documents"] = download_only_documents
+                    return result
 
             # Add uploadable documents based on enabled flags
             if enabled_flags.get("meril_distributor_compliance_policy_adoption_form"):
