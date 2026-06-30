@@ -10,6 +10,7 @@ import string
 import frappe
 from frappe.utils.password import update_password
 import json
+import os
 
 def get_default_sender():
 	"""Get the default outgoing email account"""
@@ -150,12 +151,29 @@ def create_user_from_employee(employee_id, _method):
 def generate_password(length=10):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
+def get_cbt_guide_attachment():
+	"""Return the CBT guide PDF as an attachment dict for frappe.sendmail"""
+	pdf_path = os.path.join(
+		frappe.get_app_path("lms"),
+		"..",
+		"frontend",
+		"public",
+		"Distributor Cbt Module – Step‑by‑step User Guide email Companion.pdf"
+	)
+	if os.path.exists(pdf_path):
+		with open(pdf_path, "rb") as f:
+			return [{"fname": "Distributor_CBT_Step_by_Step_Guide.pdf", "fcontent": f.read()}]
+	return []
+
+
 def get_distributor_initial_email_template(distributor_doc, email, reset_password_link):
 	"""Generate the initial email template for distributor user creation/resend"""
-	subject = f'Ethics & Compliance Training on HCP/HCO Interactions'
+	subject = "Ethics & Compliance Training on HCPs/HCOs Interactions."
 	message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
-		<p>In line with our <span style="font-weight: bold;"> mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCP/HCO Interactions</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+		<p>In line with our <span style="font-weight: bold;">mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCPs/HCOs Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
+
+		<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
 
 		<p style="font-weight: bold;">Login Credentials:</p>
 		<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
@@ -163,8 +181,7 @@ def get_distributor_initial_email_template(distributor_doc, email, reset_passwor
 		<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
 		<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
 
-
-		<p>We kindly request you to complete this training at the earliest and ensure that your employees are also trained. Please maintain proper records of the training completed by you and your employees for compliance purposes.</p>
+		<p>We kindly request you to complete this training at the earliest.</p>
 
 		<p>Best regards,</p>
 		<p>Meril</p>
@@ -366,6 +383,7 @@ def resend_initial_email_to_distributor(distributor_id):
 			sender=get_default_sender(),
 			subject=subject,
 			message=message,
+			attachments=get_cbt_guide_attachment(),
 			now=True
 		)
 
@@ -691,6 +709,7 @@ def create_user_from_distributor(distributor_id):
 					sender=get_default_sender(),
 					subject=subject,
 					message=message,
+					attachments=get_cbt_guide_attachment(),
 					now=True
 				)
 				
@@ -915,12 +934,12 @@ def send_daily_login_reminders():
 			)
 			
 			# Send email to the distributor
-			# Send email
 			frappe.sendmail(
 				recipients=[distributor.distributor_email_address],
 				sender=get_default_sender(),
 				subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
-				message=message_content
+				message=message_content,
+				attachments=get_cbt_guide_attachment()
 			)
 			# Also create a notification log for the distributor user
 			if distributor.user_id:
@@ -1100,7 +1119,7 @@ def send_daily_course_reminders():
 			attendee_name = None
 
 			if is_distributor:
-				subject = f"Reminder {new_count} : Ethics & Compliance Training on HCP/HCO Interactions"
+				subject = f"Reminder {new_count} Ethics & Compliance Training on HCP/HCO Interactions."
 				for_role = "Distributor"
 				# Get attendee_name from Distributor
 				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
@@ -1133,7 +1152,8 @@ def send_daily_course_reminders():
 				recipients=[enrollment.user_email],
 				sender=get_default_sender(),
 				subject=subject,
-				message=message_content
+				message=message_content,
+				attachments=get_cbt_guide_attachment() if is_distributor else []
 			)
 			# Create notification log for the user
 			frappe.get_doc({
@@ -1190,13 +1210,15 @@ def get_course_reminder_message(for_role, name, course_title, course_introductio
 	if for_role == "Distributor":
 		return f'''<p>Dear {name},</p>
 
-		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction},</span>. Our records indicate that the training is still pending. </p>
+		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction}.</span> Our records indicate that the training is still pending.</p>
 
-		
-		<p>For login details, please refer to the email sent to you with the subject line ‘Ethics & Compliance Training on HCP/HCO Interactions’.</p>
-		
-			<p style="font-weight: bold; margin-left: 10px;"><span style="margin-right: 10px;">•</span> Please click on the below link to log in:</p>
-			<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
+		<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
+
+		<p style="font-weight: bold;">Login Credentials:</p>
+		<p style="font-weight: bold; margin-left: 10px;"><span style="margin-right: 10px;">•</span> Please click on the below link to log in:</p>
+		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
+		<p style="margin-left:10px; margin-bottom: 0; font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{name}</span></p>
+
 		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
 
 		<p>Best regards,</p>

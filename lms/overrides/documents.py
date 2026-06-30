@@ -393,8 +393,8 @@ def get_next_distributor_document(course=None):
     # List of document names in priority order (should match frontend)
     doc_priority = [
         ("meril_distributor_compliance_policy_adoption_form", "Meril Distributor Compliance Policy Adoption Form"),
-        ("distributor_self_declaration", "Distributor Self Declaration"),
-        ("meril_distributor_compliance_code_of_conduct", "Meril Distributor Compliance Code of Conduct")
+        ("meril_distributor_compliance_policy", "Meril Distributor Compliance Policy"),
+        ("meril_distributor_compliance_policy_for_endo", "Meril Distributor Compliance Policy for Endo")
     ]
 
     # Get already submitted documents for this distributor and course
@@ -602,8 +602,7 @@ def has_user_submited_document(course=None):
             else:
                 documents_list = [
                     "Distributor Completion Certificate",
-                    "Distributor Self Declaration",
-                    "Meril Distributor Compliance Code of Conduct"
+                    "Meril Distributor Compliance Policy Adoption Form"
                 ]
 
                 # Add Endo/Non-Endo compliance policy documents based on company names
@@ -1246,11 +1245,11 @@ def upload_distributor_document_with_datetime(
             required_docs = []
             if getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False):
                 required_docs.append("Meril Distributor Compliance Policy Adoption Form")
-            if getattr(lms_settings, "distributor_self_declaration", False):
-                required_docs.append("Distributor Self Declaration")
-            if getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False):
-                required_docs.append("Meril Distributor Compliance Code of Conduct")
-            # No 4th document needed - only 3 documents are uploaded by user
+            # Only Adoption Form + appropriate compliance policy required (Endo or Non-Endo)
+            if getattr(lms_settings, "meril_distributor_compliance_policy_for_endo", False):
+                required_docs.append("Meril Distributor Compliance Policy for Endo")
+            if getattr(lms_settings, "meril_distributor_compliance_policy", False):
+                required_docs.append("Meril Distributor Compliance Policy")
 
             # Gather all uploaded document names from the child table
             uploaded_names = set()

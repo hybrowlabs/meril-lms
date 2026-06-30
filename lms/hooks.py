@@ -112,6 +112,7 @@ doc_events = {
 	},
     "Employee": {"after_insert": "lms.lms.user.create_user_from_employee"},
 	"Distributor": {"after_insert": "lms.lms.user.create_user_from_distributor_hook"},
+	"LMS Course": {"on_update": "lms.lms.api.auto_enroll_on_course_publish"},
 }
 
 # Scheduled Tasks
