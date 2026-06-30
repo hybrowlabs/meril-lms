@@ -2980,3 +2980,76 @@ def get_document_configuration(course=None):
             "success": False,
             "message": f"Error getting document configuration: {str(e)}"
         }
+
+
+@frappe.whitelist()
+def get_all_distributor_documents():
+    """
+    Returns all distributors with their course enrollment status and document submission info.
+    Used by the DistributorManagement admin page.
+    """
+    try:
+        rows = frappe.db.sql("""
+            SELECT
+                d.name AS id,
+                d.distributor_company_name,
+                d.attendee_name,
+                d.country,
+                d.user_id,
+                e.course,
+                c.title AS course_title,
+                e.progress,
+                e.completion_status,
+                e.name AS enrollment_id,
+                dcd.has_submitted_documents,
+                dcd.name AS doc_record_id,
+                e.modified AS last_updated
+            FROM `tabDistributor` d
+            LEFT JOIN `tabLMS Enrollment` e
+                ON e.member = d.user_id
+                AND e.access_restricted = 0
+            LEFT JOIN `tabLMS Course` c ON c.name = e.course
+            LEFT JOIN `tabDistributor Course Documents` dcd
+                ON dcd.distributor = d.name AND dcd.course = e.course
+            WHERE d.user_id IS NOT NULL AND d.user_id != ''
+            ORDER BY d.distributor_company_name, e.course
+        """, as_dict=True)
+
+        data = []
+        for row in rows:
+            # Determine status
+            cs = (row.completion_status or "").lower()
+            if cs == "completed":
+                status = "completed"
+            elif row.progress and int(row.progress) > 0:
+                status = "in_progress"
+            else:
+                status = "not_started"
+
+            # Determine division from child table
+            divisions = frappe.get_all(
+                "Meril Distributor Division Child",
+                filters={"parent": row.id},
+                pluck="division"
+            )
+            division = divisions[0] if divisions else "General"
+
+            data.append({
+                "id": row.id,
+                "distributor_company_name": row.distributor_company_name or "",
+                "attendee_name": row.attendee_name or "",
+                "course": row.course_title or row.course or "",
+                "division": division,
+                "status": status,
+                "progress": int(row.progress or 0),
+                "has_submitted_documents": bool(row.has_submitted_documents),
+                "last_updated": str(row.last_updated) if row.last_updated else "",
+                "enrollment_id": row.enrollment_id or "",
+                "doc_record_id": row.doc_record_id or "",
+            })
+
+        return {"success": True, "data": data}
+
+    except Exception as e:
+        frappe.log_error(f"Error in get_all_distributor_documents: {str(e)}")
+        return {"success": False, "message": str(e), "data": []}

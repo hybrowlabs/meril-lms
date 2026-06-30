@@ -2731,13 +2731,34 @@ def portal_reset_course(course_name):
 
 		for enrollment in enrollments:
 			try:
-				result = re_enroll_user_in_course(course_name, enrollment.member, reset_progress=True)
-				if result.get("success"):
+				status = (enrollment.completion_status or "").lower()
+				if status in ("active", "re-enrolled"):
+					# Directly reset progress and lesson history for active enrollments
+					frappe.db.set_value("LMS Enrollment", enrollment.name, {
+						"progress": 0,
+						"completed_on": None,
+						"current_lesson": None,
+						"course_reminder_count": 0,
+						"is_certified": 0,
+					})
+					frappe.db.sql("""
+						DELETE FROM `tabLMS Course Progress`
+						WHERE enrollment = %s
+					""", enrollment.name)
+					frappe.db.sql("""
+						DELETE FROM `tabLMS Course Progress`
+						WHERE member = %s AND course = %s
+						AND (enrollment IS NULL OR enrollment = '')
+					""", (enrollment.member, course_name))
 					reset_count += 1
-					# Reset course_reminder_count on the new enrollment
-					new_enrollment_id = result.get("enrollment_id")
-					if new_enrollment_id:
-						frappe.db.set_value("LMS Enrollment", new_enrollment_id, "course_reminder_count", 0)
+				else:
+					# Completed enrollments: create a fresh re-enrollment record
+					result = re_enroll_user_in_course(course_name, enrollment.member, reset_progress=True)
+					if result.get("success"):
+						reset_count += 1
+						new_enrollment_id = result.get("enrollment_id")
+						if new_enrollment_id:
+							frappe.db.set_value("LMS Enrollment", new_enrollment_id, "course_reminder_count", 0)
 			except Exception as e:
 				errors.append({"member": enrollment.member, "error": str(e)})
 
