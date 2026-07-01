@@ -1136,9 +1136,10 @@ def send_daily_course_reminders():
 			
 	
 			
-			message_content = get_course_reminder_message(	
+			message_content = get_course_reminder_message(
 				for_role,
 				name,
+				user,
 				enrollment.course_title,
 				enrollment.course_intrudoction,
 				days_since,
@@ -1204,9 +1205,13 @@ def send_daily_course_reminders():
 	}
 
 
-def get_course_reminder_message(for_role, name, course_title, course_introduction, days_since, progress, reminder_count, urgency):
-	"""Generate personalized course completion reminder message based on urgency level"""
-	
+def get_course_reminder_message(for_role, name, user_id, course_title, course_introduction, days_since, progress, reminder_count, urgency):
+	"""Generate personalized course completion reminder message based on urgency level.
+
+	`name` is the display name (attendee/employee name) shown in greetings.
+	`user_id` is the actual login email/User ID shown in the credentials block.
+	"""
+
 	if for_role == "Distributor":
 		return f'''<p>Dear {name},</p>
 
@@ -1217,7 +1222,7 @@ def get_course_reminder_message(for_role, name, course_title, course_introductio
 		<p style="font-weight: bold;">Login Credentials:</p>
 		<p style="font-weight: bold; margin-left: 10px;"><span style="margin-right: 10px;">•</span> Please click on the below link to log in:</p>
 		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
-		<p style="margin-left:10px; margin-bottom: 0; font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{name}</span></p>
+		<p style="margin-left:10px; margin-bottom: 0; font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{user_id}</span></p>
 
 		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
 
@@ -1562,6 +1567,7 @@ def send_manual_course_reminder(enrollment_id):
 		message_content = get_course_reminder_message(
 			None,
 			user.full_name,
+			user.name,
 			course.title,
 			None,
 			days_since,

@@ -2762,6 +2762,19 @@ def portal_reset_course(course_name):
 			except Exception as e:
 				errors.append({"member": enrollment.member, "error": str(e)})
 
+		# Atomic reset: if any enrollment failed to reset, roll back everything (including
+		# the enrollment resets already applied above) rather than partially resetting the
+		# portal and clearing document submission flags on top of an inconsistent state.
+		if errors:
+			frappe.db.rollback()
+			return {
+				"success": False,
+				"message": f"Portal reset failed for {len(errors)} enrollment(s). No changes were made.",
+				"reset_count": 0,
+				"errors": errors,
+				"documents_preserved": True
+			}
+
 		# Reset has_submitted_documents for distributors on this course
 		# Uploaded files are preserved; only the submission flag is cleared
 		dist_docs = frappe.get_all(
@@ -2792,6 +2805,7 @@ def portal_reset_course(course_name):
 		}
 
 	except Exception as e:
+		frappe.db.rollback()
 		frappe.log_error(frappe.get_traceback(), "Portal Reset Error")
 		return {"success": False, "message": str(e)}
 
@@ -2833,6 +2847,15 @@ def auto_enroll_on_course_publish(doc, method):
 			pluck="country"
 		)
 
+		# Course eligibility is country-based. If no countries are configured, there is
+		# no valid eligibility criteria, so no one should be auto-enrolled.
+		# (A future explicit "all countries" flag could bypass this, but none exists yet.)
+		if not assigned_countries:
+			frappe.logger().info(
+				f"No countries assigned to course '{course_name}'; skipping auto-enrollment to avoid mass-enrolling all users."
+			)
+			return
+
 		enrolled_count = 0
 
 		# Enroll distributors
@@ -2843,7 +2866,7 @@ def auto_enroll_on_course_publish(doc, method):
 				fields=["name", "user_id", "country", "distributor_email_address"]
 			)
 			for dist in distributors:
-				if assigned_countries and dist.country not in assigned_countries:
+				if dist.country not in assigned_countries:
 					continue
 				user_id = dist.user_id
 				# Skip if already enrolled
@@ -2872,7 +2895,7 @@ def auto_enroll_on_course_publish(doc, method):
 				fields=["name", "user_id", "country"]
 			)
 			for emp in employees:
-				if assigned_countries and emp.country not in assigned_countries:
+				if emp.country not in assigned_countries:
 					continue
 				user_id = emp.user_id
 				if frappe.db.exists("LMS Enrollment", {"member": user_id, "course": course_name}):
