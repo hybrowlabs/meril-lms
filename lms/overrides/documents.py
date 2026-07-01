@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 import random
+import re
 from datetime import timedelta
 from frappe.utils import now_datetime, validate_email_address, get_datetime
 import base64
@@ -54,12 +55,23 @@ def _get_country_declaration_variant(country):
 
 def _get_distributor_division_flags(distributor_doc):
     """Determine whether a distributor belongs to the Endo and/or Non-Endo division,
-    based on the division of each company in their Meril Company table."""
+    based on the division of each company in their Meril Company table.
+
+    Division values (e.g. "Endo Division", "Non Endo Division", "Non-Endo") are matched
+    on normalized text (lowercased, non-alphanumeric characters stripped) rather than a
+    plain "endo" substring check, since a naive check would also match "Non-Endo"/"Non Endo"
+    (both contain "endo") and misclassify them as Endo. Non-Endo is checked first so it takes
+    precedence; only divisions with no "non" qualifier are classified as Endo. Any division
+    with neither an "endo" nor "non-endo" marker (e.g. "Cardio") is treated as Non-Endo, to
+    preserve prior behavior of requiring the general compliance policy for other divisions.
+    """
     has_endo = False
     has_non_endo = False
     for company in getattr(distributor_doc, "meril_company_table", []) or []:
-        division_name = (company.division or "").lower()
-        if "endo" in division_name:
+        normalized = re.sub(r"[^a-z0-9]", "", (company.division or "").lower())
+        if "nonendo" in normalized:
+            has_non_endo = True
+        elif "endo" in normalized:
             has_endo = True
         else:
             has_non_endo = True
@@ -2994,7 +3006,11 @@ def get_all_distributor_documents():
     Returns all distributors with their course enrollment status and document submission info.
     Used by the DistributorManagement admin page.
     """
-    if not frappe.has_permission("Distributor", "read"):
+    # This query runs raw SQL and returns every distributor's records, bypassing row-level
+    # permissions entirely, so access must be gated on the admin role(s) the DistributorManagement
+    # page itself requires (see requiresRole in frontend/src/router.js), not on generic Distributor
+    # doctype read permission which could later be broadened to non-admin users.
+    if not any(role in ("System Manager", "Administrator") for role in frappe.get_roles()):
         frappe.throw(_("You do not have permission to view distributor documents"), frappe.PermissionError)
 
     try:
