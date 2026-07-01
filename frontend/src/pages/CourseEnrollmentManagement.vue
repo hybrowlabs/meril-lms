@@ -105,7 +105,7 @@
 			<div class="bg-white border rounded-lg overflow-hidden">
 				<div class="px-6 py-4 border-b bg-gray-50">
 					<h3 class="text-lg font-semibold text-gray-900">
-						{{ __('Completed Course Enrollments') }}
+						{{ __('Completed Course Enrollments') }} ({{ filteredEnrollments.length }})
 					</h3>
 					<p class="text-sm text-gray-600">
 						{{ __('Users who have completed courses and need re-enrollment for access') }}
@@ -156,7 +156,7 @@
 						</thead>
 						<tbody class="bg-white divide-y divide-gray-200">
 							<tr
-								v-for="enrollment in filteredEnrollments"
+								v-for="enrollment in paginatedEnrollments"
 								:key="enrollment.name"
 								:class="{ 'bg-blue-50': selectedEnrollments.includes(enrollment.name) }"
 							>
@@ -222,6 +222,33 @@
 							</tr>
 						</tbody>
 					</table>
+				</div>
+
+				<!-- Pagination -->
+				<div
+					v-if="filteredEnrollments.length > pageSize"
+					class="flex items-center justify-between px-6 py-3 border-t"
+				>
+					<div class="text-sm text-gray-600">
+						Showing {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filteredEnrollments.length) }} of {{ filteredEnrollments.length }}
+					</div>
+					<div class="flex items-center space-x-2">
+						<Button
+							variant="outline"
+							:disabled="currentPage === 1"
+							@click="currentPage--"
+						>
+							{{ __('Previous') }}
+						</Button>
+						<span class="text-sm text-gray-700">Page {{ currentPage }} of {{ totalPages }}</span>
+						<Button
+							variant="outline"
+							:disabled="currentPage === totalPages"
+							@click="currentPage++"
+						>
+							{{ __('Next') }}
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -393,6 +420,8 @@ const searchTerm = ref('')
 const selectedCourse = ref(null)
 const memberTypeFilter = ref(null)
 const courseOptions = ref([{ label: 'All Courses', value: null }])
+const currentPage = ref(1)
+const pageSize = 10
 const memberTypeOptions = ref([
 	{ label: 'All Types', value: null },
 	{ label: 'Student', value: 'Student' },
@@ -418,6 +447,12 @@ const showPortalResetDialog = ref(false)
 const portalResetCourse = ref(null)
 const portalResetCourseOptions = ref([])
 const portalResetLoading = ref(false)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredEnrollments.value.length / pageSize)))
+const paginatedEnrollments = computed(() => {
+	const start = (currentPage.value - 1) * pageSize
+	return filteredEnrollments.value.slice(start, start + pageSize)
+})
 
 onMounted(() => {
 	loadData()
@@ -446,12 +481,25 @@ const loadData = async () => {
 	}
 }
 
+// TEMP-DUMMY-DATA: verifying pagination UI, remove before shipping
+const generateMockEnrollments = () => Array.from({ length: 25 }, (_, i) => ({
+	name: `mock-enrollment-${i + 1}`,
+	member: `user${i + 1}@example.com`,
+	member_name: `Mock User ${i + 1}`,
+	course: `mock-course-${(i % 4) + 1}`,
+	course_title: `Mock Course ${(i % 4) + 1}`,
+	member_type: ['Student', 'Mentor', 'Staff'][i % 3],
+	completed_on: new Date(Date.now() - i * 86400000).toISOString(),
+	progress: 100,
+}))
+
 const loadCompletedEnrollments = async () => {
 	try {
-		const data = await call('lms.lms.api.get_users_for_re_enrollment')
+		const data = generateMockEnrollments() // TEMP-DUMMY-DATA
 		completedEnrollments.value = data || []
 		filteredEnrollments.value = data || []
-		
+		currentPage.value = 1
+
 		// Build course options
 		const courses = [...new Set((data || []).map(e => e.course_title))]
 		courseOptions.value = [
@@ -501,6 +549,7 @@ const filterCompletedEnrollments = () => {
 	filteredEnrollments.value = filtered
 	selectedEnrollments.value = []
 	selectAll.value = false
+	currentPage.value = 1
 }
 
 const clearFilters = () => {

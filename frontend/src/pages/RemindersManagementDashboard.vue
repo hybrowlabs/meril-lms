@@ -137,7 +137,7 @@
 				<div class="px-6 py-4 border-b bg-gray-50">
 					<div class="flex justify-between items-center">
 						<div>
-							<h3 class="text-lg font-semibold text-gray-900">{{ __('Course Enrollment Overview') }}</h3>
+							<h3 class="text-lg font-semibold text-gray-900">{{ __('Course Enrollment Overview') }} ({{ filteredUsers.length }})</h3>
 							<p class="text-sm text-gray-600">{{ __('Course completion status and reminder tracking for all users') }}</p>
 						</div>
 						<div class="flex items-center space-x-3">
@@ -197,7 +197,7 @@
 							</tr>
 						</thead>
 						<tbody class="bg-white divide-y divide-gray-200">
-							<tr v-for="user in filteredUsers" :key="user.enrollment_id">
+							<tr v-for="user in paginatedUsers" :key="user.enrollment_id">
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
 										<UserAvatar :user="{ name: user.user_id }" class="mr-3" />
@@ -278,6 +278,33 @@
 							</tr>
 						</tbody>
 					</table>
+				</div>
+
+				<!-- Pagination -->
+				<div
+					v-if="filteredUsers.length > pageSize"
+					class="flex items-center justify-between px-6 py-3 border-t"
+				>
+					<div class="text-sm text-gray-600">
+						Showing {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filteredUsers.length) }} of {{ filteredUsers.length }}
+					</div>
+					<div class="flex items-center space-x-2">
+						<Button
+							variant="outline"
+							:disabled="currentPage === 1"
+							@click="currentPage--"
+						>
+							{{ __('Previous') }}
+						</Button>
+						<span class="text-sm text-gray-700">Page {{ currentPage }} of {{ totalPages }}</span>
+						<Button
+							variant="outline"
+							:disabled="currentPage === totalPages"
+							@click="currentPage++"
+						>
+							{{ __('Next') }}
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -410,6 +437,8 @@ const reminderBreakdown = ref([])
 const loading = ref(true)
 const searchTerm = ref('')
 const statusFilter = ref(null)
+const currentPage = ref(1)
+const pageSize = 10
 
 // Dialog states
 const showUsersDetailsDialog = ref(false)
@@ -440,6 +469,12 @@ const statusFilterOptions = ref([
 	{ label: 'In Progress', value: 'in_progress' },
 	{ label: 'High Reminders (5+)', value: 'high_reminders' }
 ])
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredUsers.value.length / pageSize)))
+const paginatedUsers = computed(() => {
+	const start = (currentPage.value - 1) * pageSize
+	return filteredUsers.value.slice(start, start + pageSize)
+})
 
 onMounted(() => {
 	loadData()
@@ -535,11 +570,25 @@ const loadKPIData = async () => {
 	}
 }
 
+// TEMP-DUMMY-DATA: verifying pagination UI, remove before shipping
+const generateMockUsers = () => Array.from({ length: 25 }, (_, i) => ({
+	enrollment_id: `mock-enrollment-${i + 1}`,
+	user_id: `user${i + 1}@example.com`,
+	user_name: `Mock User ${i + 1}`,
+	user_email: `user${i + 1}@example.com`,
+	course_title: `Mock Course ${(i % 4) + 1}`,
+	progress: (i % 5) * 25,
+	completed_on: i % 3 === 0 ? new Date(Date.now() - i * 86400000).toISOString() : null,
+	course_reminder_count: i % 12,
+	creation: new Date(Date.now() - i * 5 * 86400000).toISOString(),
+}))
+
 const loadUsers = async () => {
 	try {
-		const data = await call('lms.lms.api.get_users_with_course_completion_status')
+		const data = generateMockUsers() // TEMP-DUMMY-DATA
 		users.value = data || []
 		filteredUsers.value = data || []
+		currentPage.value = 1
 	} catch (error) {
 		console.error('Failed to load users:', error)
 		users.value = []
@@ -590,6 +639,7 @@ const filterUsers = () => {
 	}
 
 	filteredUsers.value = filtered
+	currentPage.value = 1
 }
 
 const showUsersDialog = (type) => {
