@@ -1,5 +1,7 @@
 import frappe
+from frappe import _
 import random
+import re
 from datetime import timedelta
 from frappe.utils import now_datetime, validate_email_address, get_datetime
 import base64
@@ -49,6 +51,31 @@ def _get_country_declaration_variant(country):
     """Return country-specific self-declaration config, or None for default (India)."""
     normalized = (country or "").strip().lower()
     return COUNTRY_DECLARATION_VARIANTS.get(normalized)
+
+
+def _get_distributor_division_flags(distributor_doc):
+    """Determine whether a distributor belongs to the Endo and/or Non-Endo division,
+    based on the division of each company in their Meril Company table.
+
+    Division values (e.g. "Endo Division", "Non Endo Division", "Non-Endo") are matched
+    on normalized text (lowercased, non-alphanumeric characters stripped) rather than a
+    plain "endo" substring check, since a naive check would also match "Non-Endo"/"Non Endo"
+    (both contain "endo") and misclassify them as Endo. Non-Endo is checked first so it takes
+    precedence; only divisions with no "non" qualifier are classified as Endo. Any division
+    with neither an "endo" nor "non-endo" marker (e.g. "Cardio") is treated as Non-Endo, to
+    preserve prior behavior of requiring the general compliance policy for other divisions.
+    """
+    has_endo = False
+    has_non_endo = False
+    for company in getattr(distributor_doc, "meril_company_table", []) or []:
+        normalized = re.sub(r"[^a-z0-9]", "", (company.division or "").lower())
+        if "nonendo" in normalized:
+            has_non_endo = True
+        elif "endo" in normalized:
+            has_endo = True
+        else:
+            has_non_endo = True
+    return has_endo, has_non_endo
 
 
 def _normalize_course_name(course_name: str | None) -> str:
@@ -393,8 +420,8 @@ def get_next_distributor_document(course=None):
     # List of document names in priority order (should match frontend)
     doc_priority = [
         ("meril_distributor_compliance_policy_adoption_form", "Meril Distributor Compliance Policy Adoption Form"),
-        ("distributor_self_declaration", "Distributor Self Declaration"),
-        ("meril_distributor_compliance_code_of_conduct", "Meril Distributor Compliance Code of Conduct")
+        ("meril_distributor_compliance_policy", "Meril Distributor Compliance Policy"),
+        ("meril_distributor_compliance_policy_for_endo", "Meril Distributor Compliance Policy for Endo")
     ]
 
     # Get already submitted documents for this distributor and course
@@ -602,19 +629,11 @@ def has_user_submited_document(course=None):
             else:
                 documents_list = [
                     "Distributor Completion Certificate",
-                    "Distributor Self Declaration",
-                    "Meril Distributor Compliance Code of Conduct"
+                    "Meril Distributor Compliance Policy Adoption Form"
                 ]
 
                 # Add Endo/Non-Endo compliance policy documents based on company names
-                has_endo = False
-                has_non_endo = False
-                for company in distributor_doc.meril_company_table:
-                    name = (company.division or "").lower()
-                    if "endo" in name:
-                        has_endo = True
-                    else:
-                        has_non_endo = True
+                has_endo, has_non_endo = _get_distributor_division_flags(distributor_doc)
                 if has_endo:
                     documents_list.append("Meril Distributor Compliance Policy for Endo")
                 if has_non_endo:
@@ -1242,15 +1261,19 @@ def upload_distributor_document_with_datetime(
         # Conditionally mark as submitted only when all enabled docs are uploaded
         try:
             lms_settings = frappe.get_single("LMS Settings")
+            # Only the compliance policy matching the distributor's own division is
+            # required, not both Endo and Non-Endo, even if both are enabled in settings.
+            has_endo, has_non_endo = _get_distributor_division_flags(distributor_doc)
+
             # Build the list of required document names based on enabled settings
             required_docs = []
             if getattr(lms_settings, "meril_distributor_compliance_policy_adoption_form", False):
                 required_docs.append("Meril Distributor Compliance Policy Adoption Form")
-            if getattr(lms_settings, "distributor_self_declaration", False):
-                required_docs.append("Distributor Self Declaration")
-            if getattr(lms_settings, "meril_distributor_compliance_code_of_conduct", False):
-                required_docs.append("Meril Distributor Compliance Code of Conduct")
-            # No 4th document needed - only 3 documents are uploaded by user
+            # Only Adoption Form + appropriate compliance policy required (Endo or Non-Endo)
+            if has_endo and getattr(lms_settings, "meril_distributor_compliance_policy_for_endo", False):
+                required_docs.append("Meril Distributor Compliance Policy for Endo")
+            if has_non_endo and getattr(lms_settings, "meril_distributor_compliance_policy", False):
+                required_docs.append("Meril Distributor Compliance Policy")
 
             # Gather all uploaded document names from the child table
             uploaded_names = set()
@@ -2783,8 +2806,7 @@ def get_document_configuration(course=None):
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
 
             # Analyze divisions
-            has_endo = False
-            has_non_endo = False
+            has_endo, has_non_endo = _get_distributor_division_flags(distributor_doc)
             divisions = []
 
             for company in distributor_doc.meril_company_table:
@@ -2794,11 +2816,6 @@ def get_document_configuration(course=None):
                     "division": company.division,
                     "is_endo": "endo" in division_name
                 })
-
-                if "endo" in division_name:
-                    has_endo = True
-                else:
-                    has_non_endo = True
 
             result["division_info"] = {
                 "has_endo": has_endo,
@@ -2981,3 +2998,83 @@ def get_document_configuration(course=None):
             "success": False,
             "message": f"Error getting document configuration: {str(e)}"
         }
+
+
+@frappe.whitelist()
+def get_all_distributor_documents():
+    """
+    Returns all distributors with their course enrollment status and document submission info.
+    Used by the DistributorManagement admin page.
+    """
+    # This query runs raw SQL and returns every distributor's records, bypassing row-level
+    # permissions entirely, so access must be gated on the admin role(s) the DistributorManagement
+    # page itself requires (see requiresRole in frontend/src/router.js), not on generic Distributor
+    # doctype read permission which could later be broadened to non-admin users.
+    if not any(role in ("System Manager", "Administrator") for role in frappe.get_roles()):
+        frappe.throw(_("You do not have permission to view distributor documents"), frappe.PermissionError)
+
+    try:
+        rows = frappe.db.sql("""
+            SELECT
+                d.name AS id,
+                d.distributor_company_name,
+                d.attendee_name,
+                d.country,
+                d.user_id,
+                e.course,
+                c.title AS course_title,
+                e.progress,
+                e.completion_status,
+                e.name AS enrollment_id,
+                dcd.has_submitted_documents,
+                dcd.name AS doc_record_id,
+                e.modified AS last_updated
+            FROM `tabDistributor` d
+            LEFT JOIN `tabLMS Enrollment` e
+                ON e.member = d.user_id
+                AND e.access_restricted = 0
+            LEFT JOIN `tabLMS Course` c ON c.name = e.course
+            LEFT JOIN `tabDistributor Course Documents` dcd
+                ON dcd.distributor = d.name AND dcd.course = e.course
+            WHERE d.user_id IS NOT NULL AND d.user_id != ''
+            ORDER BY d.distributor_company_name, e.course
+        """, as_dict=True)
+
+        data = []
+        for row in rows:
+            # Determine status
+            cs = (row.completion_status or "").lower()
+            if cs == "completed":
+                status = "completed"
+            elif row.progress and int(row.progress) > 0:
+                status = "in_progress"
+            else:
+                status = "not_started"
+
+            # Determine division from child table
+            divisions = frappe.get_all(
+                "Meril Distributor Division Child",
+                filters={"parent": row.id},
+                pluck="division"
+            )
+            division = divisions[0] if divisions else "General"
+
+            data.append({
+                "id": row.id,
+                "distributor_company_name": row.distributor_company_name or "",
+                "attendee_name": row.attendee_name or "",
+                "course": row.course_title or row.course or "",
+                "division": division,
+                "status": status,
+                "progress": int(row.progress or 0),
+                "has_submitted_documents": bool(row.has_submitted_documents),
+                "last_updated": str(row.last_updated) if row.last_updated else "",
+                "enrollment_id": row.enrollment_id or "",
+                "doc_record_id": row.doc_record_id or "",
+            })
+
+        return {"success": True, "data": data}
+
+    except Exception as e:
+        frappe.log_error(f"Error in get_all_distributor_documents: {str(e)}")
+        return {"success": False, "message": str(e), "data": []}

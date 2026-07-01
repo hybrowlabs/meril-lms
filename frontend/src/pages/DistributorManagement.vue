@@ -257,7 +257,7 @@
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             <tr
-              v-for="distributor in filteredDistributors"
+              v-for="distributor in paginatedDistributors"
               :key="`${distributor.id}-${distributor.course}`"
               class="hover:bg-gray-50"
             >
@@ -347,6 +347,32 @@
       </div>
     </div>
 
+    <!-- Pagination -->
+    <div v-if="filteredDistributors.length > pageSize" class="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-6 py-3 mt-4">
+      <div class="text-sm text-gray-600">
+        Showing {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filteredDistributors.length) }} of {{ filteredDistributors.length }}
+      </div>
+      <div class="flex items-center space-x-2">
+        <Button
+          theme="gray"
+          variant="outline"
+          :disabled="currentPage === 1"
+          @click="currentPage--"
+        >
+          Previous
+        </Button>
+        <span class="text-sm text-gray-700">Page {{ currentPage }} of {{ totalPages }}</span>
+        <Button
+          theme="gray"
+          variant="outline"
+          :disabled="currentPage === totalPages"
+          @click="currentPage++"
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+
     <!-- Distributor Detail Modal -->
     <DistributorDetailModal
       v-if="selectedDistributor"
@@ -431,6 +457,17 @@ const filteredDistributors = computed(() => {
   return filtered
 })
 
+// Pagination
+const currentPage = ref(1)
+const pageSize = 10
+
+const totalPages = computed(() => Math.ceil(filteredDistributors.value.length / pageSize))
+
+const paginatedDistributors = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return filteredDistributors.value.slice(start, start + pageSize)
+})
+
 const statistics = computed(() => {
   const total = filteredDistributors.value.length
   const completed = filteredDistributors.value.filter(d => d.status === 'completed').length
@@ -449,6 +486,11 @@ const allSelected = computed({
       selectedDistributors.value = []
     }
   }
+})
+
+// Reset to page 1 when filters change
+watch([searchQuery, selectedCourse, selectedStatus, selectedDivision, startDate, endDate], () => {
+  currentPage.value = 1
 })
 
 // Methods

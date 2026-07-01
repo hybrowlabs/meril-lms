@@ -17,6 +17,12 @@
 					</template>
 					{{ __('Bulk Re-enroll') }}
 				</Button>
+				<Button variant="outline" theme="red" @click="openPortalResetDialog">
+					<template #prefix>
+						<RotateCcw class="h-4 w-4" />
+					</template>
+					{{ __('Portal Reset') }}
+				</Button>
 			</div>
 		</header>
 
@@ -305,6 +311,51 @@
 				</div>
 			</template>
 		</Dialog>
+		<!-- Portal Reset Dialog -->
+		<Dialog v-model="showPortalResetDialog">
+			<template #body>
+				<div class="p-6">
+					<div class="flex items-center mb-4">
+						<RotateCcw class="h-6 w-6 text-red-600 mr-2" />
+						<h3 class="text-lg font-semibold">{{ __('Portal Reset') }}</h3>
+					</div>
+
+					<div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-4 text-sm text-yellow-800">
+						<p class="font-semibold mb-1">{{ __('Important:') }}</p>
+						<ul class="list-disc list-inside space-y-1">
+							<li>{{ __('All user course progress will be reset to 0%.') }}</li>
+							<li>{{ __('Previously uploaded compliance documents are preserved and will remain in the system.') }}</li>
+							<li>{{ __('Document submission status will be reset — users must re-upload their documents.') }}</li>
+							<li>{{ __('Course reminders will restart from day 1 for all users.') }}</li>
+						</ul>
+					</div>
+
+					<div class="mb-4">
+						<label class="block text-sm font-medium text-gray-700 mb-1">{{ __('Select Course to Reset') }}</label>
+						<Select
+							v-model="portalResetCourse"
+							:options="portalResetCourseOptions"
+							:placeholder="__('Select a course')"
+						/>
+					</div>
+
+					<div class="flex justify-end space-x-3 mt-6">
+						<Button variant="subtle" @click="showPortalResetDialog = false">
+							{{ __('Cancel') }}
+						</Button>
+						<Button
+							theme="red"
+							variant="solid"
+							@click="executePortalReset"
+							:loading="portalResetLoading"
+							:disabled="!portalResetCourse"
+						>
+							{{ __('Reset Portal') }}
+						</Button>
+					</div>
+				</div>
+			</template>
+		</Dialog>
 	</div>
 </template>
 
@@ -361,6 +412,12 @@ const showSingleReEnrollDialog = ref(false)
 const selectedEnrollmentForReEnroll = ref(null)
 const singleReEnrollLoading = ref(false)
 const resetProgressOnSingleReEnroll = ref(false)
+
+// Portal Reset
+const showPortalResetDialog = ref(false)
+const portalResetCourse = ref(null)
+const portalResetCourseOptions = ref([])
+const portalResetLoading = ref(false)
 
 onMounted(() => {
 	loadData()
@@ -548,6 +605,43 @@ const executeBulkReEnrollment = async () => {
 		alert('Failed to perform bulk re-enrollment: ' + error.message)
 	} finally {
 		bulkReEnrollLoading.value = false
+	}
+}
+
+const openPortalResetDialog = async () => {
+	portalResetCourse.value = null
+	try {
+		const options = await call('lms.lms.api.get_courses_for_portal_reset')
+		portalResetCourseOptions.value = [
+			{ label: __('Select a course'), value: null },
+			...(options || [])
+		]
+	} catch (e) {
+		portalResetCourseOptions.value = []
+	}
+	showPortalResetDialog.value = true
+}
+
+const executePortalReset = async () => {
+	if (!portalResetCourse.value) return
+	if (!confirm(__('Are you sure you want to reset the portal for this course? All user progress will be reset. Previously submitted documents are preserved.'))) return
+
+	portalResetLoading.value = true
+	try {
+		const result = await call('lms.lms.api.portal_reset_course', {
+			course_name: portalResetCourse.value
+		})
+		showPortalResetDialog.value = false
+		if (result && result.success) {
+			alert(__('Portal reset complete. {0} enrollments reset. Previously uploaded documents are preserved.', [result.reset_count]))
+			await loadData()
+		} else {
+			alert(__('Reset failed: ') + (result && result.message || 'Unknown error'))
+		}
+	} catch (e) {
+		alert(__('Reset failed: ') + e.message)
+	} finally {
+		portalResetLoading.value = false
 	}
 }
 

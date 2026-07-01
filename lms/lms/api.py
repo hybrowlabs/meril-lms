@@ -2699,3 +2699,224 @@ def get_document_info(file_url):
 	except Exception as e:
 		frappe.log_error(f"Error getting document info: {str(e)}", "Document Info Error")
 		return {"error": str(e), "exists": False}
+
+
+@frappe.whitelist()
+def portal_reset_course(course_name):
+	"""
+	Reset all user enrollments for a given course.
+	- Re-creates fresh enrollments (progress reset to 0) for all enrolled users.
+	- Distributor/Employee uploaded compliance documents are PRESERVED in their records.
+	- has_submitted_documents is reset to 0 so users must re-submit documents.
+	- Reminders restart automatically via the scheduler.
+	"""
+	if not frappe.has_permission("LMS Course", "write"):
+		frappe.throw(_("You do not have permission to perform a portal reset"))
+
+	if not frappe.db.exists("LMS Course", course_name):
+		return {"success": False, "message": "Course not found"}
+
+	try:
+		from lms.lms.doctype.lms_enrollment.lms_enrollment import re_enroll_user_in_course
+
+		# Get all non-historical enrollments for this course
+		enrollments = frappe.get_all(
+			"LMS Enrollment",
+			filters={"course": course_name, "access_restricted": 0},
+			fields=["name", "member", "completion_status"]
+		)
+
+		reset_count = 0
+		errors = []
+
+		for enrollment in enrollments:
+			try:
+				status = (enrollment.completion_status or "").lower()
+				if status in ("active", "re-enrolled"):
+					# Directly reset progress and lesson history for active enrollments
+					frappe.db.set_value("LMS Enrollment", enrollment.name, {
+						"progress": 0,
+						"completed_on": None,
+						"current_lesson": None,
+						"course_reminder_count": 0,
+						"is_certified": 0,
+					})
+					frappe.db.sql("""
+						DELETE FROM `tabLMS Course Progress`
+						WHERE enrollment = %s
+					""", enrollment.name)
+					frappe.db.sql("""
+						DELETE FROM `tabLMS Course Progress`
+						WHERE member = %s AND course = %s
+						AND (enrollment IS NULL OR enrollment = '')
+					""", (enrollment.member, course_name))
+					reset_count += 1
+				else:
+					# Completed enrollments: create a fresh re-enrollment record
+					result = re_enroll_user_in_course(course_name, enrollment.member, reset_progress=True)
+					if result.get("success"):
+						reset_count += 1
+						new_enrollment_id = result.get("enrollment_id")
+						if new_enrollment_id:
+							frappe.db.set_value("LMS Enrollment", new_enrollment_id, "course_reminder_count", 0)
+			except Exception as e:
+				errors.append({"member": enrollment.member, "error": str(e)})
+
+		# Atomic reset: if any enrollment failed to reset, roll back everything (including
+		# the enrollment resets already applied above) rather than partially resetting the
+		# portal and clearing document submission flags on top of an inconsistent state.
+		if errors:
+			frappe.db.rollback()
+			return {
+				"success": False,
+				"message": f"Portal reset failed for {len(errors)} enrollment(s). No changes were made.",
+				"reset_count": 0,
+				"errors": errors,
+				"documents_preserved": True
+			}
+
+		# Reset has_submitted_documents for distributors on this course
+		# Uploaded files are preserved; only the submission flag is cleared
+		dist_docs = frappe.get_all(
+			"Distributor Course Documents",
+			filters={"course": course_name},
+			pluck="name"
+		)
+		for doc_name in dist_docs:
+			frappe.db.set_value("Distributor Course Documents", doc_name, "has_submitted_documents", 0)
+
+		# Reset for employee course documents if they exist
+		emp_docs = frappe.get_all(
+			"Employee Course Documents",
+			filters={"course": course_name},
+			pluck="name"
+		)
+		for doc_name in emp_docs:
+			frappe.db.set_value("Employee Course Documents", doc_name, "has_submitted_documents", 0)
+
+		frappe.db.commit()
+
+		return {
+			"success": True,
+			"message": f"Portal reset complete. {reset_count} enrollments reset.",
+			"reset_count": reset_count,
+			"errors": errors,
+			"documents_preserved": True
+		}
+
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error(frappe.get_traceback(), "Portal Reset Error")
+		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_courses_for_portal_reset():
+	"""Return all published LMS courses for the portal reset dropdown"""
+	courses = frappe.get_all(
+		"LMS Course",
+		filters={"published": 1},
+		fields=["name", "title"],
+		order_by="title"
+	)
+	return [{"label": c.title, "value": c.name} for c in courses]
+
+
+def auto_enroll_on_course_publish(doc, method):
+	"""
+	Called on LMS Course.on_update.
+	When a course is newly published, auto-enroll all eligible distributors and employees.
+	Eligibility: country is in the course's Option Country child table,
+	and the course is assigned to the matching role.
+	"""
+	if not doc.published:
+		return
+
+	# Only act when the course transitions to published
+	if not doc.has_value_changed("published"):
+		return
+
+	try:
+		course_name = doc.name
+		assigned_role = getattr(doc, "custom_assigned_to_role", None)  # "Distributor", "Employee", or "All"
+
+		# Get countries assigned to this course
+		assigned_countries = frappe.get_all(
+			"Option Country",
+			filters={"parent": course_name, "parenttype": "LMS Course"},
+			pluck="country"
+		)
+
+		# Course eligibility is country-based. If no countries are configured, there is
+		# no valid eligibility criteria, so no one should be auto-enrolled.
+		# (A future explicit "all countries" flag could bypass this, but none exists yet.)
+		if not assigned_countries:
+			frappe.logger().info(
+				f"No countries assigned to course '{course_name}'; skipping auto-enrollment to avoid mass-enrolling all users."
+			)
+			return
+
+		enrolled_count = 0
+
+		# Enroll distributors
+		if assigned_role in ("Distributor", "All", None):
+			distributors = frappe.get_all(
+				"Distributor",
+				filters={"user_id": ("is", "set")},
+				fields=["name", "user_id", "country", "distributor_email_address"]
+			)
+			for dist in distributors:
+				if dist.country not in assigned_countries:
+					continue
+				user_id = dist.user_id
+				# Skip if already enrolled
+				if frappe.db.exists("LMS Enrollment", {"member": user_id, "course": course_name}):
+					continue
+				try:
+					enrollment = frappe.new_doc("LMS Enrollment")
+					enrollment.update({
+						"member": user_id,
+						"course": course_name,
+						"member_type": "Student",
+						"completion_status": "Active",
+						"access_restricted": 0,
+						"progress": 0,
+					})
+					enrollment.insert(ignore_permissions=True)
+					enrolled_count += 1
+				except Exception as e:
+					frappe.log_error(f"Auto-enroll distributor {user_id} in {course_name}: {str(e)}", "Auto Enroll Error")
+
+		# Enroll employees
+		if assigned_role in ("Employee", "All", None):
+			employees = frappe.get_all(
+				"Employee",
+				filters={"user_id": ("is", "set")},
+				fields=["name", "user_id", "country"]
+			)
+			for emp in employees:
+				if emp.country not in assigned_countries:
+					continue
+				user_id = emp.user_id
+				if frappe.db.exists("LMS Enrollment", {"member": user_id, "course": course_name}):
+					continue
+				try:
+					enrollment = frappe.new_doc("LMS Enrollment")
+					enrollment.update({
+						"member": user_id,
+						"course": course_name,
+						"member_type": "Student",
+						"completion_status": "Active",
+						"access_restricted": 0,
+						"progress": 0,
+					})
+					enrollment.insert(ignore_permissions=True)
+					enrolled_count += 1
+				except Exception as e:
+					frappe.log_error(f"Auto-enroll employee {user_id} in {course_name}: {str(e)}", "Auto Enroll Error")
+
+		frappe.db.commit()
+		frappe.logger().info(f"Auto-enrolled {enrolled_count} users in new course '{course_name}'")
+
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "Auto Enroll on Course Publish Error")
