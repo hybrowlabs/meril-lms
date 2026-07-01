@@ -570,22 +570,9 @@ const loadKPIData = async () => {
 	}
 }
 
-// TEMP-DUMMY-DATA: verifying pagination UI, remove before shipping
-const generateMockUsers = () => Array.from({ length: 25 }, (_, i) => ({
-	enrollment_id: `mock-enrollment-${i + 1}`,
-	user_id: `user${i + 1}@example.com`,
-	user_name: `Mock User ${i + 1}`,
-	user_email: `user${i + 1}@example.com`,
-	course_title: `Mock Course ${(i % 4) + 1}`,
-	progress: (i % 5) * 25,
-	completed_on: i % 3 === 0 ? new Date(Date.now() - i * 86400000).toISOString() : null,
-	course_reminder_count: i % 12,
-	creation: new Date(Date.now() - i * 5 * 86400000).toISOString(),
-}))
-
 const loadUsers = async () => {
 	try {
-		const data = generateMockUsers() // TEMP-DUMMY-DATA
+		const data = await call('lms.lms.api.get_users_with_course_completion_status')
 		users.value = data || []
 		filteredUsers.value = data || []
 		currentPage.value = 1
