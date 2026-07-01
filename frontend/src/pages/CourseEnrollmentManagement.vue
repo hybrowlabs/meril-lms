@@ -481,21 +481,9 @@ const loadData = async () => {
 	}
 }
 
-// TEMP-DUMMY-DATA: verifying pagination UI, remove before shipping
-const generateMockEnrollments = () => Array.from({ length: 25 }, (_, i) => ({
-	name: `mock-enrollment-${i + 1}`,
-	member: `user${i + 1}@example.com`,
-	member_name: `Mock User ${i + 1}`,
-	course: `mock-course-${(i % 4) + 1}`,
-	course_title: `Mock Course ${(i % 4) + 1}`,
-	member_type: ['Student', 'Mentor', 'Staff'][i % 3],
-	completed_on: new Date(Date.now() - i * 86400000).toISOString(),
-	progress: 100,
-}))
-
 const loadCompletedEnrollments = async () => {
 	try {
-		const data = generateMockEnrollments() // TEMP-DUMMY-DATA
+		const data = await call('lms.lms.api.get_users_for_re_enrollment')
 		completedEnrollments.value = data || []
 		filteredEnrollments.value = data || []
 		currentPage.value = 1
