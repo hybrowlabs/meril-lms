@@ -363,14 +363,76 @@
 							v-model="portalResetCourse"
 							:options="portalResetCourseOptions"
 							:placeholder="__('Select a course')"
+							:disabled="portalResetJob && !portalResetFinished"
 						/>
 					</div>
 
+					<!-- Live progress (updated in real time via polling + realtime event) -->
+					<div v-if="portalResetJob" class="mb-4 border rounded-lg p-4 bg-gray-50">
+						<div class="flex items-center justify-between text-sm mb-1">
+							<span class="font-medium">
+								{{ __('Status') }}:
+								<Badge :theme="resetStatusTheme" variant="subtle">{{ portalResetJob.status }}</Badge>
+							</span>
+							<span class="text-gray-600">
+								{{ portalResetJob.processed_records || 0 }} / {{ portalResetJob.total_records || 0 }}
+								({{ Math.round(portalResetJob.progress_percentage || 0) }}%)
+							</span>
+						</div>
+						<div class="w-full bg-gray-200 rounded-full h-2.5">
+							<div
+								class="h-2.5 rounded-full transition-all"
+								:class="resetBarColor"
+								:style="{ width: Math.min(100, Math.round(portalResetJob.progress_percentage || 0)) + '%' }"
+							></div>
+						</div>
+						<p v-if="portalResetJob.current_stage" class="text-xs text-gray-500 mt-1">
+							{{ portalResetJob.current_stage }}
+						</p>
+
+						<!-- Per-stage breakdown -->
+						<div class="mt-3 space-y-1">
+							<div
+								v-for="stage in portalResetJob.stages"
+								:key="stage.stage_key"
+								class="flex items-center justify-between text-xs"
+							>
+								<span class="text-gray-700">{{ stage.stage_label }}</span>
+								<span class="flex items-center gap-2">
+									<Badge :theme="stageTheme(stage.status)" variant="subtle">{{ stage.status }}</Badge>
+									<span class="text-gray-500">{{ stage.processed || 0 }} / {{ stage.total || 0 }}</span>
+								</span>
+							</div>
+						</div>
+
+						<p v-if="portalResetJob.error_log && portalResetFinished && portalResetJob.status !== 'Completed'"
+							class="text-xs text-red-600 mt-2 whitespace-pre-wrap max-h-24 overflow-y-auto">
+							{{ portalResetJob.error_log }}
+						</p>
+					</div>
+
 					<div class="flex justify-end space-x-3 mt-6">
-						<Button variant="subtle" @click="showPortalResetDialog = false">
-							{{ __('Cancel') }}
+						<Button variant="subtle" @click="closePortalResetDialog">
+							{{ __('Close') }}
 						</Button>
 						<Button
+							v-if="portalResetJob && ['Failed','Partially Completed','Cancelled'].includes(portalResetJob.status)"
+							variant="solid"
+							@click="resumePortalReset"
+							:loading="portalResetLoading"
+						>
+							{{ __('Resume / Retry') }}
+						</Button>
+						<Button
+							v-if="portalResetJob && ['Queued','Running'].includes(portalResetJob.status)"
+							theme="red"
+							variant="subtle"
+							@click="cancelPortalReset"
+						>
+							{{ __('Cancel Reset') }}
+						</Button>
+						<Button
+							v-if="!portalResetJob || portalResetFinished"
 							theme="red"
 							variant="solid"
 							@click="executePortalReset"
@@ -398,7 +460,7 @@ import {
 	toast,
 	usePageMeta,
 } from 'frappe-ui'
-import { computed, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue'
 import {
 	RefreshCw,
 	Users,
@@ -411,6 +473,7 @@ import { sessionStore } from '@/stores/session'
 import UserAvatar from '@/components/UserAvatar.vue'
 
 const { user } = sessionStore()
+const $socket = inject('$socket', null)
 
 // Reactive data
 const completedEnrollments = ref([])
@@ -448,6 +511,28 @@ const showPortalResetDialog = ref(false)
 const portalResetCourse = ref(null)
 const portalResetCourseOptions = ref([])
 const portalResetLoading = ref(false)
+const portalResetJob = ref(null)          // full job status snapshot
+let portalResetPollTimer = null
+let portalResetRealtimeOff = null
+
+const portalResetFinished = computed(() => {
+	const s = portalResetJob.value && portalResetJob.value.status
+	return !s || ['Completed', 'Failed', 'Cancelled', 'Partially Completed'].includes(s)
+})
+
+const resetStatusTheme = computed(() => ({
+	Completed: 'green', Running: 'blue', Queued: 'orange',
+	Failed: 'red', Cancelled: 'gray', 'Partially Completed': 'orange',
+}[portalResetJob.value?.status] || 'gray'))
+
+const resetBarColor = computed(() => ({
+	Completed: 'bg-green-600', Running: 'bg-blue-600', Queued: 'bg-orange-500',
+	Failed: 'bg-red-600', Cancelled: 'bg-gray-400', 'Partially Completed': 'bg-orange-500',
+}[portalResetJob.value?.status] || 'bg-blue-600'))
+
+const stageTheme = (status) => ({
+	Completed: 'green', Running: 'blue', Failed: 'red', Skipped: 'gray', Pending: 'gray',
+}[status] || 'gray')
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredEnrollments.value.length / pageSize)))
 const paginatedEnrollments = computed(() => {
@@ -457,6 +542,10 @@ const paginatedEnrollments = computed(() => {
 
 onMounted(() => {
 	loadData()
+})
+
+onUnmounted(() => {
+	stopResetPolling()
 })
 
 const loadData = async () => {
@@ -648,6 +737,7 @@ const executeBulkReEnrollment = async () => {
 
 const openPortalResetDialog = async () => {
 	portalResetCourse.value = null
+	portalResetJob.value = null
 	try {
 		const options = await call('lms.lms.api.get_courses_for_portal_reset')
 		portalResetCourseOptions.value = [
@@ -669,26 +759,127 @@ const getErrorMessage = (error) => {
 	return __('Unknown error')
 }
 
+const fetchResetStatus = async (jobName) => {
+	try {
+		const status = await call('lms.lms.api.portal_reset_status', { job: jobName })
+		if (status && status.name) {
+			portalResetJob.value = status
+		}
+		return status
+	} catch (e) {
+		console.error('Failed to fetch reset status:', e)
+		return null
+	}
+}
+
+const stopResetPolling = () => {
+	if (portalResetPollTimer) {
+		clearInterval(portalResetPollTimer)
+		portalResetPollTimer = null
+	}
+	if (portalResetRealtimeOff) {
+		try { portalResetRealtimeOff() } catch (e) { /* noop */ }
+		portalResetRealtimeOff = null
+	}
+}
+
+const startResetPolling = (jobName) => {
+	stopResetPolling()
+
+	// Realtime push (instant updates) with a polling fallback so progress advances
+	// even if the socket drops — the UI never needs a manual refresh.
+	if ($socket) {
+		const handler = (data) => {
+			if (data && data.job === jobName) fetchResetStatus(jobName)
+		}
+		$socket.on('portal_reset_progress', handler)
+		portalResetRealtimeOff = () => $socket.off('portal_reset_progress', handler)
+	}
+
+	portalResetPollTimer = setInterval(async () => {
+		const status = await fetchResetStatus(jobName)
+		if (status && status.finished) {
+			stopResetPolling()
+			portalResetLoading.value = false
+			onResetFinished(status)
+		}
+	}, 2000)
+}
+
+const onResetFinished = async (status) => {
+	if (!status) return
+	if (status.status === 'Completed') {
+		if ((status.total_records || 0) === 0) {
+			toast.success(__('Nothing to reset — this course has no active records that need resetting.'))
+		} else {
+			toast.success(__('Portal reset complete. {0} records processed. Historical data was archived.').format(status.processed_records || 0))
+			await loadData()
+		}
+	} else if (status.status === 'Cancelled') {
+		toast.warning(__('Portal reset cancelled.'))
+	} else {
+		toast.error(__('Portal reset {0}. You can resume it.').format(String(status.status || 'failed')))
+	}
+}
+
 const executePortalReset = async () => {
 	if (!portalResetCourse.value) return
 
 	portalResetLoading.value = true
+	portalResetJob.value = null
 	try {
 		const result = await call('lms.lms.api.portal_reset_course', {
-			course_name: portalResetCourse.value
+			course_name: portalResetCourse.value,
+			batch_size: 200,
 		})
-		if (result && result.success) {
-			showPortalResetDialog.value = false
-			toast.success(__('Portal reset complete. {0} enrollments reset. Previously uploaded documents are preserved.', [result.reset_count]))
-			await loadData()
+		if (result && result.success && result.job) {
+			const status = await fetchResetStatus(result.job)
+			// A tiny/empty course can finish before the first poll — handle it now
+			// instead of showing a confusing 0/0 panel with no follow-up.
+			if (status && status.finished) {
+				portalResetLoading.value = false
+				await onResetFinished(status)
+			} else {
+				startResetPolling(result.job)
+			}
 		} else {
-			toast.error(__('Reset failed: {0}', [(result && result.message) || __('Unknown error')]))
+			portalResetLoading.value = false
+			toast.error(__('Reset failed: {0}').format((result && result.message) || __('Unknown error')))
 		}
 	} catch (e) {
-		toast.error(__('Reset failed: {0}', [getErrorMessage(e)]))
-	} finally {
 		portalResetLoading.value = false
+		toast.error(__('Reset failed: {0}').format(getErrorMessage(e)))
 	}
+}
+
+const resumePortalReset = async () => {
+	if (!portalResetJob.value) return
+	portalResetLoading.value = true
+	try {
+		await call('lms.lms.api.resume_portal_reset', { job: portalResetJob.value.name })
+		await fetchResetStatus(portalResetJob.value.name)
+		startResetPolling(portalResetJob.value.name)
+	} catch (e) {
+		portalResetLoading.value = false
+		toast.error(__('Failed to resume: {0}').format(getErrorMessage(e)))
+	}
+}
+
+const cancelPortalReset = async () => {
+	if (!portalResetJob.value) return
+	try {
+		await call('lms.lms.api.cancel_portal_reset', { job: portalResetJob.value.name })
+		await fetchResetStatus(portalResetJob.value.name)
+	} catch (e) {
+		toast.error(__('Failed to cancel: {0}').format(getErrorMessage(e)))
+	}
+}
+
+const closePortalResetDialog = () => {
+	// Closing does not stop the background job; it keeps running server-side.
+	stopResetPolling()
+	showPortalResetDialog.value = false
+	portalResetLoading.value = false
 }
 
 const refreshData = async () => {

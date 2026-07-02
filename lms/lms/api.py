@@ -2702,129 +2702,43 @@ def get_document_info(file_url):
 
 
 @frappe.whitelist()
-def portal_reset_course(course_name):
+def portal_reset_course(course_name, batch_size=200):
+	"""Start a Portal Reset for a course.
+
+	This no longer runs synchronously. It creates a `Portal Reset Job`, enqueues a
+	background worker on the `long` queue, and returns immediately so the request
+	never times out regardless of dataset size. Callers poll `portal_reset_status`
+	(or subscribe to the `portal_reset_progress` realtime event) for progress.
+
+	Historical compliance data (course progress, quiz/assignment attempts, document
+	submissions, enrollment history) is archived into `Portal Reset Archive` before
+	the active cycle state is cleared — nothing is permanently deleted.
 	"""
-	Reset all user enrollments for a given course.
-	- Re-creates fresh enrollments (progress reset to 0) for all enrolled users.
-	- Distributor/Employee uploaded compliance documents are PRESERVED in their records.
-	- has_submitted_documents is reset to 0 so users must re-submit documents.
-	- Reminders restart automatically via the scheduler.
+	from lms.lms.portal_reset.api import start_portal_reset
+
+	return start_portal_reset(course_name, batch_size)
+
+
+@frappe.whitelist()
+def portal_reset_status(job=None, course_name=None):
+	"""Return progress for a Portal Reset Job.
+
+	Accepts either an explicit `job` name or a `course_name` (in which case the
+	latest active job for that course is used). Shape is stable for the monitoring
+	UI to poll.
 	"""
-	if not frappe.has_permission("LMS Course", "write"):
-		frappe.throw(_("You do not have permission to perform a portal reset"))
+	from lms.lms.portal_reset.api import get_portal_reset_job
 
-	if not frappe.db.exists("LMS Course", course_name):
-		return {"success": False, "message": "Course not found"}
-
-	try:
-		from lms.lms.doctype.lms_enrollment.lms_enrollment import re_enroll_user_in_course
-
-		# Reset every user enrolled in this course based on their LATEST enrollment.
-		# We must not filter on access_restricted here: users who have completed the
-		# course keep their latest record as Completed + access_restricted=1 (that is
-		# exactly what the re-enrollment list shows). Filtering those out would leave
-		# them stuck at 100% — which is the whole thing a portal reset is meant to undo.
-		members = frappe.get_all(
-			"LMS Enrollment",
-			filters={"course": course_name},
-			distinct=True,
-			pluck="member",
+	if not job and course_name:
+		job = frappe.db.get_value(
+			"Portal Reset Job",
+			{"course": course_name},
+			"name",
+			order_by="creation desc",
 		)
-
-		reset_count = 0
-		errors = []
-
-		for member in members:
-			try:
-				# The highest enrollment_version is the user's current state for the course
-				latest = frappe.get_all(
-					"LMS Enrollment",
-					filters={"course": course_name, "member": member},
-					fields=["name", "completion_status"],
-					order_by="enrollment_version desc",
-					limit=1,
-				)
-				if not latest:
-					continue
-
-				enrollment = latest[0]
-				status = (enrollment.completion_status or "").lower()
-				if status in ("active", "re-enrolled"):
-					# Directly reset progress and lesson history for active enrollments
-					frappe.db.set_value("LMS Enrollment", enrollment.name, {
-						"progress": 0,
-						"completed_on": None,
-						"current_lesson": None,
-						"course_reminder_count": 0,
-						"is_certified": 0,
-					})
-					frappe.db.sql("""
-						DELETE FROM `tabLMS Course Progress`
-						WHERE enrollment = %s
-					""", enrollment.name)
-					frappe.db.sql("""
-						DELETE FROM `tabLMS Course Progress`
-						WHERE member = %s AND course = %s
-						AND (enrollment IS NULL OR enrollment = '')
-					""", (member, course_name))
-					reset_count += 1
-				else:
-					# Completed enrollments: create a fresh re-enrollment record
-					result = re_enroll_user_in_course(course_name, member, reset_progress=True)
-					if result.get("success"):
-						reset_count += 1
-						new_enrollment_id = result.get("enrollment_id")
-						if new_enrollment_id:
-							frappe.db.set_value("LMS Enrollment", new_enrollment_id, "course_reminder_count", 0)
-			except Exception as e:
-				errors.append({"member": member, "error": str(e)})
-
-		# Atomic reset: if any enrollment failed to reset, roll back everything (including
-		# the enrollment resets already applied above) rather than partially resetting the
-		# portal and clearing document submission flags on top of an inconsistent state.
-		if errors:
-			frappe.db.rollback()
-			return {
-				"success": False,
-				"message": f"Portal reset failed for {len(errors)} enrollment(s). No changes were made.",
-				"reset_count": 0,
-				"errors": errors,
-				"documents_preserved": True
-			}
-
-		# Reset has_submitted_documents for distributors on this course
-		# Uploaded files are preserved; only the submission flag is cleared
-		dist_docs = frappe.get_all(
-			"Distributor Course Documents",
-			filters={"course": course_name},
-			pluck="name"
-		)
-		for doc_name in dist_docs:
-			frappe.db.set_value("Distributor Course Documents", doc_name, "has_submitted_documents", 0)
-
-		# Reset for employee course documents if they exist
-		emp_docs = frappe.get_all(
-			"Employee Course Documents",
-			filters={"course": course_name},
-			pluck="name"
-		)
-		for doc_name in emp_docs:
-			frappe.db.set_value("Employee Course Documents", doc_name, "has_submitted_documents", 0)
-
-		frappe.db.commit()
-
-		return {
-			"success": True,
-			"message": f"Portal reset complete. {reset_count} enrollments reset.",
-			"reset_count": reset_count,
-			"errors": errors,
-			"documents_preserved": True
-		}
-
-	except Exception as e:
-		frappe.db.rollback()
-		frappe.log_error(frappe.get_traceback(), "Portal Reset Error")
-		return {"success": False, "message": str(e)}
+	if not job:
+		return {"status": "idle", "finished": True}
+	return get_portal_reset_job(job)
 
 
 @frappe.whitelist()
