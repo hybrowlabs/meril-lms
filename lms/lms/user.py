@@ -26,16 +26,33 @@ def get_default_sender():
 def get_reset_password_link(user_doc):
 	"""Return a password reset link for the given User document.
 
-	`reset_password` is a method on frappe's core `User` controller. In dev-server
-	mode Frappe re-imports doctype controllers on every request, and a hot-reload
-	race can occasionally hand back a `User` instance whose class is missing methods
-	(surfacing as `'User' object has no attribute 'reset_password'`). Binding the
-	framework method to the class explicitly is immune to that mis-resolution and
-	behaves identically for a correctly-resolved instance.
+	`reset_password` is an *instance* method on Frappe's core `User` controller.
+	We call it on the instance (`user_doc.reset_password(...)`) rather than on a
+	separately-imported class object. Calling the class form
+	`User.reset_password(user_doc, ...)` resolves the attribute against whatever
+	`from frappe.core.doctype.user.user import User` happens to return on a given
+	deployment, which on some Frappe Cloud builds is not the same class the ORM
+	instantiates — surfacing as `type object 'User' has no attribute
+	'reset_password'`. The instance call always resolves against the real
+	controller class, and we fall back to generating the key/link directly with
+	stable primitives if the method is ever unavailable.
 	"""
-	from frappe.core.doctype.user.user import User
+	if isinstance(user_doc, str):
+		user_doc = frappe.get_doc("User", user_doc)
 
-	return User.reset_password(user_doc, send_email=False)
+	reset = getattr(user_doc, "reset_password", None)
+	if callable(reset):
+		return reset(send_email=False)
+
+	# Fallback: replicate Frappe's reset-link generation with stable APIs so a
+	# refactor of the User controller can never break email resends again.
+	from frappe.utils import get_url, now_datetime
+	from frappe.utils.data import sha256_hash
+
+	key = frappe.generate_hash()
+	user_doc.db_set("reset_password_key", sha256_hash(key))
+	user_doc.db_set("last_reset_password_key_generated_on", now_datetime())
+	return get_url("/update-password?key=" + key)
 
 def validate_username_duplicates(doc, method):
 	while not doc.username or doc.username_exists():
