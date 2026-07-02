@@ -395,6 +395,7 @@ import {
 	Select,
 	Badge,
 	Dialog,
+	toast,
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, onMounted, ref } from 'vue'
@@ -570,7 +571,7 @@ const executeSingleReEnrollment = async () => {
 			course_name: selectedEnrollmentForReEnroll.value.course
 		})
 		if (guard && guard.can_re_enroll === false && guard.reason === 'already_running') {
-			alert('A re-enrollment is already running. Please finish the current course first.')
+			toast.error(__('A re-enrollment is already running. Please finish the current course first.'))
 			return
 		}
 		await call('lms.lms.api.admin_re_enroll_user', {
@@ -578,16 +579,16 @@ const executeSingleReEnrollment = async () => {
 			member_email: selectedEnrollmentForReEnroll.value.member,
 			reset_progress: resetProgressOnSingleReEnroll.value
 		})
-		
+
 		showSingleReEnrollDialog.value = false
 		// Refresh all data after re-enrollment
 		await loadData()
-		
+
 		// Show success message
-		alert('User successfully re-enrolled!')
+		toast.success(__('User successfully re-enrolled!'))
 	} catch (error) {
 		console.error('Failed to re-enroll user:', error)
-		alert('Failed to re-enroll user: ' + error.message)
+		toast.error(__('Failed to re-enroll user: {0}', [getErrorMessage(error)]))
 	} finally {
 		singleReEnrollLoading.value = false
 	}
@@ -609,7 +610,7 @@ const executeBulkReEnrollment = async () => {
 		const skipped = checks.filter(c => !c.ok)
 
 		if (allowedIds.length === 0) {
-			alert('All selected users already have an active re-enrollment running.')
+			toast.error(__('All selected users already have an active re-enrollment running.'))
 			return
 		}
 
@@ -634,12 +635,12 @@ const executeBulkReEnrollment = async () => {
 		// Show results summary (include skipped info if any)
 		const successful = results.filter(r => r.success).length
 		const failed = results.filter(r => !r.success).length
-		const skippedMsg = skipped.length ? `, ${skipped.length} skipped (already running)` : ''
-		alert(`Bulk re-enrollment completed: ${successful} successful, ${failed} failed${skippedMsg}`)
-		
+		const skippedMsg = skipped.length ? __(', {0} skipped (already running)', [skipped.length]) : ''
+		toast.success(__('Bulk re-enrollment completed: {0} successful, {1} failed', [successful, failed]) + skippedMsg)
+
 	} catch (error) {
 		console.error('Failed to bulk re-enroll:', error)
-		alert('Failed to perform bulk re-enrollment: ' + error.message)
+		toast.error(__('Failed to perform bulk re-enrollment: {0}', [getErrorMessage(error)]))
 	} finally {
 		bulkReEnrollLoading.value = false
 	}
@@ -659,24 +660,32 @@ const openPortalResetDialog = async () => {
 	showPortalResetDialog.value = true
 }
 
+const getErrorMessage = (error) => {
+	if (!error) return __('Unknown error')
+	// frappe-ui errors surface server messages here
+	if (Array.isArray(error.messages) && error.messages.length) return error.messages.join(', ')
+	if (typeof error.message === 'string' && error.message) return error.message
+	if (typeof error === 'string') return error
+	return __('Unknown error')
+}
+
 const executePortalReset = async () => {
 	if (!portalResetCourse.value) return
-	if (!confirm(__('Are you sure you want to reset the portal for this course? All user progress will be reset. Previously submitted documents are preserved.'))) return
 
 	portalResetLoading.value = true
 	try {
 		const result = await call('lms.lms.api.portal_reset_course', {
 			course_name: portalResetCourse.value
 		})
-		showPortalResetDialog.value = false
 		if (result && result.success) {
-			alert(__('Portal reset complete. {0} enrollments reset. Previously uploaded documents are preserved.', [result.reset_count]))
+			showPortalResetDialog.value = false
+			toast.success(__('Portal reset complete. {0} enrollments reset. Previously uploaded documents are preserved.', [result.reset_count]))
 			await loadData()
 		} else {
-			alert(__('Reset failed: ') + (result && result.message || 'Unknown error'))
+			toast.error(__('Reset failed: {0}', [(result && result.message) || __('Unknown error')]))
 		}
 	} catch (e) {
-		alert(__('Reset failed: ') + e.message)
+		toast.error(__('Reset failed: {0}', [getErrorMessage(e)]))
 	} finally {
 		portalResetLoading.value = false
 	}

@@ -19,7 +19,23 @@ def get_default_sender():
 		return default_email_account.email_id
 	except:
 		# Fallback to system default if no default outgoing email account is found
-		return frappe.db.get_single_value("System Settings", "auto_email_id") or "noreply@example.com"
+		# `auto_email_id` is a site_config.json key, not a System Settings field.
+		return frappe.conf.get("auto_email_id") or "noreply@example.com"
+
+
+def get_reset_password_link(user_doc):
+	"""Return a password reset link for the given User document.
+
+	`reset_password` is a method on frappe's core `User` controller. In dev-server
+	mode Frappe re-imports doctype controllers on every request, and a hot-reload
+	race can occasionally hand back a `User` instance whose class is missing methods
+	(surfacing as `'User' object has no attribute 'reset_password'`). Binding the
+	framework method to the class explicitly is immune to that mis-resolution and
+	behaves identically for a correctly-resolved instance.
+	"""
+	from frappe.core.doctype.user.user import User
+
+	return User.reset_password(user_doc, send_email=False)
 
 def validate_username_duplicates(doc, method):
 	while not doc.username or doc.username_exists():
@@ -100,7 +116,7 @@ def create_user_from_employee(employee_id, _method):
 				user_doc = frappe.get_doc("User", email)
 				# Add default roles for employees
 				user_doc.add_roles("Employee", "Employee Self Service")
-				reset_password_link = user_doc.reset_password(send_email=False)
+				reset_password_link = get_reset_password_link(user_doc)
 				login_url = frappe.utils.get_url("/login")
 				recipient_name = (
 					employee_doc.employee_name or employee_doc.first_name or full_name
@@ -338,7 +354,7 @@ def bulk_create_users_from_distributors(distributor_ids, filters=None):
 				"name": getattr(frappe.get_doc("Distributor", distributor_id), 'attendee_name', distributor_id),
 				"error": str(e)
 			})
-			frappe.log_error(f"Failed to create user for distributor {distributor_id}: {str(e)}", "Bulk User Creation Error")
+			frappe.log_error(title="Bulk User Creation Error", message=f"Failed to create user for distributor {distributor_id}: {str(e)}")
 
 	# Send summary email to admins
 	if results["success"] or results["errors"]:
@@ -372,7 +388,7 @@ def resend_initial_email_to_distributor(distributor_id):
 			frappe.throw(_("User account is disabled. Please enable it first."))
 
 		# Generate new reset password link
-		reset_password_link = user_doc.reset_password(send_email=False)
+		reset_password_link = get_reset_password_link(user_doc)
 
 		# Get email template
 		subject, message = get_distributor_initial_email_template(distributor_doc, email, reset_password_link)
@@ -475,7 +491,7 @@ def bulk_resend_emails_to_distributors(distributor_ids, filters=None):
 				"name": getattr(frappe.get_doc("Distributor", distributor_id), 'attendee_name', distributor_id),
 				"error": str(e)
 			})
-			frappe.log_error(f"Failed to resend email for distributor {distributor_id}: {str(e)}", "Bulk Email Resend Error")
+			frappe.log_error(title="Bulk Email Resend Error", message=f"Failed to resend email for distributor {distributor_id}: {str(e)}")
 
 	# Send summary email to admins
 	if results["success"] or results["errors"]:
@@ -509,7 +525,7 @@ def resend_initial_email_to_employee(employee_id):
 			frappe.throw(_("User account is disabled. Please enable it first."))
 
 		# Generate new reset password link
-		reset_password_link = user_doc.reset_password(send_email=False)
+		reset_password_link = get_reset_password_link(user_doc)
 
 		# Get email template
 		subject, message = get_employee_initial_email_template(employee_doc, email, reset_password_link)
@@ -618,7 +634,7 @@ def bulk_resend_emails_to_employees(employee_ids, filters=None):
 				"name": getattr(frappe.get_doc("Employee", employee_id), 'employee_name', employee_id),
 				"error": str(e)
 			})
-			frappe.log_error(f"Failed to resend email for employee {employee_id}: {str(e)}", "Bulk Email Resend Error")
+			frappe.log_error(title="Bulk Email Resend Error", message=f"Failed to resend email for employee {employee_id}: {str(e)}")
 
 	# Send summary email to admins
 	if results["success"] or results["errors"]:
@@ -664,7 +680,7 @@ def create_user_from_distributor(distributor_id):
 				distributor_doc.db_set("user_id", user.name)
 
 				# Generate reset password link for the user
-				reset_password_link = user.reset_password(send_email=False)
+				reset_password_link = get_reset_password_link(user)
 
 				# Set credentials sent date when user is created and email is sent
 				distributor_doc.db_set("credentials_sent_date", frappe.utils.now_datetime())
@@ -976,7 +992,7 @@ def send_daily_login_reminders():
 			frappe.logger().info(f"Login reminder sent to {distributor.attendee_name} (Day {days_since}, Reminder #{new_count})")
 			
 		except Exception as e:
-			frappe.log_error(f"Failed to send login reminder to {distributor.attendee_name}: {str(e)}", "Login Reminder Error")
+			frappe.log_error(title="Login Reminder Error", message=f"Failed to send login reminder to {distributor.attendee_name}: {str(e)}")
 			continue
 	
 	# Commit all changes
@@ -1111,7 +1127,8 @@ def send_daily_course_reminders():
 				subject_prefix = "⚠️ Final Course Reminder"
 			
 			# Create personalized reminder message
-			subject = f"{subject_prefix}: Complete your course - Ethics & Compliance Training on HCP/HCO Interactions"
+			course_title = enrollment.course_title
+			subject = f"{subject_prefix}: Complete your course - {course_title}"
 
 			is_distributor = frappe.db.exists("Distributor", {"user_id": user})
 			is_employee = frappe.db.exists("Employee", {"user_id": user})
@@ -1119,12 +1136,12 @@ def send_daily_course_reminders():
 			attendee_name = None
 
 			if is_distributor:
-				subject = f"Reminder {new_count} Ethics & Compliance Training on HCP/HCO Interactions."
+				subject = f"Reminder {new_count} {course_title}."
 				for_role = "Distributor"
 				# Get attendee_name from Distributor
 				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
 			elif is_employee:
-				subject = f"Reminder {new_count} Ethics & Compliance Training on HCPs/HCOs Interactions."
+				subject = f"Reminder {new_count} {course_title}."
 				for_role = "Employee"
 				# Get employee_name from Employee
 				attendee_name = frappe.db.get_value("Employee", {"user_id": user}, "employee_name")
@@ -1141,7 +1158,7 @@ def send_daily_course_reminders():
 				name,
 				user,
 				enrollment.course_title,
-				enrollment.course_intrudoction,
+				enrollment.course_introduction,
 				days_since,
 				progress,
 				new_count,
@@ -1172,7 +1189,7 @@ def send_daily_course_reminders():
 			
 			# If it's been more than 45 days, also notify admins
 			if days_since >= 45:
-				admin_subject = f"⚠️ User {enrollment.user_name} hasn't completed course for {days_since} days - Ethics & Compliance Training on HCP/HCO Interactions"
+				admin_subject = f"⚠️ User {enrollment.user_name} hasn't completed course for {days_since} days - {course_title}"
 				admin_message = f"<p>User <b>{enrollment.user_name}</b> enrolled in <b>{enrollment.course_title}</b> has not completed the course for <b>{days_since} days</b>.</p><p>📊 Current progress: {progress}%</p><p>📧 {new_count} reminders have been sent.</p><p>🎯 Consider manual follow-up or course review.</p>"
 				
 				admins = frappe.get_all("User", 
@@ -1192,7 +1209,7 @@ def send_daily_course_reminders():
 			
 		except Exception as e:
 			print("error", str(e))
-			frappe.log_error(f"Failed to send course reminder to {enrollment.user_name}: {str(e)}", "Course Reminder Error")
+			frappe.log_error(title="Course Reminder Error", message=f"Failed to send course reminder to {enrollment.user_name}: {str(e)}")
 			continue
 	
 	# Commit all changes
@@ -1215,7 +1232,7 @@ def get_course_reminder_message(for_role, name, user_id, course_title, course_in
 	if for_role == "Distributor":
 		return f'''<p>Dear {name},</p>
 
-		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title} on {course_introduction}.</span> Our records indicate that the training is still pending.</p>
+		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title}.</span> Our records indicate that the training is still pending.</p>
 
 		<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
 
@@ -1232,9 +1249,9 @@ def get_course_reminder_message(for_role, name, user_id, course_title, course_in
 		login_url = frappe.utils.get_url("/login")
 		return f"""<p>Dear {name},</p>
 
-<p>This is a kind reminder to complete the <span style="font-weight:bold;">Ethics & Compliance Training on HCPs/HCOs Interactions.</span> Our records indicate that the training is still pending.</p>
+<p>This is a kind reminder to complete the <span style="font-weight:bold;">{course_title}.</span> Our records indicate that the training is still pending.</p>
 
-<p>For login details, please refer to the email sent to you with the subject line 'Ethics & Compliance Training on HCPs/HCOs Interactions'.</p>
+<p>For login details, please refer to the email sent to you with the subject line '{course_title}'.</p>
 
 <p>Please click on the below link to log in:</p>
 <p>(<a href="{login_url}">{login_url}</a>)</p>
@@ -1513,7 +1530,7 @@ def send_manual_login_reminder(distributor_id):
 		}
 		
 	except Exception as e:
-		frappe.log_error(f"Failed to send manual reminder to {distributor_id}: {str(e)}", "Manual Reminder Error")
+		frappe.log_error(title="Manual Reminder Error", message=f"Failed to send manual reminder to {distributor_id}: {str(e)}")
 		return {"status": "error", "message": str(e)}
 
 
@@ -1612,7 +1629,7 @@ def send_manual_course_reminder(enrollment_id):
 		}
 		
 	except Exception as e:
-		frappe.log_error(f"Failed to send manual course reminder for {enrollment_id}: {str(e)}", "Manual Course Reminder Error")
+		frappe.log_error(title="Manual Course Reminder Error", message=f"Failed to send manual course reminder for {enrollment_id}: {str(e)}")
 		return {"status": "error", "message": str(e)}
 
 
@@ -1628,7 +1645,7 @@ def create_user_from_distributor_hook(doc, _method):
 		create_user_from_distributor(doc.name)
 	except Exception as e:
 		# Log but do not block Distributor creation
-		frappe.log_error(f"create_user_from_distributor_hook failed: {str(e)}")
+		frappe.log_error(title="Distributor User Creation Hook Failed", message=f"create_user_from_distributor_hook failed: {str(e)}")
 		return
 
 
@@ -1890,7 +1907,7 @@ def send_re_enrollment_email(user_email, partner_name, user_id="123", password="
 		user_doc = frappe.get_doc("User", user_email)
 
 		# Generate reset password link for the user (same as in initial email)
-		reset_password_link = user_doc.reset_password(send_email=False)
+		reset_password_link = get_reset_password_link(user_doc)
 
 		login_url = frappe.utils.get_url("/login")
 		user_identifier = user_id or user_email
@@ -1926,7 +1943,7 @@ def send_re_enrollment_email(user_email, partner_name, user_id="123", password="
 		}
 
 	except Exception as e:
-		frappe.log_error(f"Failed to send re-enrollment email to {user_email}: {str(e)}", "Re-enrollment Email Error")
+		frappe.log_error(title="Re-enrollment Email Error", message=f"Failed to send re-enrollment email to {user_email}: {str(e)}")
 		return {
 			"status": "error",
 			"message": str(e)
