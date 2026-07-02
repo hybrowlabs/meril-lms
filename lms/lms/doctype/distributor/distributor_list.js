@@ -11,6 +11,9 @@ frappe.listview_settings['Distributor'] = {
 		}
 	},
 	onload: function(listview) {
+		// Page-based Previous/Next pagination at the top (no scrolling to a bottom "Load More")
+		frappe.lms.setup_list_pagination(listview, 20);
+
 		// Add custom button as an inner button (more prominent)
 		listview.page.add_inner_button(__("Send Email"), function() {
 			open_bulk_user_creation_dialog(listview);

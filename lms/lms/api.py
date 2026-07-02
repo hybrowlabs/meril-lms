@@ -2719,18 +2719,35 @@ def portal_reset_course(course_name):
 	try:
 		from lms.lms.doctype.lms_enrollment.lms_enrollment import re_enroll_user_in_course
 
-		# Get all non-historical enrollments for this course
-		enrollments = frappe.get_all(
+		# Reset every user enrolled in this course based on their LATEST enrollment.
+		# We must not filter on access_restricted here: users who have completed the
+		# course keep their latest record as Completed + access_restricted=1 (that is
+		# exactly what the re-enrollment list shows). Filtering those out would leave
+		# them stuck at 100% — which is the whole thing a portal reset is meant to undo.
+		members = frappe.get_all(
 			"LMS Enrollment",
-			filters={"course": course_name, "access_restricted": 0},
-			fields=["name", "member", "completion_status"]
+			filters={"course": course_name},
+			distinct=True,
+			pluck="member",
 		)
 
 		reset_count = 0
 		errors = []
 
-		for enrollment in enrollments:
+		for member in members:
 			try:
+				# The highest enrollment_version is the user's current state for the course
+				latest = frappe.get_all(
+					"LMS Enrollment",
+					filters={"course": course_name, "member": member},
+					fields=["name", "completion_status"],
+					order_by="enrollment_version desc",
+					limit=1,
+				)
+				if not latest:
+					continue
+
+				enrollment = latest[0]
 				status = (enrollment.completion_status or "").lower()
 				if status in ("active", "re-enrolled"):
 					# Directly reset progress and lesson history for active enrollments
@@ -2749,18 +2766,18 @@ def portal_reset_course(course_name):
 						DELETE FROM `tabLMS Course Progress`
 						WHERE member = %s AND course = %s
 						AND (enrollment IS NULL OR enrollment = '')
-					""", (enrollment.member, course_name))
+					""", (member, course_name))
 					reset_count += 1
 				else:
 					# Completed enrollments: create a fresh re-enrollment record
-					result = re_enroll_user_in_course(course_name, enrollment.member, reset_progress=True)
+					result = re_enroll_user_in_course(course_name, member, reset_progress=True)
 					if result.get("success"):
 						reset_count += 1
 						new_enrollment_id = result.get("enrollment_id")
 						if new_enrollment_id:
 							frappe.db.set_value("LMS Enrollment", new_enrollment_id, "course_reminder_count", 0)
 			except Exception as e:
-				errors.append({"member": enrollment.member, "error": str(e)})
+				errors.append({"member": member, "error": str(e)})
 
 		# Atomic reset: if any enrollment failed to reset, roll back everything (including
 		# the enrollment resets already applied above) rather than partially resetting the
