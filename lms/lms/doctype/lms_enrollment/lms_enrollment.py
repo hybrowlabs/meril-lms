@@ -567,14 +567,19 @@ def re_enroll_user_in_course(course, member, reset_progress=True):
 
 	enrollment = frappe.get_doc("LMS Enrollment", current_enrollment[0].name)
 
-	# Check if re-enrollment was already done (idempotent check)
-	# If completion_status is Active, user was already re-enrolled
-	if enrollment.completion_status == "Active":
+	# Idempotent guard: never stack a new version on top of an enrollment the user
+	# can still work through. A manual enrollment leaves the latest row "Active";
+	# a Portal Reset leaves it "Re-enrolled" (progress 0). In either case the user
+	# already has an open enrollment, so re-enrolling again must return the existing
+	# record instead of creating a duplicate version (which also wrongly flipped the
+	# open row to "Completed"). Mirrors can_re_enroll_user in lms/lms/api.py.
+	status = (enrollment.completion_status or "").strip()
+	if status in ("Active", "Re-enrolled") and flt(enrollment.progress or 0) < 100.0:
 		return {
 			"success": True,
 			"enrollment_id": enrollment.name,
 			"enrollment_version": enrollment.enrollment_version,
-			"message": _("User is already enrolled in the course with an active enrollment.")
+			"message": _("User already has an active enrollment in this course.")
 		}
 
 	# Create new enrollment record for re-enrollment

@@ -1662,27 +1662,35 @@ def get_users_for_re_enrollment(course_name=None):
 		filters=filters,
 		fields=[
 			"name", "member", "member_name", "course", "completed_on",
-			"progress", "member_type"
-		]
+			"progress", "member_type", "enrollment_version"
+		],
+		order_by="enrollment_version desc"
 	)
 
-	# Filter out users who already have an active enrollment for the same course
-	# (i.e., they were already re-enrolled)
+	# A member+course accumulates one Completed row per re-enrollment cycle, so the
+	# same user would otherwise appear once per historical version. Keep only the
+	# latest version per member+course (rows are ordered version-desc), and skip
+	# anyone who already has a newer open (Active/Re-enrolled) enrollment.
+	seen = set()
 	filtered_enrollments = []
 	for enrollment in completed_enrollments:
-		# Check if user has an active enrollment for this course
-		active_enrollment = frappe.db.exists(
+		key = (enrollment.member, enrollment.course)
+		if key in seen:
+			continue
+		seen.add(key)
+
+		# A higher version than this Completed one means the user was already
+		# re-enrolled (or reset) and shouldn't be offered for re-enrollment again.
+		newer_enrollment = frappe.db.exists(
 			"LMS Enrollment",
 			{
 				"member": enrollment.member,
 				"course": enrollment.course,
-				"access_restricted": 0,
-				"completion_status": ["in", ["Active", "Re-enrolled"]]
+				"enrollment_version": [">", enrollment.enrollment_version]
 			}
 		)
 
-		if not active_enrollment:
-			# User doesn't have an active enrollment, can be re-enrolled
+		if not newer_enrollment:
 			course_title = frappe.db.get_value("LMS Course", enrollment.course, "title")
 			enrollment.course_title = course_title
 			filtered_enrollments.append(enrollment)
