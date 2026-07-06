@@ -48,11 +48,13 @@ def get_distributor_dashboard_info():
             SELECT le1.*
             FROM `tabLMS Enrollment` AS le1
             JOIN (
-                SELECT member, MAX(enrollment_version) AS max_ev
+                SELECT member, course, MAX(enrollment_version) AS max_ev
                 FROM `tabLMS Enrollment`
-                GROUP BY member
+                GROUP BY member, course
             ) AS latest
-            ON latest.member = le1.member AND latest.max_ev = le1.enrollment_version
+            ON latest.member = le1.member
+               AND latest.course = le1.course
+               AND latest.max_ev = le1.enrollment_version
         ) AS le
             ON le.member = d.user_id
         LEFT JOIN `tabDistributor Course Documents` AS dcd
@@ -218,7 +220,18 @@ def get_employee_dashboard_info():
         FROM `tabEmployee` AS e
         LEFT JOIN `tabEmployee` AS manager
             ON manager.name = e.reports_to
-        LEFT JOIN `tabLMS Enrollment` AS le
+        LEFT JOIN (
+            SELECT le1.*
+            FROM `tabLMS Enrollment` AS le1
+            JOIN (
+                SELECT member, course, MAX(enrollment_version) AS max_ev
+                FROM `tabLMS Enrollment`
+                GROUP BY member, course
+            ) AS latest
+            ON latest.member = le1.member
+               AND latest.course = le1.course
+               AND latest.max_ev = le1.enrollment_version
+        ) AS le
             ON le.member = e.user_id
         {hod_join}
         ORDER BY e.employee_name, le.course

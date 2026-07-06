@@ -7,11 +7,20 @@
 //
 // Usage (from a <doctype>_list.js onload):
 //     frappe.lms.setup_list_pagination(listview, 20);
+//     frappe.lms.setup_list_pagination(listview, 20, [20, 50, 100, 500]);
 
 frappe.provide("frappe.lms");
 
-frappe.lms.setup_list_pagination = function (listview, page_size) {
+frappe.lms.setup_list_pagination = function (listview, page_size, page_size_options) {
 	page_size = page_size || 20;
+
+	// Selectable page sizes. Always include the initial page_size so the
+	// dropdown has a valid default selected.
+	page_size_options = (page_size_options || [20, 50, 100, 500]).slice();
+	if (!page_size_options.includes(page_size)) {
+		page_size_options.push(page_size);
+		page_size_options.sort((a, b) => a - b);
+	}
 
 	// List views can re-run onload; only wire this up once.
 	if (listview.__lms_pagination_ready) return;
@@ -23,12 +32,23 @@ frappe.lms.setup_list_pagination = function (listview, page_size) {
 	// Force a fixed page size instead of Frappe's large-screen default of 100.
 	listview.page_length = page_size;
 
+	const size_options_html = page_size_options
+		.map(
+			(size) =>
+				`<option value="${size}" ${size === page_size ? "selected" : ""}>${size}</option>`
+		)
+		.join("");
+
 	const $paginator = $(`
 		<div class="lms-list-paginator level" style="margin: 0 15px 12px;">
 			<div class="level-left">
 				<span class="lms-page-info text-muted small"></span>
 			</div>
 			<div class="level-right">
+				<span class="text-muted small" style="margin-right: 6px;">${__("Rows per page")}</span>
+				<select class="form-control input-sm lms-page-size" style="width: auto; margin-right: 12px;">
+					${size_options_html}
+				</select>
 				<button class="btn btn-default btn-sm lms-prev-page" disabled>
 					${__("Previous")}
 				</button>
@@ -108,6 +128,14 @@ frappe.lms.setup_list_pagination = function (listview, page_size) {
 
 	$paginator.find(".lms-prev-page").on("click", () => load_page(listview._lms_page - 1));
 	$paginator.find(".lms-next-page").on("click", () => load_page(listview._lms_page + 1));
+
+	// Changing the page size resets to the first page and reloads.
+	$paginator.find(".lms-page-size").on("change", function () {
+		const new_size = cint($(this).val()) || page_size;
+		listview._lms_page_size = new_size;
+		listview.page_length = new_size;
+		load_page(0);
+	});
 
 	// Whenever the stock list refreshes (filter/sort change, manual refresh),
 	// snap back to page 1 and recompute the total for the new filter set.

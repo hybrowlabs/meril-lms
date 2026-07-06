@@ -209,12 +209,11 @@ def get_distributor_initial_email_template(distributor_doc, email, reset_passwor
 		<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
 
 		<p style="font-weight: bold;">Login Credentials:</p>
-		<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to log in:</p>
-		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
+		<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to Reset Password:</p>
 		<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
 		<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
 
-		<p>We kindly request you to complete this training at the earliest.</p>
+		<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
 		<p>Best regards,</p>
 		<p>Meril</p>
@@ -232,7 +231,6 @@ def get_employee_initial_email_template(employee_doc, email, reset_password_link
 
 <p style="font-weight:bold;">Login Credentials:</p>
 <p>Please click on the below link to log in:</p>
-<p>(<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>)</p>
 <p>User ID: {email}</p>
 <p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
 
@@ -1258,7 +1256,7 @@ def get_course_reminder_message(for_role, name, user_id, course_title, course_in
 		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
 		<p style="margin-left:10px; margin-bottom: 0; font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{user_id}</span></p>
 
-		<p>Kindly treat this as a priority and complete the training at your earliest.</p>
+		<p>Kindly treat this as a priority and complete the training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
 		<p>Best regards,</p>
 		<p>Meril</p>'''
