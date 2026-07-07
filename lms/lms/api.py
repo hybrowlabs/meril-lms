@@ -2,6 +2,7 @@ from __future__ import annotations
 import frappe
 
 
+
 @frappe.whitelist(allow_guest=False)
 def can_re_enroll_user(member_email: str | None = None, course_name: str | None = None):
     """
