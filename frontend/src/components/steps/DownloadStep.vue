@@ -231,115 +231,60 @@ const downloadDocument = async (docItem) => {
 
     let response
 
-    // Handle special cases for Endo/Non-Endo compliance policy documents
-    if (docItem.name === "Meril Distributor Compliance Policy") {
-      console.log('Downloading Non-Endo compliance policy')
-      try {
-        // Get the base URL for API endpoint
-        const baseUrl = window.frappe?.boot?.frappe_base_url || window.location.origin
-        const url = `${baseUrl}/api/method/lms.overrides.documents.download_nonendo_file`
+    const isAdoption = docItem.name === 'Meril Distributor Compliance Policy Adoption Form'
+    const effectiveName = isAdoption
+      ? (props.complianceOfficerName || props.certificationData?.name || 'User')
+      : (props.certificationData?.name || 'User')
 
-        // Create a temporary link to trigger download
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'Meril_Distributor_Compliance_Policy.pdf'
-        link.style.display = 'none'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
+    try {
+      console.log('Generating document using Frappe print format:', docItem.name)
 
-        // Mark as downloaded (no response content needed for direct downloads)
-        emit('download-complete', docItem.name)
-        toast.success('Non-Endo compliance policy download started')
-        return
-      } catch (error) {
-        console.error('Error downloading Non-Endo policy:', error)
-        throw new Error('Failed to download compliance policy document')
+      // Call the generate_dynamic_docx API with print format enabled
+      // This will generate PDF from the appropriate print format
+      response = await call("lms.overrides.documents.generate_dynamic_docx", {
+        name: effectiveName,
+        course: props.courseName,
+        font_path: null,
+        document_type: docItem.name,
+        use_print_format: true
+      })
+
+      console.log('Document generation response:', response)
+    } catch (apiError) {
+      console.error('Error generating document:', apiError)
+
+      // Handle the error and check its type
+      const errorResult = handleApiError(apiError, {
+        showToast: false,
+        context: `Generating ${docItem.name}`
+      })
+
+      if (errorResult.isPermissionError) {
+        console.log('Permission error detected, trying alternative approach')
       }
-    } else if (docItem.name === "Meril Distributor Compliance Policy for Endo") {
-      console.log('Downloading Endo compliance policy')
+
+      // If the main API fails, try without the course parameter for standalone generation
       try {
-        // Get the base URL for API endpoint
-        const baseUrl = window.frappe?.boot?.frappe_base_url || window.location.origin
-        const url = `${baseUrl}/api/method/lms.overrides.documents.download_endo_file`
-
-        // Create a temporary link to trigger download
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'Meril_Distributor_Compliance_Policy_Endo.pdf'
-        link.style.display = 'none'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-
-        // Mark as downloaded (no response content needed for direct downloads)
-        emit('download-complete', docItem.name)
-        toast.success('Endo compliance policy download started')
-        return
-      } catch (error) {
-        console.error('Error downloading Endo policy:', error)
-        throw new Error('Failed to download compliance policy document')
-      }
-    } else {
-      // Use the proper Frappe backend API for other document generation
-      try {
-        console.log('Generating document using Frappe print format:', docItem.name)
-
-        // Call the generate_dynamic_docx API with print format enabled
-        // This will generate PDF from the appropriate print format
-        const isAdoption = docItem.name === 'Meril Distributor Compliance Policy Adoption Form'
-        const effectiveName = isAdoption
-          ? (props.complianceOfficerName || props.certificationData?.name || 'User')
-          : (props.certificationData?.name || 'User')
+        console.log('Trying standalone document generation without course context')
 
         response = await call("lms.overrides.documents.generate_dynamic_docx", {
           name: effectiveName,
-          course: props.courseName,
+          course: null,
           font_path: null,
           document_type: docItem.name,
           use_print_format: true
         })
+        console.log('Standalone generation response:', response)
+      } catch (standaloneError) {
+        console.error('Standalone generation also failed:', standaloneError)
 
-    console.log('Document generation response:', response)
-      } catch (apiError) {
-        console.error('Error generating document:', apiError)
-
-        // Handle the error and check its type
-        const errorResult = handleApiError(apiError, {
+        // Handle the standalone error
+        const standaloneErrorResult = handleApiError(standaloneError, {
           showToast: false,
-          context: `Generating ${docItem.name}`
+          context: `Standalone generation of ${docItem.name}`
         })
 
-        if (errorResult.isPermissionError) {
-          console.log('Permission error detected, trying alternative approach')
-        }
-
-        // If the main API fails, try without the course parameter for standalone generation
-        try {
-          console.log('Trying standalone document generation without course context')
-          const effectiveName = isAdoption
-            ? (props.complianceOfficerName || props.certificationData?.name || 'User')
-            : (props.certificationData?.name || 'User')
-
-          response = await call("lms.overrides.documents.generate_dynamic_docx", {
-            name: effectiveName,
-            course: null,
-            font_path: null,
-            document_type: docItem.name,
-            use_print_format: true
-          })
-          console.log('Standalone generation response:', response)
-        } catch (standaloneError) {
-          console.error('Standalone generation also failed:', standaloneError)
-
-          // Handle the standalone error
-          const standaloneErrorResult = handleApiError(standaloneError, {
-            showToast: false,
-            context: `Standalone generation of ${docItem.name}`
-          })
-
-          throw new Error(standaloneErrorResult.message)
-        }
+        throw new Error(standaloneErrorResult.message)
       }
     }
 
@@ -410,7 +355,7 @@ const getDocumentPrintFormat = (documentName) => {
     'Distributor Self Declaration': 'Distributor Self Declaration',
     'Meril Distributor Compliance Code of Conduct': 'Meril Distributor Compliance Code of Conduct',
     'Distributor Completion Certificate': 'Distributor Completion Certificate',
-    'Meril Distributor Compliance Policy for Endo': 'Meril Distributor Compliance Policy',
+    'Meril Distributor Compliance Policy for Endo': 'Meril Distributor Compliance Policy for Endo',
     'Meril Distributor Compliance Policy': 'Meril Distributor Compliance Policy'
   }
 
