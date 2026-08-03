@@ -275,41 +275,31 @@ const downloadSystemDocument = async (documentName) => {
 
     const baseUrl = window.location.origin
 
-    // Handle compliance policy documents
-    if (documentName === "Meril Distributor Compliance Policy") {
-      const url = `${baseUrl}/api/method/lms.overrides.documents.download_nonendo_file`
-      await directDownload(url, "Meril_Distributor_Compliance_Policy.pdf")
-    } else if (documentName === "Meril Distributor Compliance Policy for Endo") {
-      const url = `${baseUrl}/api/method/lms.overrides.documents.download_endo_file`
-      await directDownload(url, "Meril_Distributor_Compliance_Policy_Endo.pdf")
-    } else {
-      // Use print format for other documents
-      if (!props.courseDocumentsRecordId) {
-        throw new Error("Course document record ID not found")
-      }
-
-      // Determine the correct doctype based on document name
-      let doctype = props.doctype
-      if (documentName.includes('Employee') || documentName.includes('employee')) {
-        doctype = 'Employee Course Documents'
-      }
-
-      const params = new URLSearchParams({
-        doctype: doctype,
-        name: props.courseDocumentsRecordId,
-        format: printFormat,
-        no_letterhead: '1',
-        letterhead: 'No Letterhead',
-        settings: '{}',
-        _lang: 'en',
-        custom_filename: documentLabel,
-        custom_type: 'download'
-      })
-
-      const url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`
-      const fileName = documentLabel.endsWith('.pdf') ? documentLabel : `${documentLabel}.pdf`
-      await directDownload(url, fileName)
+    if (!props.courseDocumentsRecordId) {
+      throw new Error("Course document record ID not found")
     }
+
+    // Determine the correct doctype based on document name
+    let doctype = props.doctype
+    if (documentName.includes('Employee') || documentName.includes('employee')) {
+      doctype = 'Employee Course Documents'
+    }
+
+    const params = new URLSearchParams({
+      doctype: doctype,
+      name: props.courseDocumentsRecordId,
+      format: printFormat,
+      no_letterhead: '1',
+      letterhead: 'No Letterhead',
+      settings: '{}',
+      _lang: 'en',
+      custom_filename: documentLabel,
+      custom_type: 'download'
+    })
+
+    const url = `${baseUrl}/api/method/lms.overrides.download_pdf.custom_download_pdf?${params.toString()}`
+    const fileName = documentLabel.endsWith('.pdf') ? documentLabel : `${documentLabel}.pdf`
+    await directDownload(url, fileName)
 
     toast.success(`${documentLabel} downloaded successfully`)
   } catch (error) {
