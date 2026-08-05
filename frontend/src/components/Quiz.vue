@@ -285,7 +285,7 @@
 									'bg-surface-gray-4 border border-outline-gray-7 font-medium':
 										activeQuestion == item,
 									'text-ink-gray-5': item === '...',
-									'bg-surface-blue-3 text-ink-base':
+									'bg-surface-blue-2 text-ink-blue-8':
 										attemptedQuestions.includes(item) && activeQuestion != item,
 									'bg-surface-gray-3 text-ink-gray-6':
 										activeQuestion != item &&

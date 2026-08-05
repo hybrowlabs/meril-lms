@@ -74,11 +74,11 @@
 									class="rounded-full w-fit"
 									:class="
 										profile.data.open_to === 'Work'
-											? 'bg-surface-green-3'
-											: 'bg-purple-500'
+											? 'bg-surface-green-7 text-ink-green-1'
+											: 'bg-surface-violet-7 text-ink-violet-1'
 									"
 								>
-									<span class="lucide-badge-check text-ink-base size-5" />
+									<span class="lucide-badge-check size-5" />
 								</div>
 							</div>
 						</Tooltip>
