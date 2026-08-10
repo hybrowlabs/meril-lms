@@ -67,29 +67,56 @@ def generate_slug(title, doctype):
 	return slugify(title, used_slugs=slugs)
 
 
+def get_current_enrollment_name(course, member=None):
+	"""Returns the name of the member's current (latest) enrollment in a course."""
+	if not course:
+		return None
+
+	member = member or frappe.session.user
+
+	enrollments = frappe.get_all(
+		"LMS Enrollment",
+		filters={"member": member, "course": course},
+		fields=["name"],
+		order_by="enrollment_version desc, creation desc",
+		limit=1,
+	)
+
+	return enrollments[0].name if enrollments else None
+
+
+def get_current_enrollment_details(course, member=None, fields=None):
+	"""Returns the requested fields of the member's current (latest) enrollment."""
+	enrollment = get_current_enrollment_name(course, member)
+	if not enrollment:
+		return None
+
+	return frappe.db.get_value(
+		"LMS Enrollment",
+		enrollment,
+		fields or ["name", "course", "member", "progress", "completion_status"],
+		as_dict=True,
+	)
+
+
 def get_membership(course, member=None):
 	if not member:
 		member = frappe.session.user
 
-	filters = {"member": member, "course": course}
+	membership = get_current_enrollment_details(
+		course,
+		member,
+		[
+			"name",
+			"current_lesson",
+			"progress",
+			"member",
+			"purchased_certificate",
+			"certificate",
+		],
+	)
 
-	if frappe.db.exists("LMS Enrollment", filters):
-		membership = frappe.db.get_value(
-			"LMS Enrollment",
-			filters,
-			[
-				"name",
-				"current_lesson",
-				"progress",
-				"member",
-				"purchased_certificate",
-				"certificate",
-			],
-			as_dict=True,
-		)
-		return membership
-
-	return False
+	return membership or False
 
 
 def get_chapters(course):
@@ -1336,18 +1363,24 @@ def update_course_filters(filters):
 
 def get_enrollment_details(courses):
 	for course in courses:
-		filters = {
-			"course": course.name,
-			"member": frappe.session.user,
-		}
+		membership = get_current_enrollment_details(
+			course.name,
+			frappe.session.user,
+			[
+				"name",
+				"course",
+				"current_lesson",
+				"progress",
+				"member",
+				"completion_status",
+				"completed_on",
+				"re_enrolled_on",
+				"enrollment_version",
+			],
+		)
 
-		if frappe.db.exists("LMS Enrollment", filters):
-			course.membership = frappe.db.get_value(
-				"LMS Enrollment",
-				filters,
-				["name", "course", "current_lesson", "progress", "member"],
-				as_dict=1,
-			)
+		if membership:
+			course.membership = membership
 
 	return courses
 
@@ -1477,11 +1510,20 @@ def get_course_details(course):
 		course_details.membership = None
 		course_details.is_instructor = False
 	else:
-		course_details.membership = frappe.db.get_value(
-			"LMS Enrollment",
-			{"member": frappe.session.user, "course": course_details.name},
-			["name", "course", "current_lesson", "progress", "member"],
-			as_dict=1,
+		course_details.membership = get_current_enrollment_details(
+			course_details.name,
+			frappe.session.user,
+			[
+				"name",
+				"course",
+				"current_lesson",
+				"progress",
+				"member",
+				"completion_status",
+				"completed_on",
+				"re_enrolled_on",
+				"enrollment_version",
+			],
 		)
 
 	if course_details.membership and course_details.membership.current_lesson:

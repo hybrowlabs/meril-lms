@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.model.document import Document
-from lms.lms.utils import get_course_progress
+from lms.lms.utils import get_course_progress, get_current_enrollment_name
 from lms.lms.api import update_course_statistics
 
 
@@ -20,8 +20,11 @@ class CourseChapter(Document):
 
 		if previous_lessons and previous_lessons != current_lessons:
 			enrolled_members = frappe.get_all(
-				"LMS Enrollment", {"course": self.course}, ["member", "name"]
+				"LMS Enrollment", {"course": self.course}, pluck="member", distinct=True
 			)
-			for enrollment in enrolled_members:
-				new_progress = get_course_progress(self.course, enrollment.member)
-				frappe.db.set_value("LMS Enrollment", enrollment.name, "progress", max(0, min(100, new_progress)))
+			for member in enrolled_members:
+				enrollment = get_current_enrollment_name(self.course, member)
+				if not enrollment:
+					continue
+				new_progress = get_course_progress(self.course, member)
+				frappe.db.set_value("LMS Enrollment", enrollment, "progress", max(0, min(100, new_progress)))

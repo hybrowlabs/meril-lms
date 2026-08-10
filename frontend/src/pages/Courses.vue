@@ -167,10 +167,15 @@ const fetchEnrollmentData = async (courseData) => {
 			if (enrollment) {
 				course.membership = {
 					...course.membership,
+					name: enrollment.name,
+					enrollment_version: enrollment.enrollment_version,
 					completion_status: enrollment.completion_status,
 					completed_on: enrollment.completed_on,
 					re_enrolled_on: enrollment.re_enrolled_on,
-					progress: enrollment.progress || course.membership?.progress || 0
+					progress:
+						enrollment.progress ??
+						course.membership?.progress ??
+						0,
 				}
 			}
 		})

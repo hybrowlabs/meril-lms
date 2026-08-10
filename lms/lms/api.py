@@ -60,7 +60,12 @@ from frappe.utils import (
 	date_diff,
 )
 from frappe.query_builder import DocType
-from lms.lms.utils import get_average_rating, get_lesson_count
+from lms.lms.utils import (
+	get_average_rating,
+	get_current_enrollment_details,
+	get_current_enrollment_name,
+	get_lesson_count,
+)
 from xml.dom.minidom import parseString
 from lms.lms.doctype.course_lesson.course_lesson import save_progress
 from frappe.integrations.frappe_providers.frappecloud_billing import (
@@ -1416,16 +1421,11 @@ def cancel_evaluation(evaluation):
 
 @frappe.whitelist()
 def get_certification_details(course):
-	membership = None
-	filters = {"course": course, "member": frappe.session.user}
-
-	if frappe.db.exists("LMS Enrollment", filters):
-		membership = frappe.db.get_value(
-			"LMS Enrollment",
-			filters,
-			["name", "purchased_certificate"],
-			as_dict=1,
-		)
+	membership = get_current_enrollment_details(
+		course,
+		frappe.session.user,
+		["name", "purchased_certificate"],
+	)
 
 	paid_certificate = frappe.db.get_value("LMS Course", course, "paid_certificate")
 	certificate = frappe.db.get_value(
@@ -1990,33 +1990,48 @@ def get_enrollments_with_completion_status():
 				"re_enrolled_courses": []
 			}
 		
-		# Get all enrollments for the current user
+		# Get the current (latest) enrollment per course for the current user
 		enrollments = frappe.db.sql("""
-			SELECT 
+			SELECT
 				e.name,
 				e.course,
 				e.completed_on,
 				e.progress,
 				e.re_enrolled_on,
-				CASE 
-					WHEN e.completed_on IS NOT NULL AND e.re_enrolled_on IS NOT NULL THEN 'Re-enrolled'
-					WHEN e.completed_on IS NOT NULL THEN 'Completed'
-					ELSE 'Active'
-				END as completion_status
+				e.enrollment_version,
+				COALESCE(NULLIF(e.completion_status, ''),
+					CASE
+						WHEN e.completed_on IS NOT NULL AND e.re_enrolled_on IS NOT NULL THEN 'Re-enrolled'
+						WHEN e.completed_on IS NOT NULL THEN 'Completed'
+						ELSE 'Active'
+					END
+				) as completion_status
 			FROM `tabLMS Enrollment` e
-			WHERE e.member = %s
+			INNER JOIN (
+				SELECT course, MAX(COALESCE(enrollment_version, 1)) as max_version
+				FROM `tabLMS Enrollment`
+				WHERE member = %(member)s AND docstatus != 2
+				GROUP BY course
+			) latest
+				ON latest.course = e.course
+				AND COALESCE(e.enrollment_version, 1) = latest.max_version
+			WHERE e.member = %(member)s
 			AND e.docstatus != 2
-		""", user, as_dict=True)
-		
-		# Categorize enrollments
+			ORDER BY e.creation DESC
+		""", {"member": user}, as_dict=True)
+
+		# Categorize enrollments, keeping only the newest row per course
 		active_courses = []
 		completed_courses = []
 		re_enrolled_courses = []
-		
+		seen_courses = set()
+
 		for enrollment in enrollments:
-			# Reset progress to 0 for re-enrolled courses
+			if enrollment.course in seen_courses:
+				continue
+			seen_courses.add(enrollment.course)
+
 			if enrollment.completion_status == 'Re-enrolled':
-				enrollment.progress = 0
 				re_enrolled_courses.append(enrollment)
 			elif enrollment.completion_status == 'Completed':
 				completed_courses.append(enrollment)
@@ -2048,13 +2063,16 @@ def validate_lesson_access(course_name, lesson_name):
 		if not user or user == "Guest":
 			return {"access_granted": False, "message": "Please log in to access lessons"}
 
-		# Check if the lesson is already completed
-		progress = frappe.db.exists(
+		enrollment_name = get_current_enrollment_name(course_name, user)
+
+		# Check if the lesson is already completed in the current enrollment
+		progress = enrollment_name and frappe.db.exists(
 			"LMS Course Progress",
 			{
 				"course": course_name,
 				"lesson": lesson_name,
-				"member": user
+				"member": user,
+				"enrollment": enrollment_name
 			}
 		)
 
@@ -2062,7 +2080,7 @@ def validate_lesson_access(course_name, lesson_name):
 			# Check enrollment status to see if course is completed and access is restricted
 			enrollment = frappe.db.get_value(
 				"LMS Enrollment",
-				{"member": user, "course": course_name},
+				enrollment_name,
 				["access_restricted", "completion_status"],
 				as_dict=True
 			)
@@ -2093,15 +2111,13 @@ def mark_course_re_enrolled(course_name):
 		if not user or user == "Guest":
 			return {"success": False, "message": "User not logged in"}
 		
-		# Get the enrollment
-		enrollment = frappe.get_doc("LMS Enrollment", {
-			"member": user,
-			"course": course_name,
-			"docstatus": ("!=", 2)
-		})
-		
-		if not enrollment:
+		# Get the current enrollment
+		enrollment_name = get_current_enrollment_name(course_name, user)
+
+		if not enrollment_name:
 			return {"success": False, "message": "Enrollment not found"}
+
+		enrollment = frappe.get_doc("LMS Enrollment", enrollment_name)
 		
 		# Mark as re-enrolled and reset progress
 		enrollment.re_enrolled_on = frappe.utils.now_datetime()
