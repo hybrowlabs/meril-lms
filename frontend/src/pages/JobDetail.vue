@@ -66,13 +66,13 @@
 				<div class="space-y-5 mb-12">
 					<div class="flex">
 						<a
-							:href="job.data.company_website"
+							:href="safeUrl(job.data.company_website)"
 							target="_blank"
 							rel="noopener noreferrer"
 							class="me-4"
 						>
 							<img
-								:src="job.data.company_logo"
+								:src="safeUrl(job.data.company_logo)"
 								class="size-10 rounded-lg object-contain cursor-pointer"
 								:alt="job.data.company_name"
 							/>
@@ -148,6 +148,7 @@ import { sessionStore } from '../stores/session'
 import PageHeader from '@/components/Layouts/PageHeader.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import JobApplicationModal from '@/components/Modals/JobApplicationModal.vue'
+import { safeUrl } from '@/utils/safeUrl'
 
 const user = inject('$user')
 const dayjs = inject('$dayjs')

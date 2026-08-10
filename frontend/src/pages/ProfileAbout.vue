@@ -39,7 +39,7 @@
 					<template #trigger>
 						<div class="relative">
 							<img
-								:src="badge.badge_image"
+								:src="safeUrl(badge.badge_image)"
 								:alt="badge.badge"
 								class="h-[80px]"
 							/>
@@ -58,7 +58,7 @@
 						<div class="w-[250px] text-base">
 							<div class="bg-surface-gray-2 rounded-t-md py-5">
 								<img
-									:src="badge.badge_image"
+									:src="safeUrl(badge.badge_image)"
 									:alt="badge.badge"
 									class="h-[200px] mx-auto"
 								/>
@@ -126,6 +126,7 @@ import { sessionStore } from '@/stores/session'
 import { decodeEntities } from '@/utils'
 import DOMPurify from 'dompurify'
 import { getLmsRoute } from '@/utils/basePath'
+import { safeUrl } from '@/utils/safeUrl'
 
 const dayjs = inject('$dayjs')
 const user = inject('$user')

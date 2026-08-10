@@ -107,7 +107,7 @@
 					<div v-else>
 						<div class="flex items-center text-ink-gray-7">
 							<a
-								:href="attachment"
+								:href="safeUrl(attachment)"
 								target="_blank"
 								class="cursor-pointer !no-underline text-sm leading-5"
 							>
@@ -230,6 +230,7 @@ import {
 import { useRouter } from 'vue-router'
 import { validateFile } from '@/utils'
 import RichTextEditor from '@/components/RichTextEditor.vue'
+import { safeUrl } from '@/utils/safeUrl'
 
 const answer = ref(null)
 const attachment = ref(null)

@@ -14,7 +14,8 @@
 				>
 					<img
 						v-if="branding.data?.banner_image"
-						:src="branding.data?.banner_image.file_url"
+						:src="safeUrl(branding.data?.banner_image.file_url)"
+						alt=""
 						class="w-8 h-8 rounded flex-shrink-0"
 					/>
 					<LMSLogo v-else class="w-8 h-8 rounded flex-shrink-0" />
@@ -77,6 +78,7 @@ import FrappeCloudIcon from '@/components/Icons/FrappeCloudIcon.vue'
 import LMSLogo from '@/components/Icons/LMSLogo.vue'
 import SettingsModal from '@/components/Settings/Settings.vue'
 import { Moon, Sun } from 'lucide-vue-next'
+import { safeUrl } from '@/utils/safeUrl'
 
 const router = useRouter()
 const { logout, branding } = sessionStore()

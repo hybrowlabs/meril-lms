@@ -15,7 +15,7 @@
 		<div class="group relative h-[130px] w-full">
 			<img
 				v-if="profile.data.cover_image"
-				:src="profile.data.cover_image"
+				:src="safeUrl(profile.data.cover_image)"
 				alt=""
 				class="h-[130px] w-full object-cover object-center"
 			/>
@@ -48,7 +48,7 @@
 					<div class="relative">
 						<img
 							v-if="profile.data.user_image"
-							:src="profile.data.user_image"
+							:src="safeUrl(profile.data.user_image)"
 							:alt="profile.data.full_name"
 							class="object-cover h-[100px] w-[100px] rounded-full border-4 border-white object-cover"
 						/>
@@ -94,7 +94,7 @@
 					<div class="flex items-center gap-x-4 mt-2">
 						<a
 							v-if="profile.data.twitter"
-							:href="profile.data.twitter"
+							:href="safeUrl(profile.data.twitter)"
 							target="_blank"
 							rel="noopener noreferrer"
 							:aria-label="__('Twitter')"
@@ -103,7 +103,7 @@
 						</a>
 						<a
 							v-if="profile.data.linkedin"
-							:href="profile.data.linkedin"
+							:href="safeUrl(profile.data.linkedin)"
 							target="_blank"
 							rel="noopener noreferrer"
 							:aria-label="__('LinkedIn')"
@@ -112,7 +112,7 @@
 						</a>
 						<a
 							v-if="profile.data.github"
-							:href="profile.data.github"
+							:href="safeUrl(profile.data.github)"
 							target="_blank"
 							rel="noopener noreferrer"
 							:aria-label="__('GitHub')"
@@ -172,6 +172,7 @@ import NoPermission from '@/components/NoPermission.vue'
 import NotFound from '@/pages/NotFound.vue'
 import EditCoverImage from '@/components/Modals/EditCoverImage.vue'
 import { openFormRoute } from '@/composables/useFormRoute'
+import { safeUrl } from '@/utils/safeUrl'
 
 const { user, brand } = sessionStore()
 const $user = inject('$user')

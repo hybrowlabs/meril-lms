@@ -46,8 +46,10 @@
 						>
 							<img
 								:src="
-									image.urls.raw +
-									'&w=200&h=50&fit=crop&crop=entropy,faces,focalpoint'
+									safeUrl(
+										image.urls.raw +
+											'&w=200&h=50&fit=crop&crop=entropy,faces,focalpoint'
+									)
 								"
 								:alt="__('Unsplash photo')"
 							/>
@@ -68,6 +70,7 @@
 <script>
 // import { Popover, PopoverButton, PopoverPanel } from '@headlessui/vue'
 import { Popover, FileUploader, Button } from 'frappe-ui'
+import { safeUrl } from '@/utils/safeUrl'
 
 export default {
 	name: 'UnsplashImageBrowser',

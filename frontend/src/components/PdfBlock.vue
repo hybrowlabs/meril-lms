@@ -54,7 +54,7 @@
 				</button>
 				<a
 					class="pdf-btn"
-					:href="file"
+					:href="safeUrl(file)"
 					target="_blank"
 					rel="noopener"
 					aria-label="Open in new tab"
@@ -73,7 +73,7 @@
 				<span>{{ error }}</span>
 				<a
 					class="pdf-fallback-link"
-					:href="file"
+					:href="safeUrl(file)"
 					target="_blank"
 					rel="noopener"
 				>
@@ -109,6 +109,7 @@ import {
 	ExternalLink,
 	Loader2,
 } from 'lucide-vue-next'
+import { safeUrl } from '@/utils/safeUrl'
 
 const props = defineProps({
 	file: { type: String, required: true },
@@ -170,7 +171,7 @@ async function load() {
 
 		const base = import.meta.env.BASE_URL || '/'
 		const loadingTask = pdfjsLib.getDocument({
-			url: props.file,
+			url: safeUrl(props.file),
 			worker: sharedPdfWorker || undefined,
 			cMapUrl: `${base}pdfjs/cmaps/`,
 			cMapPacked: true,
