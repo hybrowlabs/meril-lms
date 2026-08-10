@@ -251,7 +251,7 @@ import {
 import { sessionStore } from '@/stores/session'
 
 import { useRoute, useRouter } from 'vue-router'
-import { sanitizeHTML } from '@/utils'
+import { sanitizeOnWrite } from '@/utils/sanitizeOnWrite'
 import { sanitizeRichHTML } from '@/utils/sanitizeRichHTML'
 import { openFormRoute } from '@/composables/useFormRoute'
 import EmptyStateLayout from '@/components/Layouts/EmptyStateLayout.vue'
@@ -331,7 +331,7 @@ const quizDetails = createDocumentResource({
 })
 
 const validateTitle = () => {
-	quizDetails.doc.title = sanitizeHTML(quizDetails.doc.title.trim())
+	quizDetails.doc.title = sanitizeOnWrite(quizDetails.doc.title.trim())
 }
 
 // Debounced silent autosave: a burst of edits collapses into a single save
