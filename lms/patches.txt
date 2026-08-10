@@ -110,3 +110,4 @@ lms.patches.v2_0.link_zoom_account_to_batch
 lms.patches.v2_0.sidebar_for_certified_members
 lms.patches.v2_0.move_batch_instructors_to_evaluators
 lms.patches.v2_0.clamp_enrollment_progress
+lms.patches.v2_0.repair_re_enrollment_progress
