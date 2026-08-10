@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import ceil, now, flt
+from lms.lms.utils import get_current_enrollment_name
 
 
 class LMSEnrollment(Document):
@@ -438,8 +439,11 @@ class LMSEnrollment(Document):
 				"LMS Program Course", {"parent": program.parent}, pluck="course"
 			)
 			for course in courses:
-				progress = frappe.db.get_value(
-					"LMS Enrollment", {"course": course, "member": self.member}, "progress"
+				enrollment = get_current_enrollment_name(course, self.member)
+				progress = (
+					frappe.db.get_value("LMS Enrollment", enrollment, "progress")
+					if enrollment
+					else 0
 				)
 				progress = progress or 0
 				total_progress += progress

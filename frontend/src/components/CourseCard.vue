@@ -93,7 +93,7 @@
 				
 				<!-- Active Progress -->
 				<div
-					v-else-if="course.membership.progress"
+					v-else-if="course.membership.progress != null"
 					class="text-sm text-ink-gray-7 mt-2 mb-4"
 				>
 					{{ Math.ceil(course.membership.progress) }}% completed

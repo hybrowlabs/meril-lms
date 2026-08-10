@@ -8,6 +8,7 @@ import base64
 import unicodedata
 from frappe.utils.file_manager import save_file
 from frappe.utils import get_fullname
+from lms.lms.utils import get_current_enrollment_details
 import io
 from docx import Document
 from docx.shared import RGBColor, Inches
@@ -542,7 +543,7 @@ def has_user_submited_document(course=None):
         if not frappe.db.exists("LMS Course", course):
             return {"submited": False, "message": "Course does not exist", "success": False}
 
-        enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+        enrollment = get_current_enrollment_details(course, user, ["name", "progress"])
         if not enrollment:
             # Don't set 403 status, just return the data
             return {
@@ -551,7 +552,7 @@ def has_user_submited_document(course=None):
                 "success": False,
                 "enrollment_required": True
             }
-        enrollment_name, progress = enrollment
+        enrollment_name, progress = enrollment.name, enrollment.progress
         if not progress or int(progress) < 100:
             # Don't set 403 status, just return the data
             return {
@@ -762,12 +763,7 @@ def check_needs_forced_certification(course=None):
             return {"needs_forced_certification": False, "message": "Course does not exist"}
 
         # Check enrollment and progress
-        enrollment = frappe.db.get_value(
-            "LMS Enrollment",
-            {"course": course, "member": user},
-            ["name", "progress"],
-            as_dict=True
-        )
+        enrollment = get_current_enrollment_details(course, user, ["name", "progress"])
 
         if not enrollment:
             return {
@@ -1144,11 +1140,11 @@ def upload_distributor_document_with_datetime(
             return {"success": False, "message": "Only .doc, .docx, or .pdf files are allowed"}
 
         # Validate enrollment and completion
-        enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+        enrollment = get_current_enrollment_details(course, user, ["name", "progress"])
         if not enrollment:
             # Don't set 403 status, just return error data
             return {"success": False, "message": "User is not enrolled in this course", "enrollment_required": True}
-        _, progress = enrollment
+        progress = enrollment.progress
         if not progress or int(progress) < 100:
             # Don't set 403 status, just return error data
             return {"success": False, "message": "Course progress is not completed", "progress": progress or 0}
@@ -1348,7 +1344,7 @@ def save_user_course_document_with_file(
             "message": f"User '{user}' is not linked to an Employee record or Distributor record. User roles: {roles}. Please ensure user has Employee record or Distributor role and record."
         }
 
-    enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+    enrollment = get_current_enrollment_details(course, user, ["name", "progress"])
     if not enrollment:
         # Don't set 403 status, just return error data
         return {
@@ -1356,7 +1352,7 @@ def save_user_course_document_with_file(
             "submited": False,
             "message": "User is not enrolled in this course"
         }
-    enrollment_name, progress = enrollment
+    enrollment_name, progress = enrollment.name, enrollment.progress
     if not progress or int(progress) < 100:
         # Don't set 403 status, just return error data
         return {
@@ -1913,7 +1909,7 @@ def get_next_distributor_document_after_upload(course: str | None = None):
         return {"success": False, "message": "No course provided"}
 
     # Ensure user is Distributor and enrolled
-    enrollment = frappe.db.get_value("LMS Enrollment", {"course": course, "member": user}, ["name", "progress"])
+    enrollment = get_current_enrollment_details(course, user, ["name", "progress"])
     if not enrollment:
         frappe.local.response["http_status_code"] = 403
         return {"success": False, "message": "User is not enrolled in this course"}

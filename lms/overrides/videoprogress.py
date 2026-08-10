@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from lms.lms.utils import get_current_enrollment_name
 
 @frappe.whitelist(allow_guest=False)
 def update_video_progress(course_id, lesson_id, video_file, current_time, duration, progress_percentage, max_watched_time, timestamp):
@@ -8,24 +9,24 @@ def update_video_progress(course_id, lesson_id, video_file, current_time, durati
     Stores video progress in the current_videos_progress JSON field.
     """
 
-    
+
     user = frappe.session.user
 
-    # Resolve enrollment for this user and course
-    enrollment_name = frappe.db.get_value(
-        "LMS Enrollment",
-        {"member": user, "course": course_id},
-        "name",
-    )
+    # Resolve the current (latest) enrollment for this user and course
+    enrollment_name = get_current_enrollment_name(course_id, user)
+
+    filters = {
+        "course": course_id,
+        "lesson": lesson_id,
+        "member": user,
+    }
+    if enrollment_name:
+        filters["enrollment"] = enrollment_name
 
     # Find existing progress record using actual field names
     progress_doc = frappe.get_all(
         "LMS Course Progress",
-        filters={
-            "course": course_id,
-            "lesson": lesson_id,
-            "member": user,
-        },
+        filters=filters,
         fields=["name"],
         limit=1,
     )
@@ -79,13 +80,19 @@ def get_video_progress(course_id, lesson_id, video_file):
 
     user = frappe.session.user
 
+    enrollment_name = get_current_enrollment_name(course_id, user)
+
+    filters = {
+        "course": course_id,
+        "lesson": lesson_id,
+        "member": user,
+    }
+    if enrollment_name:
+        filters["enrollment"] = enrollment_name
+
     progress_doc = frappe.get_all(
         "LMS Course Progress",
-        filters={
-            "course": course_id,
-            "lesson": lesson_id,
-            "member": user,
-        },
+        filters=filters,
         fields=["name", "current_videos_progress"],
         limit=1,
     )
