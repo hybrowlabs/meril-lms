@@ -280,6 +280,13 @@ const openModal = (courseName) => {
 
     state.complianceOfficerName = savedState.complianceOfficerName
     state.complianceOfficerValid = savedState.complianceOfficerValid
+
+    // Never restore into a post-certification step while certification is pending.
+    // initializeWorkflow() bails out early on API/degraded paths without calling
+    // determineInitialStep(), which would otherwise leave a stale step in place.
+    if (!state.certification.isCompleted) {
+      state.currentStep = certificationStepId.value || 1
+    }
   } else {
     state.currentStep = 1
   }
@@ -331,10 +338,18 @@ const previousStep = () => {
 }
 
 const goToStep = (step) => {
-  if (step >= 1 && step <= totalSteps.value) {
-    state.currentStep = step
-    saveStateToStorage()
+  if (step < 1 || step > totalSteps.value) {
+    return
   }
+
+  // Every step past certification depends on it, so block the jump until certified
+  const certifyId = certificationStepId.value || 1
+  if (step > certifyId && !state.certification.isCompleted) {
+    return
+  }
+
+  state.currentStep = step
+  saveStateToStorage()
 }
 
 const resetState = (clearStorage = false) => {
