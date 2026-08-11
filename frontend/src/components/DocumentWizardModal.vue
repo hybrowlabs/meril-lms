@@ -107,6 +107,7 @@
             :compliance-officer-name="state.complianceOfficerName"
             :completed-downloads="state.downloads.completedDownloads"
             :user-role="state.userRole"
+            :is-certified="state.certification.isCompleted"
             @download-complete="handleDownloadComplete"
           />
 

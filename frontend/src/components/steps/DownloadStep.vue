@@ -10,6 +10,21 @@
       </p>
     </div>
 
+    <!-- Certification Required Notice -->
+    <div v-if="!isCertified" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+      <div class="flex">
+        <svg class="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <div class="ml-3">
+          <h4 class="text-sm font-medium text-yellow-800">Certification Required</h4>
+          <p class="text-sm text-yellow-700 mt-1">
+            {{ certifyPromptMessage }}
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Instructions -->
     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
       <div class="flex">
@@ -71,7 +86,8 @@
               size="md"
               icon="download"
               @click="downloadDocument(document)"
-              :disabled="downloadingDocuments.has(document.name)"
+              :disabled="!isCertified || downloadingDocuments.has(document.name)"
+              :title="isCertified ? '' : certifyPromptMessage"
               class="flex items-center justify-center min-w-[140px] px-6 py-3 h-12 bg-white border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 transition-all duration-200 text-sm"
             >
             </Button>
@@ -163,6 +179,10 @@ const props = defineProps({
   userRole: {
     type: String,
     default: null
+  },
+  isCertified: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -187,6 +207,13 @@ const hasDocumentRequiringLetterhead = computed(() => {
 })
 
 const isEmployee = computed(() => props.userRole === 'Employee')
+
+// Label of the certify button on the certification step, which differs by role
+const certifyButtonLabel = computed(() => (isEmployee.value ? 'Certify' : 'I Certify'))
+
+const certifyPromptMessage = computed(() =>
+  `Go back to the certification step and click "${certifyButtonLabel.value}" to enable these downloads.`
+)
 
 const headerDescription = computed(() => {
   if (isEmployee.value) {
@@ -217,6 +244,13 @@ const getDocumentLabel = (document) => document?.label || document?.name
 
 const downloadDocument = async (docItem) => {
   if (downloadingDocuments.value.has(docItem.name)) return
+
+  // Certification is a precondition for generating any document
+  if (!props.isCertified) {
+    downloadError.value = certifyPromptMessage.value
+    toast.error(certifyPromptMessage.value)
+    return
+  }
 
   try {
     downloadingDocuments.value.add(docItem.name)
