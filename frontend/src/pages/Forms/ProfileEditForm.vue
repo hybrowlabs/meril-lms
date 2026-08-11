@@ -110,7 +110,6 @@ const props = defineProps({
 const user = inject('$user')
 const router = useRouter()
 const readOnlyMode = window.read_only_mode
-const hasLanguageChanged = ref(false)
 const isDirty = ref(false)
 
 const parent = {
@@ -145,6 +144,12 @@ const profile = reactive({
 	twitter: '',
 })
 
+// Normalised to '' on both sides: `language` is nullable on User, so an unset
+// language would otherwise read as a change on every save.
+const hasLanguageChanged = computed(
+	() => (profile.language ?? '') !== (profileData.value?.language ?? '')
+)
+
 const updateProfile = createResource({
 	url: 'frappe.client.set_value',
 	makeParams() {
@@ -177,6 +182,11 @@ const validateMandatoryFields = () => {
 const saveProfile = () => {
 	if (refusal.value || !profileData.value) return
 	if (validateMandatoryFields()) return
+
+	// Read before submitting: the computed is live against the parent resource,
+	// which onSuccess reloads out from under it.
+	const languageChanged = hasLanguageChanged.value
+
 	profile.bio = sanitizeOnWrite(profile.bio)
 	submitResource(
 		updateProfile,
@@ -189,7 +199,7 @@ const saveProfile = () => {
 				// render a half-shaped profile for the tick before the reload lands.
 				props.profile?.reload()
 				toast.success(__('Profile updated successfully'))
-				if (hasLanguageChanged.value) {
+				if (languageChanged) {
 					// A language change only takes effect after the whole SPA reloads,
 					// which is what the modal did. Going through location rather than
 					// the router so the reload lands on the profile, not back here.
@@ -242,13 +252,5 @@ watch(
 		isDirty.value = false
 	},
 	{ immediate: true }
-)
-
-watch(
-	() => profile.language,
-	() => {
-		if (profileData.value && profile.language !== profileData.value.language)
-			hasLanguageChanged.value = true
-	}
 )
 </script>
