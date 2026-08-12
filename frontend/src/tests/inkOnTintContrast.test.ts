@@ -16,7 +16,6 @@
  * builds them from lightModeColors whatever the theme, so they never adapt while
  * the ink on top of them does.
  */
-/// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest'
 
 // Vite's own loader rather than node:fs — it needs no @types/node, so the type
