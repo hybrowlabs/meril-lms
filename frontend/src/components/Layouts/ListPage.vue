@@ -1,8 +1,4 @@
 <template>
-	<!-- A list page, declared. The page says what it filters and what a row
-	     looks like; PageHeader and PageBody own how that reads at each breakpoint.
-	     Shaped after helpdesk's ListViewBuilder.vue, which likewise takes the
-	     columns, the row options and the footer counts as configuration. -->
 	<PageHeader :breadcrumbs="breadcrumbs">
 		<template #actions>
 			<slot name="actions" />
@@ -21,8 +17,6 @@
 			:count="8"
 			class="px-5 pb-5"
 		/>
-		<!-- The cards own the scroll box at every width, which is what leaves the
-		     header above and the footer below them both in place. -->
 		<div v-else-if="rows.length && layout === 'grid'" class="px-5 pb-5">
 			<div
 				class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
@@ -59,8 +53,6 @@
 			<EmptyStateLayout :name="emptyName" :icon="emptyIcon" />
 		</div>
 
-		<!-- Every list page ends the same way, so Load More lives down here with
-		     the counts rather than as a lone button under the last row. -->
 		<template #footer>
 			<ListFooter
 				v-model="pageLength"
@@ -81,9 +73,6 @@
 						<div v-if="showLoadMore" class="mx-3 h-[80%] border-s" />
 						<div class="flex items-center gap-1 text-base text-ink-gray-5">
 							<div>{{ rows.length }}</div>
-							<!-- Two of these lists are served by endpoints with no
-							     count sibling, so the total is genuinely unknown
-							     rather than zero. Say the loaded count only. -->
 							<template v-if="totalCount !== null">
 								<div>{{ __('of') }}</div>
 								<div>{{ totalCount }}</div>

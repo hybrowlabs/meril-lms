@@ -34,10 +34,28 @@ svg.lucide {
 /* 48px, matching the desk header's computed height. Worn by PageHeader,
    MobilePageLayout, FormShell and the SkeletonLoader placeholder, which has to
    match their geometry or the page jumps when its data lands. No vertical
-   padding: the height is the `min-h-12` floor and the content centres inside
-   it, which is what keeps 48 exact. */
+   padding: the height is the floor below and the content centres inside it,
+   which is what keeps 48 exact.
+
+   The custom property is the single source. The frame takes its height from it
+   and the scroll containers clear it, so a header that changes height cannot
+   leave a band that swallows a focused element on Shift+Tab (WCAG 2.4.11). A
+   Tailwind class cannot be read back out of CSS, so the number has to live
+   here rather than in the @apply. */
+:root {
+	--header-frame-h: 3rem;
+}
+
 .header-frame {
-	@apply flex min-h-12 shrink-0 items-center border-b border-outline-gray-1 bg-surface-base px-5;
+	@apply flex shrink-0 items-center border-b border-outline-gray-1 bg-surface-base px-5;
+	min-height: var(--header-frame-h);
+}
+
+/* #scrollContainer in MobileLayout and NoSidebarLayout, #main-content in
+   DesktopLayout — the page scrollports the sticky header overlaps. */
+main#scrollContainer,
+main#main-content {
+	scroll-padding-block-start: var(--header-frame-h);
 }
 
 /* Menu rows sit on the tight `text-base` scale (line-height 1.15) while the

@@ -19,7 +19,6 @@
 				:aria-labelledby="title ? titleId : undefined"
 				:aria-label="!title && ariaLabel ? ariaLabel : undefined"
 			>
-				<!-- Drag handle -->
 				<div
 					ref="handle"
 					class="flex shrink-0 cursor-grab justify-center pb-1 pt-3 active:cursor-grabbing"
@@ -27,7 +26,6 @@
 					<div class="h-1 w-9 rounded-full bg-surface-gray-4" />
 				</div>
 
-				<!-- Header -->
 				<div
 					v-if="title || $slots.header"
 					class="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1"
@@ -39,7 +37,6 @@
 					</slot>
 				</div>
 
-				<!-- Body -->
 				<div class="flex-1 overflow-y-auto overscroll-contain px-2 pb-4">
 					<slot />
 				</div>
@@ -51,6 +48,8 @@
 <script setup>
 import { ref, computed, watch, nextTick, useId } from 'vue'
 import { useScrollLock, useSwipe, useEventListener } from '@vueuse/core'
+import { focusStops, trapTab } from '@/composables/useFocusTrap'
+import { useInertBackground } from '@/composables/useInertBackground'
 
 const props = defineProps({
 	modelValue: {
@@ -89,8 +88,11 @@ const bodyLock = useScrollLock(
 // backdrop: a keyboard or screen-reader user gets no signal it appeared, and
 // on close no way back to where they were. Restoring focus to the trigger is
 // also what makes the sheet read as belonging to the button that opened it.
-const FOCUSABLE =
-	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+//
+// Inerting the app behind it is the other half of the `aria-modal="true"` the
+// panel claims, and is what the ref-counting in useInertBackground was written
+// for — this sheet can open from inside a FormShell that is already holding it.
+useInertBackground(computed(() => props.modelValue))
 
 let previouslyFocused = null
 
@@ -104,7 +106,9 @@ watch(
 			await nextTick()
 			// The panel itself is the fallback, hence its tabindex="-1": a sheet
 			// holding nothing focusable still has to take focus off the page behind.
-			const first = panel.value?.querySelector(FOCUSABLE)
+			// focusStops, not a bare querySelector: frappe-ui renders hidden inputs
+			// that match the selector but cannot hold focus.
+			const [first] = panel.value ? focusStops(panel.value) : []
 			if (first) first.focus()
 			else panel.value?.focus()
 			return
@@ -115,9 +119,18 @@ watch(
 	}
 )
 
-// Esc closes, matching the backdrop tap.
+// Esc closes, matching the backdrop tap. Tab stays inside: the panel is last in
+// <body> and claims aria-modal, so without this Tab off its final option lands
+// on the page behind the backdrop — invisible to the user moving through it,
+// and already announced as not being there.
 useEventListener(document, 'keydown', (e) => {
-	if (props.modelValue && e.key === 'Escape') close()
+	if (!props.modelValue) return
+	if (e.key === 'Escape') {
+		close()
+		return
+	}
+	if (e.key !== 'Tab') return
+	trapTab(e, panel.value)
 })
 
 // Swipe-down on the handle drags the panel and closes it past a threshold.

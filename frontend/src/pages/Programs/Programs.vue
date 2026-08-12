@@ -1,6 +1,4 @@
 <template>
-	<!-- A student sees their own enrolled/published split, which is not a
-	     filtered list page, so it keeps its own chrome. -->
 	<template v-if="isStudent">
 		<PageHeader :breadcrumbs="breadcrumbs" />
 		<StudentPrograms />
@@ -78,11 +76,6 @@
 		</template>
 	</ListPage>
 
-	<!-- Outside both branches of the student/moderator split above: a moderator
-	     who is also a student renders the student view, and an outlet nested in
-	     either branch would make the form unreachable for one persona.
-	     Keyed on the program so the form remounts when the id changes — its
-	     document resource is created with one name and cannot be repointed. -->
 	<router-view
 		:key="String($route.params.programName || '')"
 		@saved="updatePrograms"

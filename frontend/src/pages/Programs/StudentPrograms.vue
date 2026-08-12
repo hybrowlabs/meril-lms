@@ -54,9 +54,6 @@
 						icon="lucide-graduation-cap"
 					/>
 				</div>
-				<!-- <div v-else class="col-span-3 text-center text-ink-gray-5">
-                    {{ __('No programs found in this category.') }}
-                </div> -->
 			</div>
 		</div>
 	</div>
