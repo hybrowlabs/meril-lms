@@ -70,7 +70,7 @@
 			>
 			</iframe>
 		</div>
-		<div v-else v-html="renderSafe(block)"></div>
+		<div v-else v-safe-html:rich="renderMarkdown(block)"></div>
 	</div>
 	<div v-if="quizId">
 		<Quiz :quiz="quizId" />
@@ -82,7 +82,6 @@ import PdfBlock from '@/components/PdfBlock.vue'
 import MarkdownIt from 'markdown-it'
 import { useScreenSize } from '@/utils/composables'
 import { getMacroArg } from '@/utils/lessonMacros'
-import { sanitizeRichHTML } from '@/utils/sanitizeRichHTML'
 import { usesWebkitPdfViewer } from '@/utils/pdfViewer'
 import { safeUrl } from '@/utils/safeUrl'
 
@@ -94,11 +93,9 @@ const markdown = new MarkdownIt({
 	linkify: true,
 })
 
-// Route markdown output through the shared sanitizer so the anchor-target
-// hook (open in new tab) and form-tag blocklist are applied uniformly with
-// the rest of the LMS render pipelines. Keeps one source of truth for what
-// counts as safe user-authored HTML.
-const renderSafe = (block) => sanitizeRichHTML(markdown.render(block))
+// The directive sanitizes at the rich level, which is where the anchor-target
+// hook and the form-tag blocklist live. This only does the markdown pass.
+const renderMarkdown = (block) => markdown.render(block)
 
 const props = defineProps({
 	content: {

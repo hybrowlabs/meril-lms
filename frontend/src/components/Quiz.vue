@@ -155,7 +155,7 @@
 					</div>
 					<div
 						class="text-ink-gray-9 font-semibold mt-2 leading-5 break-words [&_img]:h-auto [&_img]:max-w-full"
-						v-html="sanitizeRichHTML(questionDetails.data.question)"
+						v-safe-html:rich="questionDetails.data.question"
 					></div>
 					<div
 						v-if="questionDetails.data.type == 'Choices'"
@@ -207,9 +207,7 @@
 							</div>
 							<span
 								class="ms-2 min-w-0 flex-1 break-words text-ink-gray-9 [&_img]:h-auto [&_img]:max-w-full"
-								v-html="
-									sanitizeRichHTML(questionDetails.data[`option_${index}`])
-								"
+								v-safe-html:rich="questionDetails.data[`option_${index}`]"
 							>
 							</span>
 						</label>
@@ -475,7 +473,6 @@
 	</Dialog>
 </template>
 <script setup>
-import { sanitizeRichHTML } from '@/utils/sanitizeRichHTML'
 import {
 	Badge,
 	Button,

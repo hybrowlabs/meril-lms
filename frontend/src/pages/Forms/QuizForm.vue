@@ -75,7 +75,7 @@
 					<div
 						v-if="column.key === 'question_detail'"
 						class="text-xs [&>*]:inline"
-						v-html="sanitizeRichHTML(value)"
+						v-safe-html:rich="value"
 					></div>
 					<div v-else class="text-xs">
 						{{ value }}
@@ -252,7 +252,6 @@ import { sessionStore } from '@/stores/session'
 
 import { useRoute, useRouter } from 'vue-router'
 import { sanitizeOnWrite } from '@/utils/sanitizeOnWrite'
-import { sanitizeRichHTML } from '@/utils/sanitizeRichHTML'
 import { openFormRoute } from '@/composables/useFormRoute'
 import EmptyStateLayout from '@/components/Layouts/EmptyStateLayout.vue'
 import ResponsiveListView from '@/components/ResponsiveListView.vue'
