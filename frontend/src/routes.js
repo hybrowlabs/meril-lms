@@ -186,7 +186,13 @@ export const routes = [
 				component: () =>
 					import('@/pages/ProfileEvaluationSchedule.vue'),
 			},
-			],
+			{
+				name: 'ProfileEditForm',
+				path: 'edit',
+				component: () => import('@/pages/Forms/ProfileEditForm.vue'),
+				props: true,
+			},
+		],
 	},
 	{
 		path: '/job-openings',
@@ -227,7 +233,15 @@ export const routes = [
 		component: () => import('@/pages/Forms/QuizForm.vue'),
 		props: true,
 		children: [
-			],
+			{
+				// :questionName is the LMS Quiz Question ROW name, or 'new'. It is
+				// NOT the LMS Question docname — marks lives on the row. See design R2.
+				path: 'question/:questionName',
+				name: 'QuizQuestion',
+				component: () => import('@/pages/Forms/QuizQuestionForm.vue'),
+				props: true,
+			},
+		],
 	},
 	{
 		path: '/quiz/:quizID',
@@ -287,7 +301,13 @@ export const routes = [
 		name: 'Assignments',
 		component: () => import('@/pages/Assignments.vue'),
 		children: [
-			],
+			{
+				path: ':assignmentID',
+				name: 'AssignmentForm',
+				component: () => import('@/pages/Forms/AssignmentForm.vue'),
+				props: true,
+			},
+		],
 	},
 	{
 		path: '/assignment-submission/:assignmentID/:submissionName',

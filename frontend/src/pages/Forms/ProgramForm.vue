@@ -1,19 +1,19 @@
 <template>
-	<Dialog v-model:open="show" size="2xl">
-		<template #title>
-			<div class="flex items-center justify-between gap-x-2 text-base w-full">
-				<div class="text-2xl-semibold text-ink-gray-9">
-					{{
-						programName === 'new' ? __('Create Program') : __('Edit Program')
-					}}
-				</div>
-				<Badge theme="orange" v-if="dirty">
-					{{ __('Not Saved') }}
-				</Badge>
-			</div>
+	<FormShell
+		:title="isNew ? __('Create Program') : __('Edit Program')"
+		size="2xl"
+		@close="close"
+	>
+		<template #header-action>
+			<Badge theme="orange" v-if="dirty">
+				{{ __('Not Saved') }}
+			</Badge>
 		</template>
 		<template #default>
-			<div class="text-base">
+			<div v-if="!canManageProgram" class="p-4 text-base text-ink-gray-6">
+				{{ __('You are not permitted to manage programs.') }}
+			</div>
+			<div v-else data-testid="program-fields" class="text-base">
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-5 pb-5">
 					<FormControl
 						v-model="program.name"
@@ -43,7 +43,7 @@
 						<div class="text-lg-semibold text-ink-gray-9">
 							{{ __('Courses') }}
 						</div>
-						<Button @click="openForm('course')">
+						<Button @click="openChildForm('course')">
 							<template #prefix>
 								<span class="lucide-plus size-4" />
 							</template>
@@ -93,7 +93,9 @@
 										:label="__('Delete')"
 										@click="remove(selections, unselectAll, 'courses')"
 									>
-										<span class="lucide-trash-2 size-4" />
+										<template #icon>
+											<span class="lucide-trash-2 size-4" />
+										</template>
 									</Button>
 								</div>
 							</template>
@@ -112,7 +114,7 @@
 
 						<div class="flex gap-x-2">
 							<Button
-								v-if="programMembers.data.length > 0"
+								v-if="(programMembers.data?.length ?? 0) > 0"
 								@click="
 									() => {
 										showProgressDialog = true
@@ -124,7 +126,7 @@
 								</template>
 								{{ __('Progress Summary') }}
 							</Button>
-							<Button @click="openForm('member')">
+							<Button @click="openChildForm('member')">
 								<template #prefix>
 									<span class="lucide-plus size-4" />
 								</template>
@@ -145,7 +147,9 @@
 								:label="__('Delete')"
 								@click="remove(selections, unselectAll, 'members')"
 							>
-								<span class="lucide-trash-2 size-4" />
+								<template #icon>
+									<span class="lucide-trash-2 size-4" />
+								</template>
 							</Button>
 						</template>
 					</ResponsiveListView>
@@ -198,34 +202,36 @@
 
 			<ProgramProgressSummary
 				v-model="showProgressDialog"
-				:programName="programName"
-				:programMembers="programMembers.data"
+				:programName="programId"
+				:programMembers="programMembers.data || []"
 			/>
 		</template>
-		<template #actions="{ close }">
-			<div class="flex justify-end gap-x-2">
-				<Button
-					v-if="programName != 'new'"
-					@click="deleteProgram(close)"
+		<template #actions>
+			<div v-if="canManageProgram" class="flex items-center justify-end gap-2">
+				<HeaderButton
+					v-if="!isNew"
+					data-testid="program-delete"
+					:label="__('Delete program')"
+					icon="lucide-trash-2"
 					variant="outline"
 					theme="red"
-				>
-					<template #prefix>
-						<span class="lucide-trash-2 size-4" />
-					</template>
-					{{ __('Delete') }}
-				</Button>
-				<Button variant="solid" @click="saveProgram(close)">
-					{{ __('Save') }}
-				</Button>
+					@click="deleteProgram()"
+				/>
+				<HeaderButton
+					data-testid="program-save"
+					:label="__('Save')"
+					variant="solid"
+					@click="saveProgram()"
+				/>
 			</div>
 		</template>
-	</Dialog>
+	</FormShell>
 </template>
 <script setup lang="ts">
 import {
 	Badge,
 	Button,
+	createDocumentResource,
 	createListResource,
 	Dialog,
 	FormControl,
@@ -237,35 +243,66 @@ import {
 	ListRow,
 	toast,
 } from 'frappe-ui'
-import { computed, ref, watch, getCurrentInstance } from 'vue'
+import { computed, inject, ref, watch, getCurrentInstance } from 'vue'
 
-import { Programs, Program } from '@/types'
+import { Program, ProgramCourse, ProgramMember } from '@/types'
 import { sanitizeHTML, openSettings } from '@/utils'
+import FormShell from '@/components/FormShell.vue'
+import HeaderButton from '@/components/HeaderButton.vue'
+import { useFormRoute } from '@/composables/useFormRoute'
 import Link from '@/components/Controls/Link.vue'
 import ResponsiveListView from '@/components/ResponsiveListView.vue'
 import Draggable from 'vuedraggable'
 import ProgramProgressSummary from '@/components/Programs/ProgramProgressSummary.vue'
+import { submitResource } from '@/utils/resource'
 
-const show = defineModel<boolean>()
-const programs = defineModel<Programs>('programs')
 const showFormDialog = ref(false)
 const currentForm = ref<'course' | 'member'>('course')
 const course = ref<string>('')
 const member = ref<string>('')
 const showProgressDialog = ref(false)
 const dirty = ref(false)
+const user = inject<any>('$user')
 
 const app = getCurrentInstance()
-const { $dialog } = app.appContext.config.globalProperties
+const { $dialog } = app!.appContext.config.globalProperties
 
 const props = withDefaults(
 	defineProps<{
-		programName: string | null
+		programName?: string | null
 	}>(),
 	{
 		programName: 'new',
 	}
 )
+
+// The parent list refetches through its own updatePrograms(), which drives the
+// `reloading` flag and the footer count as well (Programs.vue:175-187). A bare
+// resource reload from here would skip both and bring back the flash of empty
+// state, so signal the parent instead of reaching into its resource.
+const emit = defineEmits<{ saved: [] }>()
+
+const { close, saveAndReplace } = useFormRoute({ name: 'Programs' })
+
+// R3: `withDefaults` only fills an *undefined* prop, so the `null` this form
+// used to be handed by the parent (Programs.vue's `currentProgram` ref) slipped
+// straight through and every `=== 'new'` comparison below took the EDIT branch
+// before a program had been chosen. The route param is always a string now, but
+// the sentinel is still normalised in exactly one place rather than eight.
+const programId = computed(() => props.programName || 'new')
+const isNew = computed(() => programId.value === 'new')
+
+// Copied from Programs.vue:268-275, which gates both the Create button and the
+// card that opens an existing program. A URL goes through neither. This is a UX
+// gate, not an authorization boundary — the server's DocPerms on LMS Program
+// are; this only spares an unentitled user a form that could never save.
+const canManageProgram = computed(() => {
+	// Cast because Window has no read_only_mode declaration; same shape as
+	// NewBatchForm.vue:190.
+	if ((window as Window & { read_only_mode?: boolean }).read_only_mode)
+		return false
+	return Boolean(user.data?.is_moderator || user.data?.is_instructor)
+})
 
 const program = ref<Program>({
 	name: '',
@@ -276,36 +313,33 @@ const program = ref<Program>({
 	program_members: [],
 })
 
-watch(
-	() => props.programName,
-	() => {
-		setProgramData()
-		fetchCourses()
-		fetchMembers()
-	}
-)
+// This form owns its LMS Program resource instead of the parent's list resource
+// (`cache: ['program']`). Deliberately a DIFFERENT cache key: reusing the
+// parent's would hand back its cached instance and make insert.onSuccess refetch
+// it behind the page's back, which is exactly the bare reload the `saved` emit
+// exists to avoid. Edits still reach the list for free — setValue.onSuccess
+// calls updateRowInListResource, which patches the row in every registered list
+// resource for the doctype (listResource.js:144).
+const programs = createListResource({
+	doctype: 'LMS Program',
+	cache: ['programForm'],
+	auto: false,
+})
 
-const setProgramData = () => {
-	let isNew = true
-	programs.value?.data.forEach((p: Program) => {
-		if (p.name === props.programName) {
-			isNew = false
-			program.value = { program_courses: [], program_members: [], ...p }
-		}
-	})
-
-	if (isNew) {
-		program.value = {
-			name: '',
-			title: '',
-			published: false,
-			enforce_course_order: false,
-			program_courses: [],
-			program_members: [],
-		}
-	}
-	dirty.value = false
-}
+// C4: edit mode used to be seeded from the parent's in-memory array. On a cold
+// deep link that array is empty, so the form rendered as if the program had no
+// title and no child rows — and a Save from that state posted the emptiness
+// back over the real record. Fetch our own document instead, exactly as
+// JobForm.vue:182-190 does. createDocumentResource returns undefined when
+// `name` is falsy (documentResource.js:15), hence the optional chaining.
+const programDoc = createDocumentResource({
+	doctype: 'LMS Program',
+	name: isNew.value ? undefined : programId.value,
+	auto: !isNew.value,
+	onError(err: any) {
+		toast.warning(__(err.messages?.[0] || err))
+	},
+})
 
 const programCourses = createListResource({
 	doctype: 'LMS Program Course',
@@ -330,7 +364,7 @@ const programMembers = createListResource({
 const fetchCourses = () => {
 	programCourses.update({
 		filters: {
-			parent: props.programName,
+			parent: programId.value,
 			parenttype: 'LMS Program',
 			parentfield: 'program_courses',
 		},
@@ -341,7 +375,7 @@ const fetchCourses = () => {
 const fetchMembers = () => {
 	programMembers.update({
 		filters: {
-			parent: props.programName,
+			parent: programId.value,
 			parenttype: 'LMS Program',
 			parentfield: 'program_members',
 		},
@@ -349,28 +383,68 @@ const fetchMembers = () => {
 	programMembers.reload()
 }
 
+// Only the scalar fields. The two child tables belong to the list resources
+// above, whose responses can land either side of this one — copying them out of
+// the document would let whichever arrived first win.
+const applyDoc = (doc: Program) => {
+	program.value.name = doc.name
+	program.value.title = doc.title
+	program.value.published = Boolean(doc.published)
+	program.value.enforce_course_order = Boolean(doc.enforce_course_order)
+	dirty.value = false
+}
+
+// C3: this watch had no `immediate: true`, so nothing loaded on mount. That was
+// invisible while the parent modal was always mounted first and only the prop
+// changed; a directly-mounted route renders blank without it.
+watch(
+	programId,
+	() => {
+		if (isNew.value) return
+		fetchCourses()
+		fetchMembers()
+	},
+	{ immediate: true }
+)
+
+watch(
+	() => programDoc?.doc,
+	(doc) => {
+		if (doc) applyDoc(doc)
+	},
+	{ immediate: true }
+)
+
 const validateTitle = () => {
 	program.value.name = sanitizeHTML(program.value.name.trim())
 }
 
-const saveProgram = (close: () => void) => {
+const saveProgram = () => {
+	if (!canManageProgram.value) return
 	validateTitle()
-	if (props.programName === 'new') createNewProgram(close)
-	else updateProgram(close)
+	if (isNew.value) createNewProgram()
+	else updateProgram()
 	dirty.value = false
 }
 
-const createNewProgram = (close: () => void) => {
-	programs.value.insert.submit(
+// Saving navigates onward by REPLACING, so the entry this form was opened on is
+// consumed and Back reaches the list rather than a stale form.
+const afterSave = () => {
+	emit('saved')
+	saveAndReplace({ name: 'Programs' })
+}
+
+const createNewProgram = () => {
+	submitResource(
+		programs.insert,
 		{
 			...program.value,
 			title: program.value.name,
 		},
 		{
 			onSuccess() {
-				close()
-				programs.value.reload()
 				toast.success(__('Program created successfully'))
+				afterSave()
 			},
 			onError(err: any) {
 				toast.warning(__(err.messages?.[0] || err))
@@ -379,17 +453,22 @@ const createNewProgram = (close: () => void) => {
 	)
 }
 
-const updateProgram = (close: () => void) => {
-	programs.value.setValue.submit(
+const updateProgram = () => {
+	submitResource(
+		programs.setValue,
 		{
-			name: props.programName,
+			// Spread first: LMS Program is `autoname: field:title`, so
+			// `program.value.name` is the docname AND what the Title input edits.
+			// Spreading it last overwrote the row being addressed with the new
+			// title, so set_value targeted a docname that does not exist yet and
+			// no program could ever be renamed.
 			...program.value,
+			name: programId.value,
 		},
 		{
 			onSuccess() {
-				close()
-				programs.value.reload()
 				toast.success(__('Program updated successfully'))
+				afterSave()
 			},
 			onError(err: any) {
 				toast.warning(__(err.messages?.[0] || err))
@@ -398,7 +477,7 @@ const updateProgram = (close: () => void) => {
 	)
 }
 
-const openForm = (formType: 'course' | 'member') => {
+const openChildForm = (formType: 'course' | 'member') => {
 	currentForm.value = formType
 	showFormDialog.value = true
 	if (formType === 'course') {
@@ -421,8 +500,8 @@ const addCourse = (close: () => void) => {
 		program.value.program_courses.push({
 			course: course.value,
 			idx: program.value.program_courses.length + 1,
-		})
-		if (props.programName !== 'new') {
+		} as ProgramCourse)
+		if (!isNew.value) {
 			dirty.value = true
 		}
 		close()
@@ -439,13 +518,13 @@ const addMember = (close: () => void) => {
 	}
 
 	const existingMember = program.value.program_members.find(
-		(m) => m.member === member.value
+		(m: ProgramMember) => m.member === member.value
 	)
 	if (!existingMember) {
 		program.value.program_members.push({
 			member: member.value,
-		})
-		if (props.programName !== 'new') {
+		} as ProgramMember)
+		if (!isNew.value) {
 			dirty.value = true
 		}
 		close()
@@ -455,43 +534,11 @@ const addMember = (close: () => void) => {
 	}
 }
 
-const updateCounts = async (
-	type: 'member' | 'course',
-	action: 'add' | 'remove'
-) => {
-	if (!props.programName) return
-
-	let memberCount = programMembers.data?.length || 0
-	let courseCount = programCourses.data?.length || 0
-
-	if (type === 'member') {
-		memberCount += action === 'add' ? 1 : -1
-	} else {
-		courseCount += action === 'add' ? 1 : -1
-	}
-
-	await programs.value.setValue.submit(
-		{
-			name: props.programName,
-			member_count: memberCount,
-			course_count: courseCount,
-		},
-		{
-			onSuccess() {
-				setProgramData()
-			},
-			onError(err: any) {
-				toast.warning(__(err.messages?.[0] || err))
-			},
-		}
-	)
-}
-
-const updateOrder = async (e: DragEvent) => {
+const updateOrder = async (e: any) => {
 	let sourceIdx = e.from.dataset.idx
 	let targetIdx = e.to.dataset.idx
 
-	if (props.programName === 'new') {
+	if (isNew.value) {
 		let courses = program.value.program_courses
 		courses.splice(targetIdx, 0, courses.splice(sourceIdx, 1)[0])
 		courses.forEach((course, index) => {
@@ -503,7 +550,8 @@ const updateOrder = async (e: DragEvent) => {
 		courses.splice(targetIdx, 0, courses.splice(sourceIdx, 1)[0])
 
 		for (const [index, course] of courses.entries()) {
-			programCourses.setValue.submit(
+			submitResource(
+				programCourses.setValue,
 				{
 					name: course.name,
 					idx: index + 1,
@@ -540,8 +588,8 @@ const remove = (
 	unselectAll()
 }
 
-const deleteProgram = (close: () => void) => {
-	if (props.programName == 'new') return
+const deleteProgram = () => {
+	if (isNew.value) return
 	$dialog({
 		title: __('Delete Program'),
 		message: __(
@@ -552,12 +600,13 @@ const deleteProgram = (close: () => void) => {
 				label: __('Delete'),
 				theme: 'red',
 				variant: 'solid',
-				onClick(closeDialog) {
-					programs.value?.delete.submit(props.programName, {
+				onClick(closeDialog: () => void) {
+					submitResource(programs.delete, programId.value, {
 						onSuccess() {
 							toast.success(__('Program deleted successfully'))
-							close()
+							emit('saved')
 							closeDialog()
+							close()
 						},
 						onError(err: any) {
 							toast.warning(__(err.messages?.[0] || err))
@@ -574,7 +623,7 @@ const courseColumns = computed(() => {
 	return [
 		{
 			label: 'Title',
-			key: props.programName === 'new' ? 'course' : 'course_title',
+			key: isNew.value ? 'course' : 'course_title',
 			width: 1,
 		},
 	]

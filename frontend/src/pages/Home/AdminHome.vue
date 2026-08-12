@@ -196,10 +196,7 @@
 					)
 				}}
 			</div>
-			<router-link
-				:to="{ name: 'Courses', query: { newCourse: '1' } }"
-				class="mt-4"
-			>
+			<router-link :to="{ name: 'NewCourse' }" class="mt-4">
 				<Button>
 					<template #prefix>
 						<span class="lucide-plus size-4" />

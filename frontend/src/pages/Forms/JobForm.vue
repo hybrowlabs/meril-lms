@@ -8,7 +8,6 @@
 				<ShortcutTooltip :label="__('Save')" combo="Mod+S" :disabled="isMobile">
 					<HeaderButton
 						:label="__('Save')"
-						icon="lucide-save"
 						variant="solid"
 						@click="saveJob()"
 					/>
@@ -139,6 +138,7 @@ import {
 } from '@/composables/useKeyboardShortcuts'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import { InputLabel } from '@/components/Form/labeling'
+import { submitResource } from '@/utils/resource'
 
 const user = inject('$user')
 const router = useRouter()
@@ -253,7 +253,8 @@ const createNewJob = () => {
 }
 
 const editJobDetails = () => {
-	jobDetails.setValue.submit(
+	submitResource(
+		jobDetails.setValue,
 		{
 			company_logo: job.company_logo,
 			...job,

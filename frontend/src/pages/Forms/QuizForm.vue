@@ -30,15 +30,13 @@
 						icon="lucide-clipboard-list"
 					/>
 				</router-link>
-				<Tooltip v-if="quizDetails.doc?.name" :text="__('Delete quiz')">
-					<Button
-						icon="lucide-trash-2"
-						:label="__('Delete quiz')"
-						theme="red"
-						variant="outline"
-						@click="deleteQuiz"
-					/>
-				</Tooltip>
+				<HeaderButton
+					v-if="quizDetails.doc?.name"
+					:label="__('Delete quiz')"
+					icon="lucide-trash-2"
+					theme="red"
+					@click="deleteQuiz"
+				/>
 			</template>
 		</template>
 	</PageHeader>
@@ -52,13 +50,12 @@
 		v-else-if="quizDetails.doc"
 		class="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[7fr,3fr]"
 	>
-		<!-- LEFT: Questions -->
 		<div class="flex min-w-0 flex-col lg:min-h-0">
 			<div class="flex items-center justify-between px-5 pt-5 mb-4">
 				<h2 class="text-lg-semibold text-ink-gray-9">
 					{{ __('Questions') }}
 				</h2>
-				<Button v-if="!readOnlyMode" @click="openQuestionModal()">
+				<Button v-if="!readOnlyMode" @click="openQuestion()">
 					<template #prefix>
 						<span class="lucide-plus size-4" />
 					</template>
@@ -90,7 +87,9 @@
 						:label="__('Delete')"
 						@click="deleteQuestions(selections, unselectAll)"
 					>
-						<span class="lucide-trash-2 size-4" />
+						<template #icon>
+							<span class="lucide-trash-2 size-4" />
+						</template>
 					</Button>
 				</template>
 			</ResponsiveListView>
@@ -120,7 +119,6 @@
 			</ListFooter>
 		</div>
 
-		<!-- RIGHT: Details + Settings -->
 		<div
 			class="order-first min-w-0 space-y-8 border-b p-5 lg:order-none lg:overflow-y-auto lg:border-b-0 lg:border-s"
 		>
@@ -218,12 +216,7 @@
 		</div>
 	</div>
 
-	<Question
-		v-model="showQuestionModal"
-		:questionDetail="currentQuestion"
-		v-model:quiz="quizDetails"
-		:title="currentQuestion.question ? __('Edit Question') : __('Add Question')"
-	/>
+	<router-view :key="route.params.questionName" />
 </template>
 <script setup>
 import {
@@ -243,7 +236,6 @@ import PageHeader from '@/components/Layouts/PageHeader.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import {
 	computed,
-	reactive,
 	ref,
 	onMounted,
 	inject,
@@ -256,24 +248,20 @@ import {
 	useKeyboardShortcuts,
 	saveShortcut,
 } from '@/composables/useKeyboardShortcuts'
-import { sessionStore } from '../stores/session'
+import { sessionStore } from '@/stores/session'
 
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { sanitizeHTML } from '@/utils'
 import { sanitizeRichHTML } from '@/utils/sanitizeRichHTML'
-import Question from '@/components/Modals/Question.vue'
+import { openFormRoute } from '@/composables/useFormRoute'
 import EmptyStateLayout from '@/components/Layouts/EmptyStateLayout.vue'
 import ResponsiveListView from '@/components/ResponsiveListView.vue'
+import { submitResource } from '@/utils/resource'
 
 const { brand } = sessionStore()
 const pageLength = ref(20)
-const showQuestionModal = ref(false)
-const currentQuestion = reactive({
-	question: '',
-	marks: 0,
-	name: '',
-})
 const user = inject('$user')
+const route = useRoute()
 const router = useRouter()
 const readOnlyMode = window.read_only_mode
 const { $dialog } = getCurrentInstance().appContext.config.globalProperties
@@ -365,7 +353,8 @@ const submitQuiz = (opts = {}) => {
 	// autosave watcher and the onBeforeUnmount flush can't throw or re-insert it.
 	if (!quizDetails.doc) return
 	validateTitle()
-	quizDetails.setValue.submit(
+	submitResource(
+		quizDetails.setValue,
 		{
 			...quizDetails.doc,
 			total_marks: calculateTotalMarks(),
@@ -424,21 +413,20 @@ const listOptions = computed(() => {
 	return {
 		showTooltip: false,
 		selectable: true,
-		onRowClick: openQuestionModal,
+		onRowClick: (row) => openQuestion(row.name),
 	}
 })
 
-const openQuestionModal = (question = null) => {
-	if (question) {
-		currentQuestion.question = question.question
-		currentQuestion.marks = question.marks
-		currentQuestion.name = question.name
-	} else {
-		currentQuestion.question = ''
-		currentQuestion.marks = 0
-		currentQuestion.name = ''
-	}
-	showQuestionModal.value = true
+// `questionName` is the LMS Quiz Question ROW name (row.name), not the LMS
+// Question docname (row.question) — marks lives on the row and is otherwise
+// unrecoverable from the URL. See design R2.
+// openFormRoute, not a bare router.push: it stamps the history entry so the
+// form's own close() knows to pop it instead of replacing back to this page.
+const openQuestion = (questionName = 'new') => {
+	openFormRoute(router, {
+		name: 'QuizQuestion',
+		params: { quizID: props.quizID, questionName },
+	})
 }
 
 const deleteQuestionResource = createResource({
@@ -452,7 +440,8 @@ const deleteQuestionResource = createResource({
 })
 
 const deleteQuestions = (selections, unselectAll) => {
-	deleteQuestionResource.submit(
+	submitResource(
+		deleteQuestionResource,
 		{
 			questions: Array.from(selections),
 		},

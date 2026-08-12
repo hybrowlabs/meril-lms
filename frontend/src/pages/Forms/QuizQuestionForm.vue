@@ -1,10 +1,10 @@
 <template>
-	<Dialog v-model:open="show" size="3xl" bare>
+	<FormShell :title="title" size="3xl" @close="close">
 		<template #default>
-			<div class="p-5 space-y-5">
-				<div class="text-lg-semibold text-ink-gray-9 mb-5">
-					{{ __(props.title) }}
-				</div>
+			<div v-if="!canManageQuestions" class="p-4 text-base text-ink-gray-6">
+				{{ __('You are not permitted to edit this quiz.') }}
+			</div>
+			<div v-else data-testid="quiz-question-fields" class="space-y-5">
 				<BooleanSwitch
 					v-if="!editMode"
 					size="sm"
@@ -24,7 +24,7 @@
 							editorClass="prose-sm max-w-none border-b border-x border-outline-elevation-2 bg-surface-gray-2 rounded-b-md py-1 px-2 min-h-[7rem]"
 						/>
 					</div>
-					<div class="grid grid-cols-2 gap-8 mt-4">
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
 						<FormControl
 							v-model="question.marks"
 							:label="__('Marks')"
@@ -53,7 +53,7 @@
 					</div>
 					<div
 						v-if="question.type == 'Choices'"
-						class="grid grid-cols-2 gap-x-8 gap-y-4"
+						class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4"
 					>
 						<div
 							v-for="n in visibleOptionCount"
@@ -72,7 +72,9 @@
 									:label="__('Remove option')"
 									@click="removeOption(n)"
 								>
-									<span class="lucide-trash-2 size-4" />
+									<template #icon>
+										<span class="lucide-trash-2 size-4" />
+									</template>
 								</Button>
 							</div>
 							<FormControl
@@ -103,7 +105,7 @@
 						</Button>
 					</div>
 					<div v-else-if="question.type == 'User Input'">
-						<div class="grid grid-cols-2 gap-x-8 gap-y-4 py-2">
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 py-2">
 							<div
 								v-for="n in visiblePossibilityCount"
 								:key="n"
@@ -121,7 +123,9 @@
 									:label="__('Remove possibility')"
 									@click="removePossibility(n)"
 								>
-									<span class="lucide-trash-2 size-4" />
+									<template #icon>
+										<span class="lucide-trash-2 size-4" />
+									</template>
 								</Button>
 							</div>
 						</div>
@@ -150,31 +154,79 @@
 						type="number"
 					/>
 				</div>
-				<div class="flex items-center justify-end gap-x-2 mt-5">
-					<Button variant="solid" @click="submitQuestion()">
-						{{ __('Save') }}
-					</Button>
-				</div>
 			</div>
 		</template>
-	</Dialog>
+		<template #actions>
+			<div v-if="canManageQuestions" class="flex items-center justify-end">
+				<HeaderButton
+					data-testid="quiz-question-save"
+					:label="__('Save')"
+					variant="solid"
+					:loading="saving"
+					@click="submitQuestion()"
+				/>
+			</div>
+		</template>
+	</FormShell>
 </template>
 <script setup>
-import { Dialog, FormControl, createResource, Button, toast } from 'frappe-ui'
+import {
+	FormControl,
+	createResource,
+	createDocumentResource,
+	Button,
+	toast,
+} from 'frappe-ui'
 import BooleanSwitch from '@/components/Controls/BooleanSwitch.vue'
-import { watch, reactive, ref, inject, useId } from 'vue'
+import { computed, watch, reactive, ref, inject, useId } from 'vue'
 import Link from '@/components/Controls/Link.vue'
 import { InputLabel } from '@/components/Form/labeling'
 import { useOnboarding } from 'frappe-ui/frappe'
 import RichTextEditor from '@/components/RichTextEditor.vue'
+import FormShell from '@/components/FormShell.vue'
+import HeaderButton from '@/components/HeaderButton.vue'
+import { useFormRoute } from '@/composables/useFormRoute'
+import { submitResource } from '@/utils/resource'
 
-const show = defineModel()
-const quiz = defineModel('quiz')
+const props = defineProps({
+	quizID: {
+		type: String,
+		required: true,
+	},
+	// The LMS Quiz Question ROW name, not the LMS Question docname. `marks` lives
+	// on the row, and the LMS Question docname is recoverable FROM the row via its
+	// `question` link — the reverse is not true, because one LMS Question can be
+	// reused by many rows. See design R2.
+	questionName: {
+		type: String,
+		default: 'new',
+	},
+})
+
 const questionLabelId = useId()
 const chooseFromExisting = ref(false)
-const editMode = ref(false)
 const user = inject('$user')
 const { updateOnboardingStep } = useOnboarding('learning')
+
+const { close, saveAndReplace } = useFormRoute({
+	name: 'QuizForm',
+	params: { quizID: props.quizID },
+})
+
+const editMode = computed(() => props.questionName !== 'new')
+
+const title = computed(() =>
+	editMode.value ? __('Edit Question') : __('Add Question')
+)
+
+// Copied from the openers on QuizForm.vue: the "New Question" button is gated on
+// `!readOnlyMode` (:61) and the page bounces anyone who is neither a moderator
+// nor an instructor (:313). A URL goes through neither. This is a UX gate, not
+// the authorization boundary — Frappe's DocPerms on LMS Quiz / LMS Question are.
+const canManageQuestions = computed(() => {
+	if (window.read_only_mode) return false
+	return Boolean(user.data?.is_moderator || user.data?.is_instructor)
+})
 
 const existingQuestion = reactive({
 	question: '',
@@ -202,14 +254,31 @@ const populateFields = () => {
 
 populateFields()
 
-const props = defineProps({
-	title: {
-		type: String,
-		default: __('Add new question'),
-	},
-	questionDetail: {
-		type: [Object, null],
-		required: true,
+// QuizForm.vue has no list resource to share a cache key with: it renders
+// `quizDetails.doc.questions`, the LMS Quiz child table (QuizForm.vue:308-310).
+// So design C4's shared-instance trick lands on createDocumentResource instead —
+// it caches on JSON.stringify([doctype, name]) and hands back the cached
+// instance, discarding this call's options (documentResource.js:17-24). Passing
+// the same doctype/name pair as QuizForm.vue:331-335 therefore returns the
+// PARENT'S resource, so reloading it here is what makes a newly added question
+// appear in the list behind the form. Changing either half of the pair breaks
+// that silently. `auto: false` matches the parent, which owns the initial load.
+const quizDetails = createDocumentResource({
+	doctype: 'LMS Quiz',
+	name: props.quizID,
+	auto: false,
+})
+
+// C4 — edit mode used to be seeded from the parent's in-memory questions array,
+// which is empty on a cold deep link. Fetch the row itself instead. Two chained
+// fetches: the row carries `marks` and the LMS Question docname, and only once
+// it lands can the question document be fetched — the watch below is what waits.
+const questionRow = createDocumentResource({
+	doctype: 'LMS Quiz Question',
+	name: editMode.value ? props.questionName : undefined,
+	auto: editMode.value,
+	onError(err) {
+		toast.error(err.messages?.[0] || err)
 	},
 })
 
@@ -218,12 +287,11 @@ const questionData = createResource({
 	makeParams() {
 		return {
 			doctype: 'LMS Question',
-			name: props.questionDetail.question,
+			name: questionRow?.doc?.question,
 		}
 	},
 	auto: false,
 	onSuccess(data) {
-		editMode.value = true
 		Object.keys(data).forEach((key) => {
 			if (Object.hasOwn(question, key)) question[key] = data[key]
 		})
@@ -244,37 +312,33 @@ const questionData = createResource({
 				data[`possibility_${i + 1}`] ? i + 1 : 0
 			)
 		)
-		question.marks = props.questionDetail.marks
+		// marks belongs to the ROW, not to the shared LMS Question, so read it back
+		// off the row after the loop above has run.
+		question.marks = questionRow.doc?.marks
 	},
 })
 
-watch(show, () => {
-	if (show.value) {
-		editMode.value = false
-		if (props.questionDetail.question) questionData.fetch()
-		else {
-			question.question = ''
-			question.marks = 1
-			question.type = 'Choices'
-			existingQuestion.question = ''
-			existingQuestion.marks = 1
-			chooseFromExisting.value = false
-			visibleOptionCount.value = 2
-			visiblePossibilityCount.value = 1
-			populateFields()
-		}
+// C3 — the load used to hang off a watch on the visibility model with no
+// `immediate: true`, so a directly-mounted route rendered blank. `immediate`
+// also covers createDocumentResource handing back an already-populated cached
+// instance, whose `doc` would never change afterwards.
+watch(
+	() => questionRow?.doc,
+	(doc) => {
+		if (!doc) return
+		question.marks = doc.marks
+		if (doc.question) questionData.fetch()
+	},
+	{ immediate: true }
+)
 
-		if (props.questionDetail.marks) question.marks = props.questionDetail.marks
-	}
-})
-
-const questionRow = createResource({
+const quizQuestionInsert = createResource({
 	url: 'frappe.client.insert',
 	makeParams(values) {
 		return {
 			doc: {
 				doctype: 'LMS Quiz Question',
-				parent: quiz.value.doc.name,
+				parent: props.quizID,
 				parentfield: 'questions',
 				parenttype: 'LMS Quiz',
 				...values,
@@ -294,6 +358,43 @@ const questionCreation = createResource({
 		}
 	},
 })
+
+const questionUpdate = createResource({
+	url: 'frappe.client.set_value',
+	auto: false,
+	makeParams(values) {
+		return {
+			doctype: 'LMS Question',
+			name: questionData.data?.name,
+			fieldname: {
+				...question,
+			},
+		}
+	},
+})
+
+const marksUpdate = createResource({
+	url: 'frappe.client.set_value',
+	auto: false,
+	makeParams(values) {
+		return {
+			doctype: 'LMS Quiz Question',
+			// The route param IS the row name — see the prop comment above.
+			name: props.questionName,
+			fieldname: {
+				marks: question.marks,
+			},
+		}
+	},
+})
+
+const saving = computed(
+	() =>
+		quizQuestionInsert.loading ||
+		questionCreation.loading ||
+		questionUpdate.loading ||
+		marksUpdate.loading
+)
 
 const addPossibility = () => {
 	if (visiblePossibilityCount.value < MAX_OPTIONS)
@@ -328,7 +429,8 @@ const removeOption = (pos) => {
 }
 
 const submitQuestion = () => {
-	if (props.questionDetail?.question) updateQuestion()
+	if (!canManageQuestions.value) return
+	if (editMode.value) updateQuestion()
 	else addQuestion()
 }
 
@@ -339,7 +441,8 @@ const addQuestion = () => {
 			marks: existingQuestion.marks,
 		})
 	} else {
-		questionCreation.submit(
+		submitResource(
+			questionCreation,
 			{},
 			{
 				onSuccess(data) {
@@ -356,69 +459,51 @@ const addQuestion = () => {
 	}
 }
 
-const addQuestionRow = (question) => {
-	questionRow.submit(
+// The modal closed itself on error as well as on success. As a route that would
+// navigate away and discard a half-filled form, so the error path now stays put
+// and only surfaces the toast.
+const addQuestionRow = (values) => {
+	submitResource(
+		quizQuestionInsert,
 		{
-			...question,
+			...values,
 		},
 		{
 			onSuccess() {
 				if (user.data?.is_system_manager)
 					updateOnboardingStep('create_first_quiz')
 
-				show.value = false
 				toast.success(__('Question added successfully'))
-				quiz.value.reload()
-				show.value = false
+				quizDetails.reload()
+				saveAndReplace({
+					name: 'QuizForm',
+					params: { quizID: props.quizID },
+				})
 			},
 			onError(err) {
 				toast.error(err.messages?.[0] || err)
-				show.value = false
 			},
 		}
 	)
 }
 
-const questionUpdate = createResource({
-	url: 'frappe.client.set_value',
-	auto: false,
-	makeParams(values) {
-		return {
-			doctype: 'LMS Question',
-			name: questionData.data?.name,
-			fieldname: {
-				...question,
-			},
-		}
-	},
-})
-
-const marksUpdate = createResource({
-	url: 'frappe.client.set_value',
-	auto: false,
-	makeParams(values) {
-		return {
-			doctype: 'LMS Quiz Question',
-			name: props.questionDetail.name,
-			fieldname: {
-				marks: question.marks,
-			},
-		}
-	},
-})
-
 const updateQuestion = () => {
-	questionUpdate.submit(
+	submitResource(
+		questionUpdate,
 		{},
 		{
 			onSuccess() {
-				marksUpdate.submit(
+				submitResource(
+					marksUpdate,
 					{},
 					{
 						onSuccess() {
-							show.value = false
 							toast.success(__('Question updated successfully'))
-							quiz.value.reload()
+							quizDetails.reload()
+							saveAndReplace({
+								name: 'QuizForm',
+								params: { quizID: props.quizID },
+							})
 						},
 					}
 				)
