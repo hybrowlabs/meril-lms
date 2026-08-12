@@ -175,6 +175,7 @@ import { watch } from 'vue'
 import { validateFile } from '@/utils'
 import Link from '@/components/Controls/Link.vue'
 import CodeEditor from '@/components/Controls/CodeEditor.vue'
+import { seedCheckboxDefaults } from '@/components/Settings/mobileSettings'
 
 // The FileUploader above binds :uploadArgs="{ private: !field.public }", and it
 // is written inline deliberately. Privacy is the FIELD's decision, never this
@@ -209,24 +210,10 @@ const fileName = (value) => {
 		: (url || '').split('/').pop()
 }
 
-// Seed each checkbox's default into the doc when it loads empty, without
-// overwriting an already-saved value. Watches props.data because the panel can
-// mount before the settings doc has loaded.
 watch(
 	() => props.data,
 	(data) => {
-		if (!data) return
-		props.sections.forEach((section) => {
-			section.columns.forEach((column) => {
-				column.fields.forEach((field) => {
-					if (field.type !== 'checkbox') return
-					const current = data[field.name]
-					if (current === null || current === undefined || current === '') {
-						data[field.name] = field.default ? 1 : 0
-					}
-				})
-			})
-		})
+		if (data) seedCheckboxDefaults(props.sections, data)
 	},
 	{ immediate: true }
 )

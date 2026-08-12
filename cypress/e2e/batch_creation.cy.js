@@ -45,10 +45,11 @@ describe("Batch Creation", () => {
 				cy.get(`[id="${id}"]`).click();
 			});
 
-		cy.get("[data-dismissable-layer]")
-			.find("button")
-			.contains("Add")
-			.click();
+		// The member form is its own route now (MemberForm.vue), rendered as a
+		// second dialog on top of the settings one, and its submit says "Save".
+		// Two stacked dismissable layers make a label search ambiguous, so go by
+		// the form's own test id.
+		cy.get('[data-testid="member-save"]').click();
 
 		// Wait for API calls to complete
 		cy.wait("@userInsert", { timeout: 15000 });
@@ -100,10 +101,7 @@ describe("Batch Creation", () => {
 		cy.get("[data-dismissable-layer]")
 			.find("input[placeholder='Jane']")
 			.type("Student");
-		cy.get("[data-dismissable-layer]")
-			.find("button")
-			.contains("Add")
-			.click();
+		cy.get('[data-testid="member-save"]').click();
 		cy.wait("@studentInsert", { timeout: 15000 });
 		cy.contains("Add New Member").should("not.exist");
 
