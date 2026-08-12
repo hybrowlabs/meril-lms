@@ -20,7 +20,6 @@
 					v-for="(field, fieldIndex) in column.fields"
 					:key="`${columnIndex}-${fieldIndex}`"
 				>
-					<!-- Upload: full-width block (label/description sit above) -->
 					<div v-if="field.type == 'Upload'" class="py-3">
 						<div class="space-y-1 mb-2">
 							<div class="text-p-base-medium text-ink-gray-7">
@@ -82,7 +81,6 @@
 						</div>
 					</div>
 
-					<!-- Code/HTML: full-width block -->
 					<div v-else-if="field.type == 'Code'" class="py-3">
 						<CodeEditor
 							:label="__(field.label)"
@@ -96,8 +94,6 @@
 						</CodeEditor>
 					</div>
 
-					<!-- Textarea: full-width block. Label leads, control follows, and
-					     the description reads as help text under the control. -->
 					<div v-else-if="field.type == 'textarea'" class="py-3">
 						<div class="text-p-base-medium text-ink-gray-7 mb-2">
 							{{ __(field.label) }}

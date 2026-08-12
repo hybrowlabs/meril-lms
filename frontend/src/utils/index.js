@@ -854,13 +854,25 @@ export const createLMSCategory = (name) => {
 		})
 }
 
+// Settings is the desktop dialog, mounted only inside the sidebar's
+// UserDropdown — this branch deliberately left the phone no settings pages. So
+// on a phone the flag below reached nothing, and the `close()` above it threw
+// away the half-filled form the user was standing in for a dialog that never
+// arrived. Say so instead, and leave the form where it is.
+// Returns whether Settings actually opened, so a caller that closes itself
+// separately can stay put when it did not.
 export const openSettings = (category, close = null) => {
 	const settingsStore = useSettings()
+	if (!settingsStore.isSettingsMounted) {
+		toast.error(__('Settings is only available on a larger screen.'))
+		return false
+	}
 	if (close) {
 		close()
 	}
 	settingsStore.activeTab = category
 	settingsStore.isSettingsOpen = true
+	return true
 }
 
 export const cleanError = (message) => {

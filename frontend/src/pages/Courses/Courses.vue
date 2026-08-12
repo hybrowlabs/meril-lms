@@ -79,8 +79,6 @@
 		</template>
 	</ListPage>
 
-	<!-- One outlet serves both child routes, NewCourse and CourseImport. Only
-	     one can be matched at a time, so it needs no key. -->
 	<router-view />
 </template>
 <script setup>
