@@ -78,7 +78,32 @@ def get_user_info():
 	user.developer_mode = frappe.conf.developer_mode
 	if user.is_fc_site and user.is_system_manager:
 		user.site_info = current_site_info()
+	user.permissions = _doctype_permissions()
 	return user
+
+
+PERMISSION_DOCTYPES = (
+	"LMS Course",
+	"Course Chapter",
+	"Course Lesson",
+	"LMS Batch",
+	"LMS Quiz",
+	"LMS Assignment",
+	"LMS Program",
+	"Job Opportunity",
+)
+
+
+def _doctype_permissions():
+	"""Doctype-level answers for surfaces that have no docname yet: nav items and
+	route guards. Document-level answers come from get_doc_permissions_many."""
+	out = {}
+	for doctype in PERMISSION_DOCTYPES:
+		out[doctype] = {
+			ptype: 1 if frappe.has_permission(doctype, ptype) else 0
+			for ptype in ("read", "write", "create", "delete")
+		}
+	return out
 
 
 @frappe.whitelist(allow_guest=True)
