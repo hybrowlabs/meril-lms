@@ -275,7 +275,9 @@ describe("Batch Creation", () => {
 					.type(randomStudent);
 			});
 		cy.get("[data-slot=item]", { timeout: 10000 }).first().click();
-		cy.button("Submit").click();
+		// Enrolling is a form route now (BatchStudentForm.vue) and every form in
+		// the shell submits with "Save".
+		cy.get('[data-testid="batch-student-save"]').click();
 
 		// Verify seat count (scope to the visible overlay; the mobile md:hidden
 		// copy is first in the DOM but display:none on this viewport).
