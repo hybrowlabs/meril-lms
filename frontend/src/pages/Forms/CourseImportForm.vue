@@ -1,7 +1,10 @@
 <template>
-	<Dialog v-model:open="show" title="Import Course from ZIP">
+	<FormShell :title="__('Import Course from ZIP')" size="lg" @close="close">
 		<template #default>
-			<div class="text-p-base">
+			<div v-if="!canCreate" class="p-4 text-base text-ink-gray-6">
+				{{ __('You are not permitted to create a course.') }}
+			</div>
+			<div v-else data-testid="course-import-fields" class="text-p-base">
 				<div
 					v-if="!zip"
 					@dragover.prevent
@@ -76,27 +79,45 @@
 			</div>
 		</template>
 		<template #actions>
-			<div class="flex justify-end">
-				<Button variant="solid" @click="importZip">
-					{{ __('Import') }}
-				</Button>
+			<div v-if="canCreate" class="flex items-center justify-end">
+				<HeaderButton
+					data-testid="course-import-submit"
+					:label="__('Save')"
+					variant="solid"
+					@click="importZip"
+				/>
 			</div>
 		</template>
-	</Dialog>
+	</FormShell>
 </template>
 <script setup lang="ts">
-import { Button, call, Dialog, FileUploadHandler, toast } from 'frappe-ui'
+// `size="lg"` is stated because it is frappe-ui's Dialog default
+// (Dialog.vue:260), which is what this rendered at before it had a URL, while
+// FormShell defaults to 3xl. Without it the desktop dialog changes width.
+import { call, FileUploadHandler, toast } from 'frappe-ui'
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import FormShell from '@/components/FormShell.vue'
+import HeaderButton from '@/components/HeaderButton.vue'
+import { useFormRoute } from '@/composables/useFormRoute'
+// @ts-expect-error utils/index.js has no type declarations yet — same pattern
+// as composables/useKeyboardShortcuts.ts:3. Without this the import raises a
+// fresh TS7016 and pushes vue-tsc past its baseline.
+import { canCreateCourse } from '@/utils'
 
 const fileInput = ref<HTMLInputElement | null>(null)
-const show = defineModel<boolean>({ required: true, default: false })
 const zip = ref<any | null>(null)
 const uploaded = ref(0)
 const total = ref(0)
 const uploading = ref(false)
 const uploadingFile = ref<any | null>(null)
-const router = useRouter()
+
+const { close, saveAndReplace } = useFormRoute({ name: 'Courses' })
+
+// The same gate Courses.vue:18 puts on the Create dropdown that owns the
+// "Import via ZIP" item. A URL does not go through a button, so re-check it
+// here. UX gate only — lms.lms.api.import_course_from_zip's own server-side
+// permission check is the authorization boundary.
+const canCreate = computed(() => canCreateCourse())
 
 const openFileSelector = () => {
 	fileInput.value?.click()
@@ -169,15 +190,17 @@ const uploadFile = (e: Event) => {
 }
 
 const importZip = () => {
+	if (!canCreate.value) return
 	if (!zip.value) return
 	call('lms.lms.api.import_course_from_zip', {
 		zip_file_path: zip.value.file_url,
 	})
 		.then((data: any) => {
 			toast.success('Course imported successfully!')
-			show.value = false
 			deleteFile()
-			router.push({
+			// replace, not push: the form's history entry is consumed so Back
+			// reaches the list rather than a stale, empty import form.
+			saveAndReplace({
 				name: 'CourseDetail',
 				params: { courseName: data },
 			})

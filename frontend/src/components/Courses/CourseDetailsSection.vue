@@ -3,7 +3,7 @@
 		<div class="text-base-semibold text-ink-gray-9">
 			{{ __('Course details') }}
 		</div>
-		<div class="grid grid-cols-2 gap-5">
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 			<FormControl
 				v-model="doc.title"
 				:label="__('Title')"
@@ -68,7 +68,7 @@
 				:placeholder="__('Type something')"
 				:required="true"
 				variant="outline"
-				class="col-span-2"
+				class="md:col-span-2"
 				@change="markDirty()"
 			/>
 		</div>
@@ -87,7 +87,7 @@
 import { FormControl, MultiSelect } from 'frappe-ui'
 import { computed, inject, ref, useId } from 'vue'
 import { createLMSCategory } from '@/utils'
-import { createHandler } from '@/pages/Courses/createHandler'
+import { createHandler } from '@/utils/createHandler'
 import Link from '@/components/Controls/Link.vue'
 import CourseInstructorsField from '@/components/Courses/CourseInstructorsField.vue'
 import CourseThumbnailField from '@/components/Courses/CourseThumbnailField.vue'

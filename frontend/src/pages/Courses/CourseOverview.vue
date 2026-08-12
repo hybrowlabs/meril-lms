@@ -99,8 +99,8 @@
 					<div class="border rounded-md p-2">
 						<SkeletonLoader
 							v-if="outline.loading && !outline.data"
-							variant="list"
-							:count="6"
+							variant="course-outline"
+							:count="10"
 						/>
 						<div
 							v-else-if="!hasCourseContent"

@@ -1,39 +1,44 @@
 <template>
-	<div class="flex flex-col gap-y-1.5">
+	<div
+		class="flex flex-col gap-y-1.5"
+		role="group"
+		:aria-labelledby="thumbnailLabelId"
+	>
 		<InputLabel :id="thumbnailLabelId" :label="__('Course thumbnail')" />
 
-		<div class="flex items-start gap-5">
-			<button
-				type="button"
-				class="w-56 aspect-[750/422] rounded-lg overflow-hidden border border-outline-gray-2 flex items-center justify-center shrink-0 hover:opacity-95 transition"
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+			<div
+				class="relative aspect-[750/422] w-full shrink-0 grid place-items-center overflow-hidden rounded-lg border border-outline-gray-2 bg-surface-gray-2 sm:w-56"
 				:style="
-					!hasImage && doc.card_gradient
+					!hasImage && doc?.card_gradient
 						? { backgroundColor: wellColor }
 						: undefined
 				"
-				:title="
-					hasImage
-						? __('Remove the image to pick a color instead.')
-						: __('Click to upload an image.')
-				"
-				@click="onWellClick"
 			>
 				<img
 					v-if="hasImage"
 					:src="doc.image"
-					:alt="__('Course thumbnail')"
-					class="w-full h-full object-cover"
+					alt=""
+					class="size-full object-cover"
 				/>
-				<div
-					v-else-if="!doc.card_gradient"
-					class="flex flex-col items-center gap-1 text-ink-gray-5"
+				<button
+					v-else
+					type="button"
+					class="grid size-full place-items-center transition hover:opacity-95 focus-visible:-outline-offset-2"
+					:aria-label="__('Upload a course thumbnail image')"
+					@click="openFilePicker"
 				>
-					<span class="lucide-image size-5" />
-					<span class="text-xs">{{ __('No thumbnail') }}</span>
-				</div>
-			</button>
+					<span
+						v-if="!doc?.card_gradient"
+						class="flex flex-col items-center gap-1 text-ink-gray-5"
+					>
+						<span class="lucide-image size-5" aria-hidden="true" />
+						<span class="text-xs">{{ __('No thumbnail') }}</span>
+					</span>
+				</button>
+			</div>
 
-			<div class="flex-1 min-w-0 space-y-3">
+			<div class="min-w-0 space-y-3 sm:flex-1">
 				<template v-if="hasImage">
 					<div class="space-y-0.5 text-sm">
 						<div class="text-ink-gray-9 font-medium break-all leading-5">
@@ -88,7 +93,7 @@
 								type="button"
 								class="size-8 rounded-md border border-outline-gray-2 transition"
 								:class="
-									doc.card_gradient === c
+									doc?.card_gradient === c
 										? 'ring-2 ring-offset-2 ring-outline-gray-4'
 										: 'hover:scale-105'
 								"
@@ -131,6 +136,9 @@ import { computed, inject, ref, useId, watch } from 'vue'
 import type { CourseFormContext, Resource } from '@/types'
 import { InputLabel } from '@/components/Form/labeling'
 
+// Layout mirrors VideoPreviewField (the sibling field in the same form row):
+// the well is full-width on phones and settles back to w-56 from `sm` up, so the
+// two fields line up instead of one being a fixed 224px box that can't reflow.
 const thumbnailLabelId = useId()
 const { resource, markDirty } = inject<CourseFormContext>('courseForm')!
 
@@ -214,15 +222,16 @@ const metaLabel = computed<string>(() => {
 	return parts.join(' · ')
 })
 
-const uploaderRef = ref<{ inputRef: () => HTMLInputElement } | null>(null)
+const uploaderRef = ref<{ inputRef: () => HTMLInputElement | null } | null>(
+	null
+)
 
-function onWellClick() {
-	if (hasImage.value) {
-		removeImage()
-		return
-	}
-	const input = uploaderRef.value?.inputRef?.()
-	input?.click?.()
+// Only the empty well is clickable, and only to add an image. It used to also
+// delete the thumbnail when one was set, which gave a control named after the
+// image a destructive action — worse now that the well spans the viewport on a
+// phone. Removing stays with the labelled Remove button.
+function openFilePicker() {
+	uploaderRef.value?.inputRef?.()?.click?.()
 }
 
 function onUploaded(url: string) {

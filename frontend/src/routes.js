@@ -21,7 +21,17 @@ export const routes = [
 		// already makes for '/batches/details/:batchName'. Deliberately not
 		// guarded.
 		children: [
-			],
+			{
+				path: 'new',
+				name: 'NewCourse',
+				component: () => import('@/pages/Forms/NewCourseForm.vue'),
+			},
+			{
+				path: 'import',
+				name: 'CourseImport',
+				component: () => import('@/pages/Forms/CourseImportForm.vue'),
+			},
+		],
 	},
 	{
 		path: '/courses/:courseName',
@@ -29,7 +39,20 @@ export const routes = [
 		component: () => import('@/pages/Courses/CourseDetail.vue'),
 		props: true,
 		children: [
-			],
+			{
+				path: 'chapter/:chapterName',
+				name: 'ChapterForm',
+				component: () => import('@/pages/Forms/ChapterForm.vue'),
+				props: true,
+			},
+			{
+				path: 'enrollment/new',
+				name: 'NewCourseEnrollment',
+				component: () =>
+					import('@/pages/Forms/CourseEnrollmentForm.vue'),
+				props: true,
+			},
+		],
 	},
 	{
 		path: '/courses/:courseName/learn/:chapterNumber-:lessonNumber',

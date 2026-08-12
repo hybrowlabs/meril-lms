@@ -1,8 +1,11 @@
 <template>
-	<Dialog v-model:open="show" title="New Course" size="3xl">
+	<FormShell :title="__('New Course')" size="3xl" @close="close">
 		<template #default>
-			<div class="text-base">
-				<div class="grid grid-cols-2 gap-5 border-b pb-5 mb-5">
+			<div v-if="!canCreate" class="p-4 text-base text-ink-gray-6">
+				{{ __('You are not permitted to create a course.') }}
+			</div>
+			<div v-else data-testid="new-course-fields" class="text-base">
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-5 border-b pb-5 mb-5">
 					<FormControl
 						v-model="course.title"
 						:label="__('Title')"
@@ -95,18 +98,18 @@
 				</div>
 			</div>
 		</template>
-		<template #actions="{ close }">
-			<div class="text-end">
-				<Button
+		<template #actions>
+			<div v-if="canCreate" class="flex items-center justify-end">
+				<HeaderButton
+					data-testid="new-course-save"
+					:label="__('Save')"
 					variant="solid"
 					:loading="courses.insert.loading"
-					@click="saveCourse(close)"
-				>
-					{{ __('Save') }}
-				</Button>
+					@click="saveCourse()"
+				/>
 			</div>
 		</template>
-	</Dialog>
+	</FormShell>
 	<NewMemberModal
 		v-model="showMemberModal"
 		:defaultRoles="['course_creator']"
@@ -117,23 +120,30 @@
 <script setup lang="ts">
 import {
 	Avatar,
-	Button,
-	Dialog,
 	FormControl,
+	createListResource,
 	createResource,
 	toast,
 } from 'frappe-ui'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import FormShell from '@/components/FormShell.vue'
+import HeaderButton from '@/components/HeaderButton.vue'
+import { useFormRoute } from '@/composables/useFormRoute'
 import Link from '@/components/Controls/Link.vue'
 import MultiLink from '@/components/Controls/MultiLink.vue'
 import Uploader from '@/components/Controls/Uploader.vue'
 import NewMemberModal from '@/components/Modals/NewMemberModal.vue'
-import { cleanError, sanitizeHTML, createLMSCategory } from '@/utils'
+import {
+	canCreateCourse,
+	cleanError,
+	sanitizeHTML,
+	createLMSCategory,
+} from '@/utils'
 import type { Resource } from '@/types'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import { InputLabel, useInputLabeling } from '@/components/Form/labeling'
+import { submitResource } from '@/utils/resource'
 
 interface InstructorOption {
 	label: string
@@ -149,17 +159,41 @@ interface RawUserHit {
 	description?: string
 }
 
-const show = defineModel<boolean>({ required: true, default: false })
-const router = useRouter()
 const { capture } = useTelemetry()
 const { updateOnboardingStep } = useOnboarding('learning')
 const user = inject<any>('$user')
 const courseCreated = ref(false)
 const showMemberModal = ref<boolean>(false)
 
-const props = defineProps<{
-	courses: any
-}>()
+const { close, saveAndReplace } = useFormRoute({ name: 'Courses' })
+
+// Its own list resource, but the cache key is deliberately byte-identical to
+// Courses.vue:152. createListResource hands back whichever instance was cached
+// first under a key and DISCARDS this call's options (listResource.js:15-22),
+// so a saved course reaches the list purely because insert.onSuccess refetches
+// THAT shared instance (:123-126) — updateRowInListResource is never called on
+// insert and could not add a new row anyway. Disambiguating either key with a
+// filter, a tab or a start silently breaks "the new course shows up".
+//
+// Sharing the key is safe in the deep-link direction too (design C4b): on a
+// cold /courses/new the discarded options would be the LIST's, and Courses.vue
+// sets its filters imperatively via update() + reload() in onMounted rather
+// than through constructor options. pageLength/start are matched below so the
+// discard is a no-op whichever caller loses the race.
+const courses = createListResource({
+	doctype: 'LMS Course',
+	url: 'lms.lms.utils.get_courses',
+	cache: ['courses', user.data?.name],
+	pageLength: 24,
+	start: 0,
+})
+
+// The same gate Courses.vue:18 puts on the Create button. A URL does not go
+// through a button, so the form has to re-check it. This is a UX gate, not an
+// authorization boundary — Frappe's server-side DocPerms on LMS Course insert
+// are that. canCreateCourse() reads userResource.data, which is reactive, so
+// the computed settles once the user resource resolves.
+const canCreate = computed(() => canCreateCourse())
 
 type Course = {
 	title: string
@@ -297,9 +331,11 @@ const validateFields = () => {
 	})
 }
 
-const saveCourse = (close: () => void = () => {}) => {
+const saveCourse = () => {
+	if (!canCreate.value) return
 	validateFields()
-	props.courses.insert.submit(
+	submitResource(
+		courses.insert,
 		{
 			...course.value,
 			instructors: course.value.instructors.map((instructor) => ({
@@ -309,10 +345,11 @@ const saveCourse = (close: () => void = () => {}) => {
 		{
 			onSuccess(data: any) {
 				toast.success(__('Course created successfully'))
-				close()
 				capture('course_created')
 				courseCreated.value = true
-				router.push({
+				// replace, not push: the form's history entry is consumed so Back
+				// reaches the list rather than a stale, empty form.
+				saveAndReplace({
 					name: 'CourseDetail',
 					params: { courseName: data.name },
 					hash: '#settings',

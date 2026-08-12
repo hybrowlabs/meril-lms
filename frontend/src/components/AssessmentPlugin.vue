@@ -99,7 +99,7 @@ const redirectToForm = () => {
 	if (props.type == 'quiz') {
 		window.open(getLmsRoute('quizzes?new=true'), '_blank')
 	} else {
-		window.open(getLmsRoute('assignments?new=true'), '_blank')
+		window.open(getLmsRoute('assignments/new'), '_blank')
 	}
 }
 </script>
