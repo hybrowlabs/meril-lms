@@ -105,6 +105,16 @@ vi.mock('@/utils', () => ({
 
 vi.stubGlobal('__', (s: string) => s)
 
+// At runtime `__('Video {0}')` returns a formatter object, not a string
+// (translation.js), and the tab labels call `.format` on it. The stub above
+// returns the string itself, so give String the same method — the same shim
+// assignmentsCount.test.ts and settingsList.test.ts use.
+;(String.prototype as any).format ??= function (...args: unknown[]) {
+	return String(this).replace(/{(\d+)}/g, (match, index) =>
+		args[Number(index)] === undefined ? match : String(args[Number(index)])
+	)
+}
+
 const mountDialog = () =>
 	mount(VideoStatistics, {
 		props: { modelValue: true, lessonName: 'lesson-1', lessonTitle: 'L1' },
