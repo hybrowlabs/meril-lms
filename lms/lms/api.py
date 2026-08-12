@@ -94,6 +94,52 @@ PERMISSION_DOCTYPES = (
 )
 
 
+MAX_PERMISSION_BATCH = 200
+
+
+@frappe.whitelist()
+def get_doc_permissions_many(doctype: str, names: str | list[str]):
+	"""Evaluated permissions for several documents of one doctype.
+
+	Batched because a course outline resolves affordances for every lesson on
+	screen at once; one call per document behind a hide-until-known gate is one
+	flicker per document. CRM asks per document (crm/frontend/src/data/
+	document.js) because its form view opens one.
+
+	doctype/names are annotated rather than isinstance-checked because
+	require_type_annotated_api_methods is on (hooks.py), so frappe rejects a
+	wrong type before this body runs — in a request and in tests alike."""
+	if isinstance(names, str):
+		names = frappe.parse_json(names)
+
+	if not isinstance(names, list):
+		frappe.throw(_("names must be a list"))
+
+	if len(names) > MAX_PERMISSION_BATCH:
+		frappe.throw(_("At most {0} documents per request").format(MAX_PERMISSION_BATCH))
+
+	if not frappe.db.exists("DocType", doctype):
+		frappe.throw(_("Unknown doctype"))
+
+	out = {}
+	for name in names:
+		if not isinstance(name, str):
+			continue
+		try:
+			doc = frappe.get_lazy_doc(doctype, name)
+		except frappe.DoesNotExistError:
+			out[name] = {}
+			continue
+		perms = frappe.permissions.get_doc_permissions(doc)
+		# A document the caller cannot read answers exactly like one that does not
+		# exist. Anything else lets a caller submit guessed names and read the
+		# difference: a permission map means the row is real, {} means it is not.
+		# The UI needs no more than this — hide-until-known treats a missing ptype
+		# as a deny, so {} and read=0 render the same.
+		out[name] = perms if perms.get("read") else {}
+	return out
+
+
 def _doctype_permissions():
 	"""Doctype-level answers for surfaces that have no docname yet: nav items and
 	route guards. Document-level answers come from get_doc_permissions_many."""
