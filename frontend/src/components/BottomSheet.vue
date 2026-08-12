@@ -11,10 +11,13 @@
 			<div
 				v-if="modelValue"
 				ref="panel"
-				class="standalone:pb-4 fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col rounded-t-2xl bg-surface-base shadow-2xl"
+				class="pb-safe-4 fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col rounded-t-2xl bg-surface-base shadow-2xl"
 				:style="panelStyle"
 				role="dialog"
 				aria-modal="true"
+				tabindex="-1"
+				:aria-labelledby="title ? titleId : undefined"
+				:aria-label="!title && ariaLabel ? ariaLabel : undefined"
 			>
 				<!-- Drag handle -->
 				<div
@@ -30,7 +33,9 @@
 					class="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1"
 				>
 					<slot name="header">
-						<div class="text-p-lg-semibold text-ink-gray-9">{{ title }}</div>
+						<div :id="titleId" class="text-p-lg-semibold text-ink-gray-9">
+							{{ title }}
+						</div>
 					</slot>
 				</div>
 
@@ -44,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, useId } from 'vue'
 import { useScrollLock, useSwipe, useEventListener } from '@vueuse/core'
 
 const props = defineProps({
@@ -56,7 +61,15 @@ const props = defineProps({
 		type: String,
 		default: '',
 	},
+	// A sheet whose sections name themselves shows no title, but the dialog
+	// still needs a name or it announces as nothing at all.
+	ariaLabel: {
+		type: String,
+		default: '',
+	},
 })
+
+const titleId = useId()
 
 const emit = defineEmits(['update:modelValue'])
 
@@ -72,10 +85,33 @@ function close() {
 const bodyLock = useScrollLock(
 	typeof document !== 'undefined' ? document.body : null
 )
+// Without this the sheet opens and focus stays wherever it was, behind the
+// backdrop: a keyboard or screen-reader user gets no signal it appeared, and
+// on close no way back to where they were. Restoring focus to the trigger is
+// also what makes the sheet read as belonging to the button that opened it.
+const FOCUSABLE =
+	'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+let previouslyFocused = null
+
 watch(
 	() => props.modelValue,
-	(open) => {
+	async (open) => {
 		bodyLock.value = open
+
+		if (open) {
+			previouslyFocused = document.activeElement
+			await nextTick()
+			// The panel itself is the fallback, hence its tabindex="-1": a sheet
+			// holding nothing focusable still has to take focus off the page behind.
+			const first = panel.value?.querySelector(FOCUSABLE)
+			if (first) first.focus()
+			else panel.value?.focus()
+			return
+		}
+
+		previouslyFocused?.focus?.()
+		previouslyFocused = null
 	}
 )
 
