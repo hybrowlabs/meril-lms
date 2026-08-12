@@ -109,16 +109,19 @@ const enrollment = createResource({
 	},
 })
 
+// The Overview overlay's Seats Left comes from get_batch_details, and enrolling
+// is what moves it. That resource deliberately carries no cache key
+// (useBatchForms.ts explains why one must never be added back), so it cannot be
+// reached by key the way the two below are — BatchDetail hosts this form in its
+// own <router-view> and hands the reload down instead.
+const reloadBatchDetails = inject('reloadBatchDetails', null)
+
 // Both live on the dashboard tab behind this form. Null on a deep link, where
 // that tab was never mounted — correct, since each fetches on mount.
-//
-// The count is what replaces the modal's `props.batch.reload()`: that reloaded
-// BatchDetail's get_batch_details, which deliberately carries no cache key
-// (useBatchForms.ts explains why one must never be added back), so there is no
-// instance to reach. The Enrolled card reads this instead.
 const reloadDashboard = () => {
 	getCachedListResource(['batchStudents', props.batchName])?.reload()
 	getCachedResource(['batch_student_count', props.batchName])?.reload()
+	reloadBatchDetails?.()
 }
 
 // Link calls these with one argument unless it is in `inlineCreate` mode, which

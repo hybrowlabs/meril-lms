@@ -97,7 +97,7 @@
 	<router-view />
 </template>
 <script setup>
-import { computed, inject, markRaw, useTemplateRef, watch } from 'vue'
+import { computed, inject, markRaw, provide, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
 	Badge,
@@ -164,6 +164,11 @@ watch(
 	() => props.batchName,
 	() => batch.reload()
 )
+
+// The forms in the <router-view> below change what this endpoint reports —
+// enrolling a student moves Seats Left on the overlay. Having no cache key is
+// what makes them unable to reach it themselves, so it is handed down.
+provide('reloadBatchDetails', () => batch.reload())
 
 const isAdmin = computed(() => {
 	return Boolean(user.data?.is_moderator || user.data?.is_evaluator)

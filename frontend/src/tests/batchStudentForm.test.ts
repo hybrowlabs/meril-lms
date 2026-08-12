@@ -7,7 +7,7 @@ import {
 	type HistoryState,
 	type Router,
 } from 'vue-router'
-import { defineComponent, h, reactive } from 'vue'
+import { defineComponent, h, provide, reactive } from 'vue'
 
 vi.stubGlobal('__', (text: string) => text)
 enableAutoUnmount(afterEach)
@@ -114,14 +114,25 @@ const BatchPage = defineComponent({
 	render: () => h('div', ['BATCH', h(RouterView)]),
 })
 
-const makeRouter = (): Router =>
+// BatchDetail hands its children a way to refetch get_batch_details; a page
+// that does not (a deep link renders one that does, so this stands for the
+// stubs above rather than for real life) leaves the inject at its default.
+const providingBatchPage = (reload: () => void) =>
+	defineComponent({
+		setup() {
+			provide('reloadBatchDetails', reload)
+			return () => h('div', ['BATCH', h(RouterView)])
+		},
+	})
+
+const makeRouter = (parent = BatchPage): Router =>
 	createRouter({
 		history: createMemoryHistory(),
 		routes: [
 			{
 				path: '/batches/:batchName',
 				name: 'BatchDetail',
-				component: BatchPage,
+				component: parent,
 				props: true,
 				children: [
 					{
@@ -300,6 +311,41 @@ describe('BatchStudentForm as a route', () => {
 			'B1',
 		])
 		expect(router.currentRoute.value.name).toBe('BatchDetail')
+	})
+
+	// Seats Left on the Overview overlay is get_batch_details', and an enrollment
+	// is exactly what moves it. That resource carries no cache key, so unlike the
+	// two above it cannot be reached by one — the page provides the reload.
+	it('asks the batch page to refetch its details', async () => {
+		const reloadBatchDetails = vi.fn()
+		const router = makeRouter(providingBatchPage(reloadBatchDetails))
+		await openForm(router)
+		const wrapper = await mountForm(router)
+		await pickStudent(wrapper)
+		succeedOnSubmit()
+
+		await save(wrapper).trigger('click')
+		await flushPromises()
+
+		expect(reloadBatchDetails).toHaveBeenCalledTimes(1)
+	})
+
+	it('does not refetch the details when the enrollment fails', async () => {
+		const reloadBatchDetails = vi.fn()
+		const router = makeRouter(providingBatchPage(reloadBatchDetails))
+		await openForm(router)
+		const wrapper = await mountForm(router)
+		await pickStudent(wrapper)
+		enrollment.submit.mockImplementation(
+			(_params: unknown, options: { onError: (err: unknown) => void }) => {
+				options.onError({ messages: ['nope'] })
+			}
+		)
+
+		await save(wrapper).trigger('click')
+		await flushPromises()
+
+		expect(reloadBatchDetails).not.toHaveBeenCalled()
 	})
 
 	// The count stands in for the modal's props.batch.reload(): get_batch_details
