@@ -2,9 +2,6 @@
 	<div class="p-2">
 		<Dropdown :options="userDropdownOptions">
 			<template v-slot="{ open, close }">
-				<!-- No `py-*` on the button: the name/user block is 38.5px on the
-				     paragraph scale, which overflows h-12's content box once
-				     padding takes 16px of it. `items-center` centres it in the 48px. -->
 				<button
 					class="flex h-12 items-center rounded-md duration-300 ease-in-out"
 					:class="
@@ -71,10 +68,10 @@ import { sessionStore } from '@/stores/session'
 import { call, createResource, Dropdown, toast } from 'frappe-ui'
 import { useRouter } from 'vue-router'
 import { convertToTitleCase } from '@/utils'
-import { applyTheme, toggleTheme, theme } from '@/utils/theme'
+import { toggleTheme, theme } from '@/utils/theme'
 import { usersStore } from '@/stores/user'
 import { useSettings } from '@/stores/settings'
-import { h, watch, ref, onMounted, computed } from 'vue'
+import { h, watch, ref, computed } from 'vue'
 import { createDialog } from '@/utils/dialogs'
 import FrappeCloudIcon from '@/components/Icons/FrappeCloudIcon.vue'
 import LMSLogo from '@/components/Icons/LMSLogo.vue'
@@ -132,15 +129,16 @@ const appMenuItems = computed(() => {
 		},
 		slots: {
 			prefix: () =>
-				h('img', { class: 'size-4 shrink-0 rounded', src: app.logo }),
+				// alt="" deliberately: the row's own label names the app, and a
+				// second announcement of it would only repeat. Without it a screen
+				// reader falls back to reading the logo's filename.
+				h('img', {
+					class: 'size-4 shrink-0 rounded',
+					src: app.logo,
+					alt: '',
+				}),
 		},
 	}))
-})
-
-onMounted(() => {
-	if (['light', 'dark'].includes(theme.value)) {
-		applyTheme(theme.value)
-	}
 })
 
 watch(

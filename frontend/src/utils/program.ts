@@ -1,7 +1,7 @@
 import { createApp, h } from 'vue'
 import { Code } from 'lucide-vue-next'
 import translationPlugin from '@/translation'
-import ProgrammingExerciseModal from '@/pages/ProgrammingExercises/ProgrammingExerciseModal.vue'
+import ProgrammingExerciseModal from '@/components/Modals/ProgrammingExerciseModal.vue'
 import { call } from 'frappe-ui'
 import { usersStore } from '@/stores/user'
 import { getLmsRoute } from '@/utils/basePath'

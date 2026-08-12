@@ -256,13 +256,13 @@
 <script setup>
 import { getSidebarLinks } from '@/utils'
 import { usersStore } from '@/stores/user'
-import { sessionStore } from '@/stores/session'
 import { useSidebar } from '@/stores/sidebar'
 import { useSettings } from '@/stores/settings'
-import { Button, call, createResource, Tooltip, toast } from 'frappe-ui'
+import { Button, call, Tooltip, toast } from 'frappe-ui'
 import PageModal from '@/components/Modals/PageModal.vue'
 import LMSLogo from '@/components/Icons/LMSLogo.vue'
 import { useRouter } from 'vue-router'
+import { openFormRoute } from '@/composables/useFormRoute'
 import {
 	ref,
 	onMounted,
@@ -298,12 +298,15 @@ import UserDropdown from '@/components/Sidebar/UserDropdown.vue'
 import CollapseSidebar from '@/components/Icons/CollapseSidebar.vue'
 import SidebarLink from '@/components/Sidebar/SidebarLink.vue'
 import CommandPalette from '@/components/CommandPalette/CommandPalette.vue'
+import {
+	loadUnreadCount,
+	unreadCount,
+	unreadNotifications,
+} from '@/stores/notifications'
 
-const { user } = sessionStore()
 const { userResource } = usersStore()
 let sidebarStore = useSidebar()
 const socket = inject('$socket')
-const unreadCount = ref(0)
 const sidebarLinks = ref(null)
 const { capture } = useTelemetry()
 const showPageModal = ref(false)
@@ -336,10 +339,15 @@ onMounted(() => {
 	setUpOnboarding()
 	addKeyboardShortcut()
 	updateSidebarLinks()
-	socket.on('publish_lms_notifications', (data) => {
+	loadUnreadCount()
+	socket.on('publish_lms_notifications', () => {
 		unreadNotifications.reload()
 	})
 })
+
+// The count lives in stores/notifications now, so the badge follows it rather
+// than being written from the resource's onSuccess.
+watch(unreadCount, () => updateUnreadCount())
 
 const updateSidebarLinksVisibility = () => {
 	loadSidebarSettings().then(() => {
@@ -373,25 +381,6 @@ const addKeyboardShortcut = () => {
 const toggleCommandPalette = () => {
 	settingsStore.isCommandPaletteOpen = !settingsStore.isCommandPaletteOpen
 }
-
-const unreadNotifications = createResource({
-	cache: 'Unread Notifications Count',
-	url: 'frappe.client.get_count',
-	makeParams(values) {
-		return {
-			doctype: 'Notification Log',
-			filters: {
-				for_user: user,
-				read: 0,
-			},
-		}
-	},
-	onSuccess(data) {
-		unreadCount.value = data
-		updateUnreadCount()
-	},
-	auto: user ? true : false,
-})
 
 const updateUnreadCount = () => {
 	sidebarLinks.value?.forEach((link) => {
@@ -475,7 +464,7 @@ const steps = reactive([
 					hash: '#settings',
 				})
 			} else {
-				router.push({ name: 'Courses', query: { newCourse: '1' } })
+				openFormRoute(router, { name: 'NewCourse' })
 			}
 		},
 	},
@@ -495,7 +484,7 @@ const steps = reactive([
 					hash: '#settings',
 				})
 			} else {
-				router.push({ name: 'Courses', query: { newCourse: '1' } })
+				openFormRoute(router, { name: 'NewCourse' })
 			}
 		},
 	},

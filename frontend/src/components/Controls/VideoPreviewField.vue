@@ -31,7 +31,7 @@
 					v-else-if="isUploadedVideo && videoError"
 					class="flex flex-col items-center gap-1 px-3 text-center"
 				>
-					<span class="lucide-circle-check size-5 text-ink-green-600" />
+					<span class="lucide-circle-check size-5 text-ink-green-6" />
 					<span class="text-xs text-ink-gray-5">
 						{{ __("Saved. This format can't be previewed here.") }}
 					</span>
@@ -48,7 +48,6 @@
 				</button>
 			</div>
 
-			<!-- Uploaded video: thumbnail-style controls (no raw filename in an input). -->
 			<div v-if="isUploadedVideo" class="min-w-0 space-y-2 sm:flex-1">
 				<div class="text-p-sm-medium text-ink-gray-7 truncate">
 					{{ fileName }}
@@ -90,7 +89,6 @@
 				</p>
 			</div>
 
-			<!-- Empty or YouTube link: URL input + upload. -->
 			<div v-else class="min-w-0 space-y-2 sm:flex-1">
 				<FormControl
 					:id="inputId"

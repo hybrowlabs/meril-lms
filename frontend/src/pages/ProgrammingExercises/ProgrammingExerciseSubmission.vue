@@ -74,7 +74,6 @@
 						readonly
 					/>
 				</div>
-				<!-- <textarea v-else v-model="output" class="bg-surface-gray-1 border-none text-sm h-28 leading-6" readonly /> -->
 			</div>
 
 			<div ref="testCaseSection" class="p-5">
@@ -101,12 +100,6 @@
 							>
 								{{ testCase.status }}
 							</span>
-							<!-- <span v-if="testCase.status === 'Passed'">
-								<Check class="size-4 text-ink-green-3" />
-							</span>
-							<span v-else>
-								<X class="size-4 text-ink-red-3" />
-							</span> -->
 						</div>
 						<div class="flex items-center justify-between w-[60%]">
 							<div v-if="testCase.input" class="space-y-2">
@@ -310,7 +303,9 @@ watch(
 )
 
 const loadFalcon = () => {
-	if (settings.data) {
+	// An unset livecode_url leaves the default in place rather than building
+	// `undefined/static/livecode.js`.
+	if (settings.data?.livecode_url) {
 		falconURL.value = settings.data.livecode_url
 	}
 	return new Promise((resolve, reject) => {

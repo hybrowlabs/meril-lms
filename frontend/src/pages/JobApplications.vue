@@ -41,7 +41,9 @@
 				:options="getActionOptions(row)"
 			>
 				<Button variant="ghost" :label="__('More actions')">
-					<span class="lucide-more-horizontal size-4" />
+					<template #icon>
+						<span class="lucide-more-horizontal size-4" />
+					</template>
 				</Button>
 			</Dropdown>
 			<div

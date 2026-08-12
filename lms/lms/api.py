@@ -975,12 +975,51 @@ def update_chapter_index(chapter: str, course: str, idx: int):
 # Matches SETTINGS_PAGE_LENGTH in the frontend, which pages `start` by this.
 MEMBERS_PAGE_LENGTH = 13
 
+MEMBER_FIELDS = ["name", "full_name", "user_image", "username", "last_active"]
+
+
+def member_roles(member: str) -> list[str]:
+	roles = frappe.get_all(
+		"Has Role",
+		{
+			"parent": member,
+			"parenttype": "User",
+		},
+		pluck="role",
+	)
+	return [role for role in LMS_ROLES if role in roles]
+
+
+@frappe.whitelist()
+def get_member(member: str):
+	"""One member by exact name, for the member edit form.
+
+	get_members is a paginated search that also hides disabled users, so it
+	cannot answer "give me this one row": a member past the first page, or a
+	disabled one, came back empty and left the form unable to save.
+	"""
+	frappe.only_for(["Moderator"])
+
+	if not isinstance(member, str):
+		frappe.throw(_("Invalid member."), frappe.ValidationError)
+
+	member = member.strip()
+	if not member or member in ["Administrator", "Guest"]:
+		frappe.throw(_("Invalid member."), frappe.ValidationError)
+
+	row = frappe.db.get_value("User", member, MEMBER_FIELDS, as_dict=True)
+	if not row:
+		frappe.throw(_("Member {0} does not exist.").format(member), frappe.DoesNotExistError)
+
+	row.roles = member_roles(row.name)
+	return row
+
 
 @frappe.whitelist()
 def get_members(start: int = 0, search: str = None, role: str = "All"):
 	frappe.only_for(["Moderator"])
 
-	lms_roles = ["Moderator", "Course Creator", "Batch Evaluator", "LMS Student"]
+	lms_roles = LMS_ROLES
 	if not isinstance(role, str) or role not in (["All"] + lms_roles):
 		frappe.throw(_("Invalid role filter."), frappe.ValidationError)
 	if search is not None and not isinstance(search, str):
@@ -1005,22 +1044,14 @@ def get_members(start: int = 0, search: str = None, role: str = "All"):
 	members = frappe.get_all(
 		"User",
 		filters=filters,
-		fields=["name", "full_name", "user_image", "username", "last_active"],
+		fields=MEMBER_FIELDS,
 		or_filters=or_filters,
 		page_length=MEMBERS_PAGE_LENGTH,
 		start=start,
 	)
 
 	for member in members:
-		roles = frappe.get_all(
-			"Has Role",
-			{
-				"parent": member.name,
-				"parenttype": "User",
-			},
-			pluck="role",
-		)
-		member.roles = [role for role in lms_roles if role in roles]
+		member.roles = member_roles(member.name)
 
 	return members
 
@@ -2233,21 +2264,58 @@ def get_progress_distribution(progressList: list):
 
 @frappe.whitelist(allow_guest=True)
 def get_pwa_manifest():
+	"""Web app manifest for installing the LMS as a PWA."""
 	title = frappe.db.get_single_value("Website Settings", "app_name") or "Frappe Learning"
-	banner_image = frappe.db.get_single_value("Website Settings", "banner_image")
+	route = get_lms_route()
 
+	# `display` was absent, so it defaulted to "browser" and the installed app
+	# launched inside full browser chrome — the one thing installing is meant to
+	# remove. Everything else here follows from actually being standalone: a
+	# `scope` so in-app navigation stays in the app, a stable `id` so a changed
+	# start_url is not treated as a different app, and colours so the OS paints
+	# its own surfaces to match instead of flashing white.
+	#
+	# theme_color matches the light-mode `theme-color` meta in index.html. A
+	# manifest carries a single value, so the light one wins here and the meta
+	# tags keep handling the light/dark split.
 	manifest = {
+		"id": route,
 		"name": title,
 		"short_name": title,
 		"description": "Easy to use, 100% open source Learning Management System",
-		"start_url": get_lms_route(),
+		"start_url": route,
+		"scope": route,
+		"display": "standalone",
+		"orientation": "portrait",
+		"theme_color": "#FFFFFF",
+		"background_color": "#FFFFFF",
+		# Split by purpose rather than the previous combined "maskable any": a
+		# maskable icon is drawn with its edges cropped to the platform's shape,
+		# so reusing one image for both gives a clipped icon wherever the "any"
+		# slot is used. The 512 has been on disk unused.
+		#
+		# Website Settings' banner_image is deliberately NOT a source here. It is
+		# a wide banner, and it was being declared as 192x192, so any site that
+		# set one got a squashed app icon.
 		"icons": [
 			{
-				"src": banner_image or "/assets/lms/frontend/manifest/manifest-icon-192.maskable.png",
+				"src": "/assets/lms/frontend/manifest/manifest-icon-192.maskable.png",
 				"sizes": "192x192",
 				"type": "image/png",
-				"purpose": "maskable any",
-			}
+				"purpose": "any",
+			},
+			{
+				"src": "/assets/lms/frontend/manifest/manifest-icon-512.maskable.png",
+				"sizes": "512x512",
+				"type": "image/png",
+				"purpose": "any",
+			},
+			{
+				"src": "/assets/lms/frontend/manifest/manifest-icon-512.maskable.png",
+				"sizes": "512x512",
+				"type": "image/png",
+				"purpose": "maskable",
+			},
 		],
 	}
 
