@@ -244,7 +244,7 @@ import { sanitizeHTML, openSettings } from '@/utils'
 import Link from '@/components/Controls/Link.vue'
 import ResponsiveListView from '@/components/ResponsiveListView.vue'
 import Draggable from 'vuedraggable'
-import ProgramProgressSummary from '@/pages/Programs/ProgramProgressSummary.vue'
+import ProgramProgressSummary from '@/components/Programs/ProgramProgressSummary.vue'
 
 const show = defineModel<boolean>()
 const programs = defineModel<Programs>('programs')

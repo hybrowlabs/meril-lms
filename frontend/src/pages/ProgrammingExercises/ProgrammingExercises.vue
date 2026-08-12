@@ -110,7 +110,7 @@ import type { ListRow } from '@/types'
 
 import { sessionStore } from '@/stores/session'
 import { useRouter } from 'vue-router'
-import ProgrammingExerciseForm from '@/pages/ProgrammingExercises/ProgrammingExerciseForm.vue'
+import ProgrammingExerciseForm from '@/pages/Forms/ProgrammingExerciseForm.vue'
 
 const readOnlyMode = window.read_only_mode
 const { brand } = sessionStore()

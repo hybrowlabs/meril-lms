@@ -97,7 +97,7 @@ import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 
 import { sessionStore } from '@/stores/session'
-import ProgramForm from '@/pages/Programs/ProgramForm.vue'
+import ProgramForm from '@/pages/Forms/ProgramForm.vue'
 import PageHeader from '@/components/Layouts/PageHeader.vue'
 import ListPage from '@/components/Layouts/ListPage.vue'
 import StudentPrograms from '@/pages/Programs/StudentPrograms.vue'
