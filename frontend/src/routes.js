@@ -363,6 +363,11 @@ export const routes = [
 	// The You tab. Only the phone layout offers it — the desk sidebar already
 	// shows everything on it — but it is an ordinary route, so it answers a cold
 	// deep link with no bar mounted the same way it answers a tap.
+	{
+		path: '/you',
+		name: 'MobileYou',
+		component: () => import('@/pages/MobileYou.vue'),
+	},
 	// The only thing under '/settings' with an address. Settings itself is the
 	// desktop dialog, which floats over whatever page the URL points at and has
 	// no route of its own — an LMS is not configured with a thumb, so there are
