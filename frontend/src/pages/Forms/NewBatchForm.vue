@@ -1,7 +1,10 @@
 <template>
-	<Dialog v-model:open="show" title="New Batch" size="3xl">
+	<FormShell :title="__('New Batch')" size="3xl" @close="close">
 		<template #default>
-			<div class="text-base">
+			<div v-if="!canCreateBatch" class="p-4 text-base text-ink-gray-6">
+				{{ __('You are not permitted to create a batch.') }}
+			</div>
+			<div v-else data-testid="new-batch-fields" class="text-base">
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-5">
 					<FormControl
 						v-model="batch.title"
@@ -71,7 +74,7 @@
 				</div>
 
 				<div class="space-y-5 border-t mt-5 pt-5">
-					<div class="grid grid-cols-2 gap-5">
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-5">
 						<FormControl
 							v-model="batch.description"
 							:label="__('Description')"
@@ -114,18 +117,18 @@
 				</div>
 			</div>
 		</template>
-		<template #actions="{ close }">
-			<div class="text-end">
-				<Button
+		<template #actions>
+			<div v-if="canCreateBatch" class="flex items-center justify-end">
+				<HeaderButton
+					data-testid="new-batch-save"
+					:label="__('Save')"
 					variant="solid"
 					:loading="batches.insert.loading"
-					@click="saveBatch(close)"
-				>
-					{{ __('Save') }}
-				</Button>
+					@click="saveBatch()"
+				/>
 			</div>
 		</template>
-	</Dialog>
+	</FormShell>
 	<NewMemberModal
 		v-model="showMemberModal"
 		:defaultRoles="['batch_evaluator']"
@@ -134,26 +137,26 @@
 </template>
 <script setup lang="ts">
 import {
-	Button,
 	Combobox,
-	Dialog,
 	FormControl,
+	createListResource,
 	createResource,
 	toast,
 } from 'frappe-ui'
 import { useOnboarding, useTelemetry } from 'frappe-ui/frappe'
 import { computed, inject, onMounted, onBeforeUnmount, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { sanitizeHTML, createLMSCategory, cleanError } from '@/utils'
+import FormShell from '@/components/FormShell.vue'
+import HeaderButton from '@/components/HeaderButton.vue'
+import { useFormRoute } from '@/composables/useFormRoute'
 import MultiLink from '@/components/Controls/MultiLink.vue'
 import Link from '@/components/Controls/Link.vue'
 import Select from '@/components/Controls/Select.vue'
 import NewMemberModal from '@/components/Modals/NewMemberModal.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import { InputLabel, useInputLabeling } from '@/components/Form/labeling'
+import { submitResource } from '@/utils/resource'
 
-const show = defineModel<boolean>({ required: true, default: false })
-const router = useRouter()
 const { capture } = useTelemetry()
 const { updateOnboardingStep } = useOnboarding('learning')
 const user = inject<any>('$user')
@@ -161,9 +164,33 @@ const showMemberModal = ref(false)
 const { inputId: batchDetailsId, labelId: batchDetailsLabelId } =
 	useInputLabeling({})
 
-const props = defineProps<{
-	batches: any
-}>()
+const { close, saveAndReplace } = useFormRoute({ name: 'Batches' })
+
+// Its own list resource — but the cache key is deliberately byte-identical to
+// Batches.vue:167. createListResource returns the cached instance and discards
+// this call's options (listResource.js:15-22), so a saved batch shows up in the
+// list purely because insert.onSuccess refetches THAT instance (:123-126).
+// Disambiguating either key — a filter, a tab, a start — silently breaks that.
+const batches = createListResource({
+	doctype: 'LMS Batch',
+	url: 'lms.lms.utils.get_batches',
+	cache: ['batches', user.data?.name],
+	pageLength: 24,
+})
+
+// Copied from Batches.vue:358-364. The list page gates the button; a URL does
+// not go through the button.
+const canCreateBatch = computed(() => {
+	// Cast because Window has no read_only_mode declaration; same shape as
+	// CourseCardOverlay.vue:161, the other typed SFC that reads this flag.
+	if ((window as Window & { read_only_mode?: boolean }).read_only_mode)
+		return false
+	return Boolean(
+		user.data?.is_moderator ||
+			user.data?.is_instructor ||
+			user.data?.is_evaluator
+	)
+})
 
 type Batch = {
 	title: string
@@ -217,9 +244,11 @@ const validateFields = () => {
 	})
 }
 
-const saveBatch = (close: () => void = () => {}) => {
+const saveBatch = () => {
+	if (!canCreateBatch.value) return
 	validateFields()
-	props.batches.insert.submit(
+	submitResource(
+		batches.insert,
 		{
 			...batch.value,
 			instructors: batch.value.instructors.map((instructor) => ({
@@ -229,9 +258,10 @@ const saveBatch = (close: () => void = () => {}) => {
 		{
 			onSuccess(data: any) {
 				toast.success(__('Batch created successfully'))
-				close()
 				capture('batch_created')
-				router.push({
+				// replace, not push: the form entry is consumed so Back reaches
+				// the list rather than a stale empty form.
+				saveAndReplace({
 					name: 'BatchDetail',
 					params: { batchName: data.name },
 					hash: '#settings',

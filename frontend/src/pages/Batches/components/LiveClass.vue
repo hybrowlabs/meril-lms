@@ -18,7 +18,11 @@
 			<div class="text-lg-semibold text-ink-gray-9">
 				{{ __('Live Class') }}
 			</div>
-			<Button v-if="canCreateClass()" @click="openLiveClassModal">
+			<Button
+				v-if="canCreateClass()"
+				data-testid="live-class-add"
+				@click="openLiveClassForm"
+			>
 				<template #prefix>
 					<span class="lucide-plus h-4 w-4" />
 				</template>
@@ -31,10 +35,6 @@
 			v-if="liveClasses.data?.length"
 			class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-5"
 		>
-			<!-- TODO(a11y): this card is click-activated (opens attendance modal)
-			     but contains nested Start/Join anchors, so it can't become a
-			     <button>. Needs a redesign (dedicated action button) to be
-			     keyboard-accessible; left as-is to avoid invalid nesting. -->
 			<div
 				v-for="cls in liveClasses.data"
 				:key="cls.name"
@@ -111,16 +111,6 @@
 		</div>
 	</div>
 
-	<LiveClassModal
-		v-if="showLiveClassModal"
-		v-model="showLiveClassModal"
-		:batch="batch.data?.name"
-		:zoomAccount="batch.data?.zoom_account"
-		:googleMeetAccount="batch.data?.google_meet_account"
-		:conferencingProvider="batch.data?.conferencing_provider"
-		v-model:reloadLiveClasses="liveClasses"
-	/>
-
 	<LiveClassAttendance
 		v-if="showAttendance"
 		v-model="showAttendance"
@@ -128,14 +118,20 @@
 	/>
 </template>
 <script setup>
+// TODO(a11y): the class card is click-activated — it opens the attendance
+// modal — but carries nested Start/Join anchors, so it cannot become a
+// <button> without invalid nesting. Reaching it by keyboard needs a dedicated
+// action control, which is a redesign rather than an attribute.
 import { createListResource, Button, Tooltip } from 'frappe-ui'
 import { inject, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { formatTime } from '@/utils/'
-import LiveClassModal from '@/components/Modals/LiveClassModal.vue'
+import { openBatchForm } from '@/composables/useBatchForms'
 import LiveClassAttendance from '@/components/Modals/LiveClassAttendance.vue'
 
 const user = inject('$user')
-const showLiveClassModal = ref(false)
+const route = useRoute()
+const router = useRouter()
 const dayjs = inject('$dayjs')
 const readOnlyMode = window.read_only_mode
 const showAttendance = ref(false)
@@ -148,8 +144,13 @@ const props = defineProps({
 	},
 })
 
+// The `cache` key is what lets LiveClassForm refresh this list after a create
+// without a prop or a defineModel between them: it looks the instance up by
+// this exact key (getCachedListResource) rather than constructing one, so the
+// options below stay authoritative. Keep the key in step with the form's.
 const liveClasses = createListResource({
 	doctype: 'LMS Live Class',
+	cache: ['liveClasses', props.batch.data?.name],
 	filters: {
 		batch_name: props.batch.data?.name,
 	},
@@ -170,8 +171,8 @@ const liveClasses = createListResource({
 	auto: true,
 })
 
-const openLiveClassModal = () => {
-	showLiveClassModal.value = true
+const openLiveClassForm = () => {
+	openBatchForm(router, 'NewLiveClass', props.batch.data?.name, route.hash)
 }
 
 const hasProviderAccount = () => {

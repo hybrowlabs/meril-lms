@@ -54,7 +54,12 @@ export const routes = [
 		name: 'Batches',
 		component: () => import('@/pages/Batches/Batches.vue'),
 		children: [
-			],
+			{
+				path: 'new',
+				name: 'NewBatch',
+				component: () => import('@/pages/Forms/NewBatchForm.vue'),
+			},
+		],
 	},
 	{
 		path: '/batches/details/:batchName',
@@ -66,10 +71,53 @@ export const routes = [
 		component: () => import('@/pages/Batches/BatchDetail.vue'),
 		props: true,
 		children: [
+			{
+				path: 'certificates',
+				name: 'BulkCertificates',
+				component: () =>
+					import('@/pages/Forms/BulkCertificatesForm.vue'),
+				props: true,
+			},
 			// `new` is hard-coded rather than a :param (design doc Q3): neither
 			// form has an edit mode, so `new` is the only value the param could
 			// ever take.
-			],
+			{
+				path: 'live-class/new',
+				name: 'NewLiveClass',
+				component: () => import('@/pages/Forms/LiveClassForm.vue'),
+				props: true,
+			},
+			{
+				path: 'announcement/new',
+				name: 'NewAnnouncement',
+				component: () => import('@/pages/Forms/AnnouncementForm.vue'),
+				props: true,
+			},
+			{
+				path: 'course/new',
+				name: 'NewBatchCourse',
+				component: () => import('@/pages/Forms/BatchCourseForm.vue'),
+				props: true,
+			},
+			{
+				path: 'assessment/new',
+				name: 'NewAssessment',
+				component: () => import('@/pages/Forms/AssessmentForm.vue'),
+				props: true,
+			},
+			{
+				path: 'student/new',
+				name: 'NewBatchStudent',
+				component: () => import('@/pages/Forms/BatchStudentForm.vue'),
+				props: true,
+			},
+			{
+				path: 'email-template/new',
+				name: 'NewBatchEmailTemplate',
+				component: () => import('@/pages/Forms/EmailTemplateForm.vue'),
+				props: true,
+			},
+		],
 	},
 	{
 		path: '/billing/:type/:name',
