@@ -67,8 +67,7 @@
 					<div class="flex">
 						<a
 							:href="safeUrl(job.data.company_website)"
-							target="_blank"
-							rel="noopener noreferrer"
+							v-external
 							class="me-4"
 						>
 							<img

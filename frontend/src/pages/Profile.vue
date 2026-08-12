@@ -95,8 +95,7 @@
 						<a
 							v-if="profile.data.twitter"
 							:href="safeUrl(profile.data.twitter)"
-							target="_blank"
-							rel="noopener noreferrer"
+							v-external
 							:aria-label="__('Twitter')"
 						>
 							<Twitter class="size-4 text-ink-gray-5 cursor-pointer" />
@@ -104,8 +103,7 @@
 						<a
 							v-if="profile.data.linkedin"
 							:href="safeUrl(profile.data.linkedin)"
-							target="_blank"
-							rel="noopener noreferrer"
+							v-external
 							:aria-label="__('LinkedIn')"
 						>
 							<Linkedin class="size-4 text-ink-gray-5 cursor-pointer" />
@@ -113,8 +111,7 @@
 						<a
 							v-if="profile.data.github"
 							:href="safeUrl(profile.data.github)"
-							target="_blank"
-							rel="noopener noreferrer"
+							v-external
 							:aria-label="__('GitHub')"
 						>
 							<Github class="size-4 text-ink-gray-5 cursor-pointer" />

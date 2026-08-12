@@ -68,6 +68,12 @@ jobs:
         # The fixtures are deliberate positives and must not be scanned.
         run: semgrep ci --config ./.github/semgrep/security.yml --exclude '.github/semgrep/fixtures'
 
+      - name: Run Vue directive Semgrep rules
+        # --error for the same reason as the RTL step below: a bare
+        # `semgrep scan` prints its findings and still exits 0. The tree is at
+        # 0 findings, so no baseline is needed.
+        run: semgrep scan --error --config ./.github/semgrep/vue-directives.yml frontend/src
+
       - name: Run RTL Semgrep rules
         # --error is required: a bare `semgrep scan` prints its findings and
         # still exits 0, so without it this step could never fail.

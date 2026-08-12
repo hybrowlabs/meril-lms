@@ -1,4 +1,5 @@
 import AudioBlock from '@/components/AudioBlock.vue'
+import { registerDirectives } from '@/directives'
 import VideoBlock from '@/components/VideoBlock.vue'
 import PdfBlock from '@/components/PdfBlock.vue'
 import UploadPlugin from '@/components/UploadPlugin.vue'
@@ -20,6 +21,7 @@ export class Upload {
 			render: () =>
 				h(UploadIcon, { size: 18, strokeWidth: 1.5, color: 'black' }),
 		})
+		registerDirectives(app)
 
 		const div = document.createElement('div')
 		app.mount(div)
@@ -57,6 +59,7 @@ export class Upload {
 					this.data.quizzes = quizzes
 				},
 			})
+			registerDirectives(app)
 			app.use(translationPlugin)
 			app.config.globalProperties.$dialog = createDialog
 			app.mount(this.wrapper)
@@ -65,6 +68,7 @@ export class Upload {
 			const app = createApp(AudioBlock, {
 				file: file.file_url,
 			})
+			registerDirectives(app)
 			app.mount(this.wrapper)
 			return
 		} else if (file.file_type == 'PDF') {
@@ -83,6 +87,7 @@ export class Upload {
 			this.app = createApp(PdfBlock, {
 				file: file.file_url,
 			})
+			registerDirectives(this.app)
 			this.app.use(translationPlugin)
 			this.app.mount(this.wrapper)
 			return
@@ -103,6 +108,7 @@ export class Upload {
 				this.renderFile(file)
 			},
 		})
+		registerDirectives(app)
 		app.use(translationPlugin)
 		app.mount(this.wrapper)
 	}

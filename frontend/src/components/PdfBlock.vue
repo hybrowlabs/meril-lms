@@ -55,8 +55,7 @@
 				<a
 					class="pdf-btn"
 					:href="safeUrl(file)"
-					target="_blank"
-					rel="noopener"
+					v-external
 					aria-label="Open in new tab"
 				>
 					<ExternalLink :size="16" :stroke-width="1.5" />
@@ -71,12 +70,7 @@
 			</div>
 			<div v-else-if="error" class="pdf-status pdf-error">
 				<span>{{ error }}</span>
-				<a
-					class="pdf-fallback-link"
-					:href="safeUrl(file)"
-					target="_blank"
-					rel="noopener"
-				>
+				<a class="pdf-fallback-link" :href="safeUrl(file)" v-external>
 					Open the PDF in a new tab
 				</a>
 			</div>

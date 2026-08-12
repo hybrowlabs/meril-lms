@@ -1,4 +1,5 @@
 import { Pencil } from 'lucide-vue-next'
+import { registerDirectives } from '@/directives'
 import { createApp, h } from 'vue'
 import AssessmentPlugin from '@/components/AssessmentPlugin.vue'
 import translationPlugin from '../translation'
@@ -18,6 +19,7 @@ export class Assignment {
 			render: () =>
 				h(Pencil, { size: 18, strokeWidth: 1.5, color: 'black' }),
 		})
+		registerDirectives(app)
 
 		const div = document.createElement('div')
 		app.mount(div)
@@ -89,6 +91,7 @@ export class Assignment {
 				this.renderAssignment(assignment)
 			},
 		})
+		registerDirectives(app)
 		app.use(translationPlugin)
 		app.use(router)
 		app.mount(this.wrapper)

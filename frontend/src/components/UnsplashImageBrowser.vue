@@ -57,7 +57,7 @@
 					</div>
 					<div class="mt-2 text-center text-sm text-ink-gray-4">
 						{{ __('Image search powered by') }}
-						<a class="underline" target="_blank" href="https://unsplash.com">
+						<a class="underline" v-external href="https://unsplash.com">
 							{{ __('Unsplash') }}
 						</a>
 					</div>

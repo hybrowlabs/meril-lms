@@ -1,4 +1,5 @@
 import { createApp, h } from 'vue'
+import { registerDirectives } from '@/directives'
 import { Code } from 'lucide-vue-next'
 import translationPlugin from '@/translation'
 import ProgrammingExerciseModal from '@/components/Modals/ProgrammingExerciseModal.vue'
@@ -38,6 +39,7 @@ export class Program {
 		const app = createApp({
 			render: () => h(Code, { size: 5, strokeWidth: 1.5 }),
 		})
+		registerDirectives(app)
 
 		const div = document.createElement('div')
 		app.mount(div)
@@ -72,6 +74,7 @@ export class Program {
 				this.renderExercise(exercise)
 			},
 		})
+		registerDirectives(app)
 		app.use(translationPlugin)
 		app.mount(this.wrapper)
 	}

@@ -108,7 +108,7 @@
 						<div class="flex items-center text-ink-gray-7">
 							<a
 								:href="safeUrl(attachment)"
-								target="_blank"
+								v-external
 								class="cursor-pointer !no-underline text-sm leading-5"
 							>
 								<div class="flex items-center">

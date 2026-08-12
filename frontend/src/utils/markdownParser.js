@@ -1,4 +1,5 @@
 import { CodeXml } from 'lucide-vue-next'
+import { registerDirectives } from '@/directives'
 import { createApp, h } from 'vue'
 import { escapeHTML } from '@/utils/format'
 
@@ -68,6 +69,7 @@ export class Markdown {
 			render: () =>
 				h(CodeXml, { size: 18, strokeWidth: 1.5, color: 'black' }),
 		})
+		registerDirectives(app)
 
 		const div = document.createElement('div')
 		app.mount(div)

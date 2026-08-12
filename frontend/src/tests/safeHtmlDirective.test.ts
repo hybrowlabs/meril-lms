@@ -99,6 +99,41 @@ describe('no raw v-html remains', () => {
 		expect(offenders, offenders.join('\n')).toEqual([])
 	})
 
+	// The same ban as .github/semgrep/vue-directives.yml's no-bound-innerhtml-prop,
+	// mirrored here because semgrep runs in CI only: without this a contributor
+	// sees a green local suite and learns about the rule from a failed job. Vue
+	// assigns el.innerHTML for every spelling below, so v-html is only the most
+	// obvious one.
+	const INNER_HTML_PROP = [
+		/(?:^|[\s"'`([{])(?:\.|:|v-bind:)inner-?html(?:\.[a-zA-Z]+)?\s*=/i,
+		/v-bind\s*=\s*"[^"]*\binner-?html\s*[:}]/i,
+	]
+
+	it('matches every innerHTML spelling it bans', () => {
+		const sinks = [
+			'<div :innerHTML="a" />',
+			'<div v-bind:innerHTML="a" />',
+			'<div .innerHTML="a" />',
+			'<div :innerHTML.prop="a" />',
+			'<div v-bind="{ innerHTML: a }" />',
+		]
+		for (const sink of sinks)
+			expect(
+				INNER_HTML_PROP.some((re) => re.test(sink)),
+				sink
+			).toBe(true)
+		expect(INNER_HTML_PROP.some((re) => re.test('<div :title="a" />'))).toBe(
+			false
+		)
+	})
+
+	it('finds no bound innerHTML prop', () => {
+		const offenders = Object.entries(sources)
+			.filter(([, src]) => INNER_HTML_PROP.some((re) => re.test(live(src))))
+			.map(([path]) => path)
+		expect(offenders, offenders.join('\n')).toEqual([])
+	})
+
 	it('finds no v-safe-html without an explicit known level', () => {
 		const KNOWN = ['rich', 'basic', 'bio']
 		const offenders: string[] = []

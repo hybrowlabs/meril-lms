@@ -1,4 +1,5 @@
 import QuizBlock from '@/components/QuizBlock.vue'
+import { registerDirectives } from '@/directives'
 import AssessmentPlugin from '@/components/AssessmentPlugin.vue'
 import { createApp, h } from 'vue'
 import { usersStore } from '../stores/user'
@@ -16,6 +17,7 @@ export class Quiz {
 		const app = createApp({
 			render: () => h(CircleHelp, { size: 5, strokeWidth: 1.5 }),
 		})
+		registerDirectives(app)
 
 		const div = document.createElement('div')
 		app.mount(div)
@@ -48,6 +50,7 @@ export class Quiz {
 			// so give it translation and the shared $user the quiz component needs.
 			const { userResource } = usersStore()
 			this.quizApp = createApp(QuizBlock, { quiz })
+			registerDirectives(this.quizApp)
 			this.quizApp.use(translationPlugin)
 			this.quizApp.provide('$user', userResource)
 			// Contain quiz render/runtime errors to this mount. Inline (unlike
@@ -85,6 +88,7 @@ export class Quiz {
 				this.renderQuiz(quiz)
 			},
 		})
+		registerDirectives(app)
 		app.use(translationPlugin)
 		app.use(router)
 		app.mount(this.wrapper)

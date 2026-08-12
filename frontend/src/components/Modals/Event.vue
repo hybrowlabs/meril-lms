@@ -19,8 +19,7 @@
 						<Tooltip :text="__('Course')">
 							<a
 								:href="`/lms/courses/${event.course}`"
-								target="_blank"
-								rel="noopener noreferrer"
+								v-external
 								class="flex gap-x-2 w-fit cursor-pointer"
 							>
 								<span class="lucide-book-open h-4 w-4" />
@@ -32,8 +31,7 @@
 						<Tooltip v-if="event.batch_title" :text="__('Batch')">
 							<a
 								:href="`/lms/batches/${event.batch_name}#students`"
-								target="_blank"
-								rel="noopener noreferrer"
+								v-external
 								class="flex gap-x-2 w-fit cursor-pointer"
 							>
 								<span class="lucide-users h-4 w-4" />
