@@ -171,6 +171,25 @@ def enforces_lesson_completion(course: str) -> bool:
 	return bool(get_membership(course))
 
 
+def _lock_state(course: str) -> tuple[set, list, set]:
+	"""``(locked names, every name in course order, completed names)``.
+
+	Reads no enrollment pointer: SCORMRenderer runs the lock check on every asset
+	request of a package, and only needs the lock set.
+	"""
+	if not enforces_lesson_completion(course):
+		return set(), [], set()
+
+	# Local import: utils imports from permissions at call time, so importing utils at
+	# module load would create a cycle (same reason get_lesson imports this lazily).
+	from lms.lms.utils import compute_locked_lessons, get_completed_lessons, get_ordered_lesson_rows
+
+	rows = get_ordered_lesson_rows(course)
+	completed = get_completed_lessons(course, rows)
+	names = [row.name for row in rows]
+	return compute_locked_lessons(names, completed), names, completed
+
+
 def get_lesson_gate(course: str) -> tuple[set, str | None]:
 	"""``(locked lesson names, the lesson to resume at)`` for the current user.
 
@@ -183,17 +202,9 @@ def get_lesson_gate(course: str) -> tuple[set, str | None]:
 
 	Both values are empty/None when the gate does not apply to this user.
 	"""
-	if not enforces_lesson_completion(course):
-		return set(), None
-
-	# Local import: utils imports from permissions at call time, so importing utils at
-	# module load would create a cycle (same reason get_lesson imports this lazily).
-	from lms.lms.utils import compute_locked_lessons, get_completed_lessons, get_ordered_lesson_rows
-
-	rows = get_ordered_lesson_rows(course)
-	completed = get_completed_lessons(course, rows)
-	names = [row.name for row in rows]
-	locked = compute_locked_lessons(names, completed)
+	locked, names, completed = _lock_state(course)
+	if not names:
+		return locked, None
 
 	resume = None
 	for name in names:
@@ -202,7 +213,7 @@ def get_lesson_gate(course: str) -> tuple[set, str | None]:
 			break
 	# Every lesson is complete, so nothing is locked and the first lesson is as good a
 	# landing spot as any.
-	if resume is None and names:
+	if resume is None:
 		resume = names[0]
 
 	pointer = frappe.db.get_value(
@@ -216,7 +227,7 @@ def get_lesson_gate(course: str) -> tuple[set, str | None]:
 
 def get_locked_lessons(course: str) -> set:
 	"""Lesson names the current user may not open yet. Empty when the gate does not apply."""
-	return get_lesson_gate(course)[0]
+	return _lock_state(course)[0]
 
 
 def file_has_permission(doc, ptype="read", user=None):

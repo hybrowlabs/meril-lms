@@ -493,6 +493,18 @@ class TestLessonLockingIntegration(BaseTestUtils):
 			)
 		)
 
+	def test_the_lock_check_does_not_read_the_enrollment_pointer(self):
+		# SCORMRenderer runs this on every asset request of a package.
+		self._enable()
+		with patch("frappe.db.get_value", wraps=frappe.db.get_value) as get_value:
+			get_locked_lessons(self.course.name)
+
+		pointer_reads = [
+			call
+			for call in get_value.call_args_list
+			if call.args and call.args[0] == "LMS Enrollment" and "current_lesson" in call.args
+		]
+		self.assertEqual(pointer_reads, [])
 
 
 class TestLessonLockingImportExport(FrappeTestCase):
