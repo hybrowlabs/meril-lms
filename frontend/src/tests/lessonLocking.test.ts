@@ -372,8 +372,20 @@ describe('Lesson.vue locked lesson payload', () => {
 	})
 })
 
+const progressHandler = () => {
+	const handlerCall = socketOnMock.mock.calls.find(
+		(call: unknown[]) => call[0] === 'update_lesson_progress'
+	)
+	expect(handlerCall).toBeDefined()
+	return handlerCall![1] as (data: {
+		course: string
+		lesson?: string
+		progress: number
+	}) => void
+}
+
 describe('Lesson.vue unlocks the next lesson without a reload', () => {
-	it('reloads the outline from this user own completion, not from the broadcast', async () => {
+	it('reloads the outline when this page marks the lesson complete', async () => {
 		wrapper = await mountLesson()
 		const outline = findResource('lms.lms.utils.get_course_outline')
 		const progress = findResource(
@@ -392,25 +404,67 @@ describe('Lesson.vue unlocks the next lesson without a reload', () => {
 		expect(outline.reload).toHaveBeenCalledTimes(1)
 	})
 
-	it('leaves the outline alone when someone else completion is broadcast', async () => {
-		// update_lesson_progress goes to the site-wide website room, so reloading from
-		// it refetched the outline in every concurrent viewer of the course.
+	it('reloads the outline when a quiz completes the lesson', async () => {
+		// Quiz.vue and Assignment.vue complete a lesson by calling
+		// mark_lesson_progress directly; they never touch this page's progress
+		// resource, so update_lesson_progress is the only signal that the next
+		// lesson unlocked. With enforce_quiz_completion on by default, this is
+		// the ordinary unlock path for a gated course.
 		wrapper = await mountLesson()
 		const outline = findResource('lms.lms.utils.get_course_outline')
-		const handlerCall = socketOnMock.mock.calls.find(
-			(call: unknown[]) => call[0] === 'update_lesson_progress'
-		)
-		expect(handlerCall).toBeDefined()
-		const handler = handlerCall![1] as (data: {
-			course: string
-			progress: number
-		}) => void
+		findResource('lms.lms.utils.get_lesson').data = {
+			...baseLesson,
+			membership: { progress: 0 },
+		}
+		await flushPromises()
 		outline.reload.mockClear()
 
-		handler({ course: 'COURSE-1', progress: 40 })
+		progressHandler()({ course: 'COURSE-1', lesson: 'L1', progress: 40 })
+
+		expect(outline.reload).toHaveBeenCalledTimes(1)
+		expect((wrapper.vm as any).lessonProgress).toBe(40)
+	})
+
+	it('ignores progress events for another course', async () => {
+		wrapper = await mountLesson()
+		const outline = findResource('lms.lms.utils.get_course_outline')
+		outline.reload.mockClear()
+
+		progressHandler()({ course: 'OTHER-COURSE', lesson: 'L9', progress: 90 })
 
 		expect(outline.reload).not.toHaveBeenCalled()
-		expect((wrapper.vm as any).lessonProgress).toBe(40)
+		expect((wrapper.vm as any).lessonProgress).not.toBe(90)
+	})
+
+	it('takes its progress listener with it when the page is left', async () => {
+		// The listener outlived the page, so revisiting the lesson N times left N
+		// handlers subscribed and one progress event fired N outline reloads.
+		wrapper = await mountLesson()
+		const handler = progressHandler()
+
+		wrapper.unmount()
+
+		expect(socketOffMock).toHaveBeenCalledWith(
+			'update_lesson_progress',
+			handler
+		)
+	})
+
+	it('does not reload twice for the completion this page already handled', async () => {
+		wrapper = await mountLesson()
+		const outline = findResource('lms.lms.utils.get_course_outline')
+		findResource('lms.lms.utils.get_lesson').data = {
+			...baseLesson,
+			membership: { progress: 0 },
+		}
+		await flushPromises()
+		;(wrapper.vm as any).markProgress()
+		await flushPromises()
+		outline.reload.mockClear()
+
+		progressHandler()({ course: 'COURSE-1', lesson: 'L1', progress: 40 })
+
+		expect(outline.reload).not.toHaveBeenCalled()
 	})
 })
 

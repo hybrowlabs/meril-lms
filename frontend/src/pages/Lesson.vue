@@ -496,12 +496,19 @@ onMounted(() => {
 		collapsedByLesson = true
 	}
 	document.addEventListener('fullscreenchange', attachFullscreenEvent)
-	socket.on('update_lesson_progress', (data) => {
-		if (data.course === props.courseName) {
-			lessonProgress.value = data.progress
-		}
-	})
+	socket.on('update_lesson_progress', onLessonProgress)
 })
+
+const onLessonProgress = (data) => {
+	if (data.course !== props.courseName) return
+	lessonProgress.value = data.progress
+	// A quiz or an assignment completes its lesson by calling
+	// mark_lesson_progress directly, never touching this page's progress
+	// resource, so this event is the only signal that they unlocked the next
+	// lesson. The server now addresses it to the completing member alone.
+	// Skip the ones the progress resource already reloaded for.
+	if (data.lesson !== completedLesson.value) outline.reload()
+}
 
 const attachFullscreenEvent = () => {
 	if (document.fullscreenElement) {
@@ -517,6 +524,9 @@ const attachFullscreenEvent = () => {
 
 onBeforeUnmount(() => {
 	document.removeEventListener('fullscreenchange', attachFullscreenEvent)
+	// Without this the handler outlives the page, and every revisit adds another
+	// one — so a single progress event fires one outline reload per past visit.
+	socket.off('update_lesson_progress', onLessonProgress)
 	if (collapsedByLesson) sidebarStore.isSidebarCollapsed = false
 	trackVideoWatchDuration()
 })
@@ -649,10 +659,8 @@ const progress = createResource({
 	onSuccess(data) {
 		lessonProgress.value = data
 		completedLesson.value = lesson.data?.name
-		// This user's own completion is the only thing that changes this user's lock
-		// state. update_lesson_progress is broadcast to the whole website room, so
-		// reloading from the socket handler refetched the outline in every concurrent
-		// viewer's browser whenever anyone completed anything.
+		// Reload here rather than waiting on the socket, so this page's own
+		// completion unlocks the next lesson even where realtime is unavailable.
 		outline.reload()
 	},
 })

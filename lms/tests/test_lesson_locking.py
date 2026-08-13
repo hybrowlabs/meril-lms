@@ -1,6 +1,8 @@
 # Copyright (c) 2026, FOSS United and Contributors
 # See license.txt
 
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -438,6 +440,25 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		outline = get_course_outline(self.course.name, progress=True)
 		lessons = [lesson for chapter in outline for lesson in chapter.lessons]
 		self.assertIsNone(lessons[2].quiz_id)
+
+	def test_progress_is_published_to_the_completing_member_alone(self):
+		# The outline reload for a quiz or assignment completion rides on this event,
+		# so it has to reach the student who completed the lesson - and only them.
+		self._enable()
+		from lms.lms.doctype.course_lesson.course_lesson import save_progress
+
+		with patch("frappe.publish_realtime") as publish:
+			save_progress(self.lessons[0].name, self.course.name)
+
+		published = [
+			call for call in publish.call_args_list if call.kwargs.get("event") == "update_lesson_progress"
+		]
+		self.assertEqual(len(published), 1)
+		self.assertEqual(published[0].kwargs.get("user"), self.student.email)
+		self.assertIsNone(published[0].kwargs.get("room"))
+		self.assertEqual(published[0].kwargs["message"]["lesson"], self.lessons[0].name)
+
+
 
 
 class TestLessonLockingImportExport(FrappeTestCase):

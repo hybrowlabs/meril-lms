@@ -10,7 +10,6 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.query_builder.functions import Locate
 from frappe.rate_limiter import rate_limit
-from frappe.realtime import get_website_room
 from frappe.utils import add_to_date, now_datetime
 from frappe.utils.response import send_private_file
 from frappe.utils.telemetry import capture
@@ -421,9 +420,14 @@ def _save_progress(lesson: str, course: str, scorm_details: dict = None):
 	# replaces fired no on_update, which is the webhook regression being fixed.
 	update_enrollment(membership, {"current_lesson": next_lesson or lesson, "progress": progress})
 
+	# Addressed to the member who completed the lesson, not the whole website room.
+	# Everything in this payload is theirs alone — `progress` is their course progress,
+	# which every other viewer of the course was assigning to their own progress bar —
+	# and it is the signal their outline reloads on, so a site-wide room made one
+	# student's completion refetch the outline in every concurrent viewer's browser.
 	frappe.publish_realtime(
 		event="update_lesson_progress",
-		room=get_website_room(),
+		user=frappe.session.user,
 		message={"course": course, "lesson": lesson, "progress": progress},
 		after_commit=True,
 	)
