@@ -1402,6 +1402,9 @@ def build_outline(
 		for lessons in lessons_by_chapter.values():
 			for lesson in lessons:
 				lesson.locked = 1 if lesson.name in locked else 0
+				if lesson.locked:
+					# The quiz is part of the gated lesson, not a separate resource.
+					lesson.quiz_id = None
 
 	outline = []
 	for c in chapters:

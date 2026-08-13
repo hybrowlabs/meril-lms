@@ -108,6 +108,21 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		frappe.set_user(user)
 		return chapter, lesson
 
+	def _create_lesson_quiz(self, lesson_name, title="Locking Lesson Quiz"):
+		user = frappe.session.user
+		frappe.set_user("Administrator")
+		quiz = frappe.get_doc(
+			{
+				"doctype": "LMS Quiz",
+				"title": title,
+				"course": self.course.name,
+				"lesson": lesson_name,
+				"passing_percentage": 70,
+			}
+		).insert(ignore_permissions=True)
+		self.cleanup_items.append(("LMS Quiz", quiz.name))
+		frappe.set_user(user)
+		return quiz
 
 	def test_flag_off_locks_nothing(self):
 		self.assertFalse(enforces_lesson_completion(self.course.name))
@@ -360,3 +375,66 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		outline = get_course_outline(self.course.name, progress=True)
 		scorm = next(c for c in outline if c.name == chapter.name)
 		self.assertEqual(scorm.launch_file, "index.html")
+
+	def test_locked_lesson_quiz_is_not_readable(self):
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+
+		from lms.lms.permissions import can_access_quiz
+
+		self.assertFalse(can_access_quiz(quiz.name))
+
+	def test_the_current_lessons_quiz_stays_readable(self):
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[0].name)
+
+		from lms.lms.permissions import can_access_quiz
+
+		self.assertTrue(can_access_quiz(quiz.name))
+
+	def test_a_quiz_orphaned_from_its_lesson_is_refused_under_the_gate(self):
+		# cleanup_lesson_backreferences clears LMS Quiz.lesson on the lesson's deletion
+		# and leaves LMS Quiz.course standing, so the placement carries no lesson to
+		# check. `None not in locked` holds for every course, which granted any enrolled
+		# member the questions of a quiz still embedded in a locked lesson.
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+		frappe.db.set_value("LMS Quiz", quiz.name, "lesson", None)
+
+		from lms.lms.permissions import can_access_quiz
+
+		self.assertFalse(can_access_quiz(quiz.name))
+
+	def test_a_quiz_orphaned_from_its_lesson_stays_readable_without_the_gate(self):
+		# The refusal above is the gate talking, not a blanket rule: an ungated course
+		# still hands its enrolled members a quiz whose lesson link was cleared.
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+		frappe.db.set_value("LMS Quiz", quiz.name, "lesson", None)
+
+		from lms.lms.permissions import can_access_quiz
+
+		self.assertTrue(can_access_quiz(quiz.name))
+
+	def test_an_orphaned_quiz_reopens_once_the_course_is_finished(self):
+		# Gate on, nothing left locked: there is no lesson the quiz could be gated by.
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+		frappe.db.set_value("LMS Quiz", quiz.name, "lesson", None)
+		for lesson in self.lessons:
+			self._complete(lesson.name)
+
+		from lms.lms.permissions import can_access_quiz
+
+		self.assertEqual(get_locked_lessons(self.course.name), set())
+		self.assertTrue(can_access_quiz(quiz.name))
+
+	def test_outline_does_not_publish_the_quiz_of_a_locked_lesson(self):
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+		frappe.db.set_value("Course Lesson", self.lessons[2].name, "quiz_id", quiz.name)
+
+		from lms.lms.utils import get_course_outline
+
+		outline = get_course_outline(self.course.name, progress=True)
+		lessons = [lesson for chapter in outline for lesson in chapter.lessons]
+		self.assertIsNone(lessons[2].quiz_id)

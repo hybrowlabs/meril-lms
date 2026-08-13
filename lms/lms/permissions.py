@@ -94,7 +94,7 @@ def can_access_quiz(quiz: str, *, user: str | None = None) -> bool:
 	if not isinstance(quiz, str) or not quiz:
 		return False
 
-	quiz_row = frappe.db.get_value("LMS Quiz", quiz, ["course", "owner"], as_dict=True)
+	quiz_row = frappe.db.get_value("LMS Quiz", quiz, ["course", "lesson", "owner"], as_dict=True)
 	if not quiz_row:
 		return False
 
@@ -109,13 +109,32 @@ def can_access_quiz(quiz: str, *, user: str | None = None) -> bool:
 			return True
 
 		# Courses the quiz belongs to: the authoritative LMS Quiz.course link plus any
-		# lesson that references it via the manually-set quiz_id field.
-		courses = set()
+		# lesson that references it via the manually-set quiz_id field. The owning
+		# lesson travels with the course so a sequential course can gate the quiz on
+		# the same rule as the lesson that embeds it — the quiz id is a bearer handle,
+		# so withholding it from the outline would not revoke it from a student who
+		# already saw it while the setting was off.
+		placements = set()
 		if quiz_row.course:
-			courses.add(quiz_row.course)
-		courses.update(frappe.get_all("Course Lesson", filters={"quiz_id": quiz}, pluck="course"))
-		for course in courses:
-			if course and (can_modify_course(course) or get_membership(course, user)):
+			placements.add((quiz_row.course, quiz_row.lesson))
+		for row in frappe.get_all("Course Lesson", filters={"quiz_id": quiz}, fields=["course", "name"]):
+			placements.add((row.course, row.name))
+		for course, lesson in placements:
+			if not course:
+				continue
+			if can_modify_course(course):
+				return True
+			if not get_membership(course, user):
+				continue
+			locked = get_locked_lessons(course)
+			if not locked:
+				return True
+			# Under the gate a placement with no owning lesson cannot be checked against
+			# the lock set at all: cleanup_lesson_backreferences clears LMS Quiz.lesson
+			# and leaves .course standing, and `None not in locked` is true of every
+			# course, so such a placement used to grant any enrolled member access to a
+			# quiz whose lesson is still locked. It grants nothing now.
+			if lesson and lesson not in locked:
 				return True
 
 		assessment_batches = frappe.get_all(
