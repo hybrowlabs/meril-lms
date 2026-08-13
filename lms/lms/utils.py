@@ -1295,6 +1295,41 @@ def get_completed_lessons(course: str, lesson_rows: list) -> set:
 	)
 
 
+def compute_locked_lessons(ordered_lesson_names: list, completed: set) -> set:
+	"""Lesson names a student may not open yet, given the course order and what they finished.
+
+	A lesson is open when it is at or before the first incomplete lesson, or when the
+	student already completed it (so enabling the setting mid-cohort never revokes
+	access to work already done).
+	"""
+	locked = set()
+	past_first_incomplete = False
+	for name in ordered_lesson_names:
+		if name in completed:
+			continue
+		if past_first_incomplete:
+			locked.add(name)
+		else:
+			past_first_incomplete = True
+	return locked
+
+
+def get_ordered_lesson_rows(course: str) -> list:
+	"""Outline lesson rows for a course, in (chapter idx, lesson idx) order."""
+	chapters = get_outline_chapter(course)
+	if not chapters:
+		return []
+
+	rows_by_chapter = {}
+	for row in get_outline_lessons([c.name for c in chapters]):
+		rows_by_chapter.setdefault(row.chapter_name, []).append(row)
+
+	ordered = []
+	for chapter in chapters:
+		ordered.extend(sorted(rows_by_chapter.get(chapter.name, []), key=lambda r: r.lesson_idx))
+	return ordered
+
+
 def build_outline(
 	chapters: list, lesson_rows: list, files_by_name: dict, completed: set, progress: bool
 ) -> list:
