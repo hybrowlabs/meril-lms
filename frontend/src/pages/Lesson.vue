@@ -38,10 +38,10 @@
 				{{ lessonIndex }} / {{ lessonTotal }}
 			</div>
 			<Button
+				v-if="canGoNext"
 				variant="subtle"
 				class="!size-9"
 				:label="__('Next lesson')"
-				:disabled="!hasNext"
 				@click="goNext()"
 			>
 				<template #icon>
@@ -86,6 +86,26 @@
 							<span class="lucide-log-in size-4" />
 						</template>
 						{{ __('Login') }}
+					</Button>
+				</div>
+			</div>
+			<div v-else-if="lesson.data.locked" class="sm:border-e">
+				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+					<div class="flex items-center justify-center mt-4 gap-x-2">
+						<span class="lucide-lock-keyhole size-4 text-ink-gray-5" />
+						<div class="text-lg-semibold text-ink-gray-7">
+							{{ __('This lesson is locked') }}
+						</div>
+					</div>
+					<div class="mt-1 mb-4 text-ink-gray-7">
+						{{
+							__(
+								'Complete the previous lesson to unlock this one. Taking you back to where you left off.'
+							)
+						}}
+					</div>
+					<Button variant="solid" @click="goToCurrentLesson()">
+						{{ __('Go to my current lesson') }}
 					</Button>
 				</div>
 			</div>
@@ -147,7 +167,10 @@
 									</template>
 									<span>{{ __('Previous') }}</span>
 								</Button>
-								<Button v-if="lesson.data.next" @click="switchLesson('next')">
+								<Button
+									v-if="lesson.data.next && canGoNext"
+									@click="switchLesson('next')"
+								>
 									<template #suffix>
 										<span class="lucide-chevron-right size-4" />
 									</template>
@@ -187,7 +210,10 @@
 									</span>
 								</Button>
 
-								<Button v-if="lesson.data.next" @click="switchLesson('next')">
+								<Button
+									v-if="lesson.data.next && canGoNext"
+									@click="switchLesson('next')"
+								>
 									<template #suffix>
 										<span class="lucide-chevron-right size-4" />
 									</template>
@@ -515,6 +541,10 @@ const setupLesson = (data) => {
 		})
 		return
 	}
+	if (data.locked) {
+		goToLessonNumber(data.redirect_to, { replace: true })
+		return
+	}
 	if (data.is_scorm_package) {
 		router.push({
 			name: 'SCORMChapter',
@@ -691,11 +721,18 @@ const hasPrev = computed(() => currentIndex.value > 0)
 const hasNext = computed(
 	() => currentIndex.value >= 0 && currentIndex.value < lessonTotal.value - 1
 )
+const outlineLessons = computed(() =>
+	(outline.data ?? []).flatMap((c) => c.lessons ?? [])
+)
+const nextLessonLocked = computed(
+	() => !!outlineLessons.value[currentIndex.value + 1]?.locked
+)
+const canGoNext = computed(() => hasNext.value && !nextLessonLocked.value)
 
-const goToLessonNumber = (number) => {
+const goToLessonNumber = (number, { replace = false } = {}) => {
 	trackVideoWatchDuration()
 	const [chapterNumber, lessonNumber] = number.split('-')
-	router.push({
+	const target = {
 		name: 'Lesson',
 		params: {
 			courseName: props.courseName,
@@ -703,7 +740,14 @@ const goToLessonNumber = (number) => {
 			lessonNumber,
 		},
 		query: studentViewQuery.value,
-	})
+	}
+	if (replace) router.replace(target)
+	else router.push(target)
+}
+
+const goToCurrentLesson = () => {
+	if (lesson.data?.redirect_to)
+		goToLessonNumber(lesson.data.redirect_to, { replace: true })
 }
 
 const goPrev = () => {
@@ -712,11 +756,12 @@ const goPrev = () => {
 }
 
 const goNext = () => {
-	if (hasNext.value)
+	if (canGoNext.value)
 		goToLessonNumber(lessonNumbers.value[currentIndex.value + 1])
 }
 
 const switchLesson = (direction) => {
+	if (direction === 'next' && !canGoNext.value) return
 	trackVideoWatchDuration()
 	let target =
 		direction === 'prev'
