@@ -109,6 +109,7 @@ import { sessionStore } from '@/stores/session'
 import { decodeEntities } from '@/utils'
 import { getLmsRoute } from '@/utils/basePath'
 import { safeUrl } from '@/utils/safeUrl'
+import { openExternal } from '@/utils/openExternal'
 
 const dayjs = inject('$dayjs')
 const user = inject('$user')
@@ -159,6 +160,6 @@ const shareOnSocial = (badge, medium) => {
 	else if (medium == 'Twitter')
 		shareUrl = `https://twitter.com/intent/tweet?text=${summary}&url=${url}`
 
-	window.open(shareUrl, '_blank')
+	openExternal(shareUrl)
 }
 </script>

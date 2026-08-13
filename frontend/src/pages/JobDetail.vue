@@ -147,6 +147,7 @@ import PageHeader from '@/components/Layouts/PageHeader.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import JobApplicationModal from '@/components/Modals/JobApplicationModal.vue'
 import { safeUrl } from '@/utils/safeUrl'
+import { openExternal } from '@/utils/openExternal'
 
 const user = inject('$user')
 const dayjs = inject('$dayjs')
@@ -215,8 +216,11 @@ const redirectToLogin = (job) => {
 	window.location.href = `/login?redirect-to=/job-openings/${job}`
 }
 
+// A company_website is a plain Data field, so it often arrives without a
+// scheme. Left as typed it opens a path under /lms; the allowlist would reject
+// it outright. Naming https keeps the link working either way.
 const redirectToWebsite = (url) => {
-	window.open(url, '_blank')
+	openExternal(/^https?:\/\//i.test(url ?? '') ? url : `https://${url}`)
 }
 
 const canManageJob = computed(() => {

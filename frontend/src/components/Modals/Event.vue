@@ -188,6 +188,7 @@ import { inject, reactive, watch, ref, computed } from 'vue'
 import { formatTime } from '@/utils'
 import { formatTimezone } from '@/utils/timezone'
 import Link from '@/components/Controls/Link.vue'
+import { openExternal } from '@/utils/openExternal'
 
 const show = defineModel()
 const user = inject('$user')
@@ -232,7 +233,7 @@ const defaultTemplate = createResource({
 })
 
 const openCallLink = (link) => {
-	window.open(link, '_blank')
+	openExternal(link)
 }
 
 const evaluationResource = createResource({
@@ -373,7 +374,7 @@ watch(show, () => {
 })
 
 const openCertificate = (certificate) => {
-	window.open(
+	openExternal(
 		`/api/method/frappe.utils.print_format.download_pdf?doctype=LMS+Certificate&name=${
 			certificate.name
 		}&format=${encodeURIComponent(certificate.template)}`

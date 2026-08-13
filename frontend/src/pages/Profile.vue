@@ -300,10 +300,6 @@ const reloadUser = () => {
 		})
 }
 
-const navigateTo = (url) => {
-	window.open(url, '_blank')
-}
-
 const breadcrumbs = computed(() => {
 	let crumbs = [
 		{
