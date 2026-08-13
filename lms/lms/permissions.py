@@ -152,10 +152,20 @@ def enforces_lesson_completion(course: str) -> bool:
 	return bool(get_membership(course))
 
 
-def get_locked_lessons(course: str) -> set:
-	"""Lesson names the current user may not open yet. Empty when the gate does not apply."""
+def get_lesson_gate(course: str) -> tuple[set, str | None]:
+	"""``(locked lesson names, the lesson to resume at)`` for the current user.
+
+	The resume lesson is derived from the same ordered list that produced the lock set:
+	the first incomplete lesson, which the rule leaves open by construction. The
+	LMS Enrollment pointer is only a hint and is used only when it is itself unlocked —
+	save_progress wrote it under whatever rules applied at the time (the setting may
+	have been off, the chapters may have been reordered since), so trusting it blindly
+	can redirect a student to a lesson that is locked, which is a dead end.
+
+	Both values are empty/None when the gate does not apply to this user.
+	"""
 	if not enforces_lesson_completion(course):
-		return set()
+		return set(), None
 
 	# Local import: utils imports from permissions at call time, so importing utils at
 	# module load would create a cycle (same reason get_lesson imports this lazily).
@@ -163,7 +173,31 @@ def get_locked_lessons(course: str) -> set:
 
 	rows = get_ordered_lesson_rows(course)
 	completed = get_completed_lessons(course, rows)
-	return compute_locked_lessons([row.name for row in rows], completed)
+	names = [row.name for row in rows]
+	locked = compute_locked_lessons(names, completed)
+
+	resume = None
+	for name in names:
+		if name not in completed:
+			resume = name
+			break
+	# Every lesson is complete, so nothing is locked and the first lesson is as good a
+	# landing spot as any.
+	if resume is None and names:
+		resume = names[0]
+
+	pointer = frappe.db.get_value(
+		"LMS Enrollment", {"course": course, "member": frappe.session.user}, "current_lesson"
+	)
+	if pointer and pointer not in locked:
+		resume = pointer
+
+	return locked, resume
+
+
+def get_locked_lessons(course: str) -> set:
+	"""Lesson names the current user may not open yet. Empty when the gate does not apply."""
+	return get_lesson_gate(course)[0]
 
 
 def file_has_permission(doc, ptype="read", user=None):

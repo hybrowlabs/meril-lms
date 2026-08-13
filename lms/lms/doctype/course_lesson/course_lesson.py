@@ -19,7 +19,7 @@ from lms.lms.doctype.lms_enrollment.lms_enrollment import (
 	batched_enrollment_updates,
 	update_enrollment,
 )
-from lms.lms.permissions import INSTRUCTOR_FIELDS, can_access_lesson
+from lms.lms.permissions import INSTRUCTOR_FIELDS, can_access_lesson, get_locked_lessons
 from lms.lms.utils import (
 	get_course_progress,
 	get_editorjs_blocks,
@@ -325,6 +325,16 @@ def _save_progress(lesson: str, course: str, scorm_details: dict = None):
 	membership = frappe.db.exists("LMS Enrollment", {"course": course, "member": frappe.session.user})
 	if not membership:
 		return 0
+
+	# On a sequential course this endpoint writes the gate's own unlock state, so an
+	# enrolled student could otherwise complete every lesson name the outline publishes
+	# and open the whole course. The lesson a student is legitimately on is the first
+	# incomplete one, which is never locked, so the normal path never reaches this.
+	if lesson in get_locked_lessons(course):
+		frappe.throw(
+			_("Complete the previous lesson before marking this one as done."),
+			frappe.PermissionError,
+		)
 
 	progress_already_exists = frappe.db.exists(
 		"LMS Course Progress", {"lesson": lesson, "member": frappe.session.user}

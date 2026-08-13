@@ -340,16 +340,6 @@ def get_lesson_index(lesson_name: str) -> str:
 	return f"{chapter.idx}-{lesson.idx}"
 
 
-def get_current_lesson_number(course: str) -> str:
-	"""The {chapter}-{lesson} number of the lesson this user is currently on."""
-	current_lesson = frappe.db.get_value(
-		"LMS Enrollment", {"course": course, "member": frappe.session.user}, "current_lesson"
-	)
-	if not current_lesson:
-		return "1-1"
-	return get_lesson_index(current_lesson)
-
-
 def get_lesson_url(course: str, lesson_number: str):
 	if not lesson_number:
 		return
@@ -1171,7 +1161,13 @@ def get_course_details(course: str):
 		course_details.is_instructor = False
 
 	if course_details.membership and course_details.membership.current_lesson:
-		course_details.current_lesson = get_lesson_index(course_details.membership.current_lesson)
+		# "Continue Learning" must not point at a locked lesson. get_lesson_gate keeps
+		# the enrollment pointer when it is unlocked and substitutes the lesson the
+		# student may actually open otherwise; it returns None when no gate applies.
+		from lms.lms.permissions import get_lesson_gate
+
+		_locked, resume = get_lesson_gate(course)
+		course_details.current_lesson = get_lesson_index(resume or course_details.membership.current_lesson)
 
 	return course_details
 
@@ -1381,6 +1377,7 @@ def build_outline(
 
 	outline = []
 	for c in chapters:
+		lessons = lessons_by_chapter.get(c.name, [])
 		chapter = frappe._dict(
 			name=c.name,
 			title=c.title,
@@ -1388,9 +1385,15 @@ def build_outline(
 			launch_file=c.launch_file,
 			scorm_package=c.scorm_package,
 			idx=c.idx,
-			lessons=lessons_by_chapter.get(c.name, []),
+			lessons=lessons,
 		)
-		if c.is_scorm_package and c.scorm_package and c.scorm_package in files_by_name:
+		# launch_file is the SCORM entry URL and scorm_package resolves to the package
+		# file. Handing either out for a chapter the student cannot open yet would let
+		# the outline itself route around the gate, so withhold both.
+		if lessons and all(lesson.get("locked") for lesson in lessons):
+			chapter.launch_file = None
+			chapter.scorm_package = None
+		elif c.is_scorm_package and c.scorm_package and c.scorm_package in files_by_name:
 			chapter.scorm_package = files_by_name[c.scorm_package]
 		outline.append(chapter)
 	return outline
@@ -1451,14 +1454,15 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 
 	# Local import: permissions imports from utils at module load, so importing it
 	# at the top of utils would create a cycle.
-	from lms.lms.permissions import get_locked_lessons
+	from lms.lms.permissions import get_lesson_gate
 
-	if lesson_name in get_locked_lessons(course):
+	locked, resume = get_lesson_gate(course)
+	if lesson_name in locked:
 		return {
 			"locked": 1,
 			"title": lesson_details.title,
 			"course_title": frappe.db.get_value("LMS Course", course, "title"),
-			"redirect_to": get_current_lesson_number(course),
+			"redirect_to": get_lesson_index(resume) if resume else "1-1",
 		}
 
 	if lesson_details.is_scorm_package:

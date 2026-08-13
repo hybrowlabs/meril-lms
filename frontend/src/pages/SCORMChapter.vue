@@ -1,8 +1,29 @@
 <template>
 	<PageHeader :breadcrumbs="breadcrumbs" />
+	<div v-if="isLocked" class="sm:border-e">
+		<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
+			<div class="flex items-center justify-center mt-4 gap-x-2">
+				<span class="lucide-lock-keyhole size-4 text-ink-gray-5" />
+				<div class="text-lg-semibold text-ink-gray-7">
+					{{ __('This lesson is locked') }}
+				</div>
+			</div>
+			<div class="mt-1 mb-4 text-ink-gray-7">
+				{{ __('Complete the previous lesson to unlock this one.') }}
+			</div>
+			<Button
+				v-if="currentLessonNumber"
+				variant="solid"
+				@click="goToCurrentLesson()"
+			>
+				{{ __('Go to my current lesson') }}
+			</Button>
+		</div>
+	</div>
 	<div
-		v-if="
+		v-else-if="
 			readyToRender &&
+			outlineSettled &&
 			(enrollment.data?.length ||
 				user.data?.is_moderator ||
 				user.data?.is_instructor)
@@ -41,11 +62,13 @@ import {
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, onBeforeMount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/Layouts/PageHeader.vue'
 import { useSidebar } from '@/stores/sidebar'
 import { sessionStore } from '../stores/session'
 import { safeUrl } from '@/utils/safeUrl'
 
+const router = useRouter()
 const { brand } = sessionStore()
 const sidebarStore = useSidebar()
 const user = inject('$user')
@@ -82,6 +105,64 @@ const chapter = createDocumentResource({
 		progress.submit()
 	},
 })
+
+// This page reads the Course Chapter doc straight from the DB and iframes its
+// launch file; it never calls get_lesson, so without the outline it is a route
+// around the sequential-completion gate. The server refuses the SCORM bytes
+// either way (SCORMRenderer._check_permission), this turns that refusal into the
+// same locked treatment the lesson page shows.
+const outline = createResource({
+	url: 'lms.lms.utils.get_course_outline',
+	cache: ['course_outline_student', props.courseName, 'progress'],
+	makeParams() {
+		return {
+			course: props.courseName,
+			progress: true,
+		}
+	},
+	auto: true,
+})
+
+const outlineLessons = computed(() =>
+	(outline.data ?? []).flatMap((chapter) => chapter.lessons ?? [])
+)
+
+// The chapter doc and its progress resolve on a chain of their own, so without
+// this the iframe can mount before the outline has said whether the chapter is
+// locked — and the student reads the server's 403 page for the package before the
+// locked notice replaces it. An outline that errors still settles: the bytes are
+// refused server side either way, and waiting forever would leave a blank page.
+const outlineSettled = computed(
+	() => Array.isArray(outline.data) || !!outline.error
+)
+
+const isLocked = computed(() => {
+	const chapter = (outline.data ?? []).find(
+		(item) => item.name === props.chapterName
+	)
+	const lessons = chapter?.lessons ?? []
+	return lessons.length > 0 && lessons.every((lesson) => lesson.locked)
+})
+
+// The rule leaves exactly one incomplete lesson open: the one to resume at.
+const currentLessonNumber = computed(
+	() =>
+		outlineLessons.value.find((lesson) => !lesson.locked && !lesson.is_complete)
+			?.number
+)
+
+const goToCurrentLesson = () => {
+	if (!currentLessonNumber.value) return
+	const [chapterNumber, lessonNumber] = currentLessonNumber.value.split('-')
+	router.replace({
+		name: 'Lesson',
+		params: {
+			courseName: props.courseName,
+			chapterNumber,
+			lessonNumber,
+		},
+	})
+}
 
 const enrollment = createListResource({
 	doctype: 'LMS Enrollment',
