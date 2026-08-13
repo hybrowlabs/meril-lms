@@ -329,3 +329,20 @@ describe('Lesson.vue locked lesson payload', () => {
 		)
 	})
 })
+
+describe('Lesson.vue unlocks the next lesson without a reload', () => {
+	it('reloads the outline when progress lands for this course, and ignores other courses', async () => {
+		wrapper = await mountLesson()
+		const outline = findResource('lms.lms.utils.get_course_outline')
+		const handlerCall = socketOnMock.mock.calls.find(
+			(call: unknown[]) => call[0] === 'update_lesson_progress'
+		)
+		expect(handlerCall).toBeDefined()
+		const handler = handlerCall![1] as (data: { course: string }) => void
+
+		handler({ course: 'COURSE-1' })
+		handler({ course: 'OTHER-COURSE' })
+
+		expect(outline.reload).toHaveBeenCalledTimes(1)
+	})
+})

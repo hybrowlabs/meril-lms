@@ -499,6 +499,7 @@ onMounted(() => {
 	socket.on('update_lesson_progress', (data) => {
 		if (data.course === props.courseName) {
 			lessonProgress.value = data.progress
+			outline.reload()
 		}
 	})
 })
