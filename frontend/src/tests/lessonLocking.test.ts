@@ -278,6 +278,45 @@ describe('Lesson.vue Next affordance follows canGoNext', () => {
 		)
 		expect(replaceMock).not.toHaveBeenCalled()
 	})
+
+	it('falls back to Back to Course when a next lesson exists but is locked', async () => {
+		// A lesson can be uncompletable for good (quiz attempts exhausted, SCORM that
+		// never reports completion), and hiding the fallback along with Next left the
+		// footer with no forward affordance at all and no way out of the page.
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_course_outline').data = [
+			{
+				name: 'CH-1',
+				lessons: [
+					{ name: 'L1', number: '1-1', locked: 0 },
+					{ name: 'L2', number: '1-2', locked: 1 },
+				],
+			},
+		]
+		findResource('lms.lms.utils.get_lesson').data = { ...baseLesson }
+		await flushPromises()
+
+		expect(wrapper.text()).not.toContain('Next')
+		expect(wrapper.text()).toContain('Back to Course')
+	})
+
+	it('falls back to Back to Course only when there truly is no next lesson', async () => {
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_course_outline').data = [
+			{
+				name: 'CH-1',
+				lessons: [{ name: 'L1', number: '1-1', locked: 0 }],
+			},
+		]
+		findResource('lms.lms.utils.get_lesson').data = {
+			...baseLesson,
+			next: null,
+		}
+		await flushPromises()
+
+		expect(wrapper.text()).not.toContain('Next')
+		expect(wrapper.text()).toContain('Back to Course')
+	})
 })
 
 describe('Lesson.vue locked lesson payload', () => {
