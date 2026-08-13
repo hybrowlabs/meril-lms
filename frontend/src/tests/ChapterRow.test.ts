@@ -68,6 +68,9 @@ const mountRow = (chapterOverride: OutlineChapter = chapter) =>
 		global: {
 			mocks: { __: (s: string) => s },
 			provide: { $user: { data: { name: 'admin@example.com' } } },
+			stubs: {
+				'router-link': { template: '<a><slot /></a>' },
+			},
 		},
 	})
 
@@ -105,6 +108,56 @@ describe('ChapterRow locked lesson', () => {
 
 		expect(wrapper.find('.lucide-lock-keyhole').exists()).toBe(true)
 		expect(wrapper.find('a').exists()).toBe(false)
+	})
+
+	it('still links an unlocked lesson', () => {
+		const wrapper = mountRow({
+			...chapter,
+			idx: 1,
+			lessons: [
+				{ name: 'LESSON-1', title: 'Lesson 1', number: '2-1', locked: 0 },
+			],
+		})
+
+		expect(wrapper.find('a').exists()).toBe(true)
+		expect(wrapper.find('.lucide-lock-keyhole').exists()).toBe(false)
+	})
+
+	// A SCORM chapter renders no DisclosurePanel, so it never reaches the per-lesson
+	// lock affordance above: it used to look identical to an open chapter, and the
+	// student learned it was locked only after SCORMChapter.vue bounced them back.
+	const scormChapter = (locked: 0 | 1): OutlineChapter => ({
+		...chapter,
+		idx: 1,
+		is_scorm_package: 1 as const,
+		lessons: [
+			{ name: 'LESSON-1', title: 'SCORM Lesson', number: '1-1', locked },
+		],
+	})
+
+	it('marks a locked SCORM chapter and refuses to open it', async () => {
+		const wrapper = mountRow(scormChapter(1))
+
+		const lock = wrapper.get('.lucide-lock-keyhole')
+		expect(lock.attributes('aria-hidden')).toBe('true')
+		expect(wrapper.get('.sr-only').text()).toBe('Locked')
+
+		await wrapper.get('[title="Old Chapter"]').trigger('click')
+		expect(pushMock).not.toHaveBeenCalled()
+	})
+
+	it('still opens an unlocked SCORM chapter', async () => {
+		const wrapper = mountRow(scormChapter(0))
+
+		expect(wrapper.find('.lucide-lock-keyhole').exists()).toBe(false)
+
+		await wrapper.get('[title="Old Chapter"]').trigger('click')
+		expect(pushMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: 'SCORMChapter',
+				params: { courseName: 'course-1', chapterName: 'CH-2' },
+			})
+		)
 	})
 
 	it('does not emit select-lesson when a locked inline row is clicked', async () => {

@@ -13,7 +13,10 @@
 			/>
 			<div
 				class="ms-2 min-w-0 flex-1 text-start"
-				:class="inlineSelect ? '' : 'flex items-baseline justify-between gap-3'"
+				:class="[
+					inlineSelect ? '' : 'flex items-baseline justify-between gap-3',
+					isScormChapterLocked ? 'cursor-not-allowed opacity-60' : '',
+				]"
 				@click="redirectToChapter"
 			>
 				<TextInput
@@ -60,8 +63,16 @@
 					/>
 				</Tooltip>
 			</div>
+			<template v-if="isScormChapterLocked">
+				<span
+					class="lucide-lock-keyhole size-4 text-ink-gray-4"
+					:title="__('Complete the previous lessons to unlock this one')"
+					aria-hidden="true"
+				/>
+				<span class="sr-only">{{ __('Locked') }}</span>
+			</template>
 			<span
-				v-if="chapter.is_scorm_package && isScormChapterComplete"
+				v-else-if="chapter.is_scorm_package && isScormChapterComplete"
 				class="lucide-check size-4 text-green-700"
 			/>
 		</DisclosureButton>
@@ -96,6 +107,9 @@
 									: ''
 							"
 							:aria-disabled="lesson.locked ? 'true' : undefined"
+							:aria-label="
+								lesson.locked ? lesson.title + ' — ' + __('locked') : undefined
+							"
 							@click="onLessonClick(lesson)"
 						>
 							<div class="flex items-center text-sm leading-5 group">
@@ -261,6 +275,18 @@ const isScormChapterComplete = computed<boolean>(() =>
 	)
 )
 
+// A SCORM chapter has no DisclosurePanel, so it never reaches the per-lesson lock
+// affordance below: without this it looks identical to an open one and the student
+// only learns it is locked after SCORMChapter.vue bounces them back. Same rule as
+// that page's own isLocked.
+const isScormChapterLocked = computed<boolean>(() =>
+	Boolean(
+		props.chapter.is_scorm_package &&
+			props.chapter.lessons?.length &&
+			props.chapter.lessons.every((l) => l.locked)
+	)
+)
+
 function isActiveLesson(lessonNumber: string): boolean {
 	if (props.inlineSelect) return props.selectedLessonNumber === lessonNumber
 	return (
@@ -306,6 +332,7 @@ function addLesson() {
 function redirectToChapter() {
 	if (!props.chapter.is_scorm_package) return
 	;(event as Event | undefined)?.preventDefault()
+	if (isScormChapterLocked.value) return
 	if (!user.data) {
 		toast.success(__('Please enroll for this course to view this lesson'))
 		return
