@@ -458,6 +458,40 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		self.assertIsNone(published[0].kwargs.get("room"))
 		self.assertEqual(published[0].kwargs["message"]["lesson"], self.lessons[0].name)
 
+	def test_a_quiz_on_a_locked_lesson_keeps_its_submission(self):
+		# can_access_quiz grants through an LMS Assessment on a batch, so a quiz can be
+		# submitted while its lesson is locked. save_progress refuses a locked lesson by
+		# raising, which would roll back the submission already written in the same
+		# request.
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+
+		frappe.set_user("Administrator")
+		# submit_quiz reads the row, not the doc. A questionless quiz has its passing
+		# percentage forced to 100 by calculate_total_marks; drop it to 0 so the
+		# submission counts as a pass and the flow actually reaches the progress
+		# write, which is where the rollback happened.
+		frappe.db.set_value("LMS Quiz", quiz.name, "passing_percentage", 0)
+		batch = self._create_batch(self.course.name, instructor=self.author.email, title="Locking Batch")
+		batch_doc = frappe.get_doc("LMS Batch", batch.name)
+		batch_doc.append("assessment", {"assessment_type": "LMS Quiz", "assessment_name": quiz.name})
+		batch_doc.save()
+		self._create_batch_enrollment(self.student.email, batch.name)
+		frappe.set_user(self.student.email)
+
+		from lms.lms.doctype.lms_quiz.lms_quiz import submit_quiz
+
+		self.assertIn(self.lessons[2].name, get_locked_lessons(self.course.name))
+		result = submit_quiz(quiz.name, [])
+
+		self.assertTrue(frappe.db.exists("LMS Quiz Submission", result["submission"]))
+		# The lesson stays locked: skipping the write must not become a way past the gate.
+		self.assertIn(self.lessons[2].name, get_locked_lessons(self.course.name))
+		self.assertFalse(
+			frappe.db.exists(
+				"LMS Course Progress", {"lesson": self.lessons[2].name, "member": self.student.email}
+			)
+		)
 
 
 
