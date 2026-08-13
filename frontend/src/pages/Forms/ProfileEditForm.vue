@@ -21,7 +21,6 @@
 					<Uploader
 						v-model="profile.image"
 						:label="__('Profile Image')"
-						:required="true"
 						shape="circle"
 					/>
 					<FormControl
@@ -29,11 +28,7 @@
 						:label="__('First Name')"
 						:required="true"
 					/>
-					<FormControl
-						v-model="profile.last_name"
-						:label="__('Last Name')"
-						:required="true"
-					/>
+					<FormControl v-model="profile.last_name" :label="__('Last Name')" />
 					<FormControl v-model="profile.headline" :label="__('Headline')" />
 					<FormControl v-model="profile.linkedin" :label="__('LinkedIn ID')" />
 					<FormControl v-model="profile.github" :label="__('GitHub ID')" />
@@ -162,8 +157,6 @@ const updateProfile = createResource({
 const validateMandatoryFields = () => {
 	const missingFields = []
 	if (!profile.first_name) missingFields.push(__('First Name'))
-	if (!profile.last_name) missingFields.push(__('Last Name'))
-	if (!profile.image) missingFields.push(__('Profile Image'))
 	if (missingFields.length) {
 		toast.error(
 			__('Please fill the mandatory fields: {0}').format(
