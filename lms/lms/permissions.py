@@ -135,6 +135,37 @@ def can_access_quiz(quiz: str, *, user: str | None = None) -> bool:
 		frappe.session.user = original_user
 
 
+def enforces_lesson_completion(course: str) -> bool:
+	"""Whether the sequential lesson gate applies to the current user on this course.
+
+	Course authors and moderators are exempt (they have no enrollment, so gating would
+	park them on the first lesson), and so is anyone who is not enrolled — sequencing
+	is meaningless without progress, and their access is already decided by
+	include_in_preview.
+	"""
+	if not isinstance(course, str) or not course:
+		return False
+	if not frappe.db.get_value("LMS Course", course, "enforce_lesson_completion"):
+		return False
+	if can_modify_course(course):
+		return False
+	return bool(get_membership(course))
+
+
+def get_locked_lessons(course: str) -> set:
+	"""Lesson names the current user may not open yet. Empty when the gate does not apply."""
+	if not enforces_lesson_completion(course):
+		return set()
+
+	# Local import: utils imports from permissions at call time, so importing utils at
+	# module load would create a cycle (same reason get_lesson imports this lazily).
+	from lms.lms.utils import compute_locked_lessons, get_completed_lessons, get_ordered_lesson_rows
+
+	rows = get_ordered_lesson_rows(course)
+	completed = get_completed_lessons(course, rows)
+	return compute_locked_lessons([row.name for row in rows], completed)
+
+
 def file_has_permission(doc, ptype="read", user=None):
 	"""File has_permission hook: deny-only tightening for instructor-only lesson files.
 
