@@ -4,16 +4,16 @@
 		<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
 			<div class="flex items-center justify-center mt-4 gap-x-2">
 				<span class="lucide-lock-keyhole size-4 text-ink-gray-5" />
-				<div class="text-lg-semibold text-ink-gray-7">
+				<div class="text-p-lg-semibold text-ink-gray-7">
 					{{ __('This lesson is locked') }}
 				</div>
 			</div>
-			<div class="mt-1 text-ink-gray-7">
+			<div class="mt-1 text-p-base text-ink-gray-7">
 				{{ __('This lesson is locked until the previous lessons are done.') }}
 			</div>
 			<div
 				v-if="currentLessonNumber"
-				class="mt-2 mb-4 text-ink-gray-5 tabular-nums"
+				class="mt-2 mb-4 text-p-sm text-ink-gray-5 tabular-nums"
 				role="status"
 				aria-live="polite"
 			>
