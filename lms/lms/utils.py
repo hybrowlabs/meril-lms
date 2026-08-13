@@ -1216,7 +1216,11 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 	files_by_name = get_scorm_files(chapters)
 	completed = get_completed_lessons(course, lesson_rows) if progress else set()
 
-	return build_outline(chapters, lesson_rows, files_by_name, completed, progress)
+	from lms.lms.permissions import enforces_lesson_completion
+
+	enforce = enforces_lesson_completion(course) if progress else False
+
+	return build_outline(chapters, lesson_rows, files_by_name, completed, progress, enforce)
 
 
 def get_outline_chapter(course: str) -> list:
@@ -1331,7 +1335,12 @@ def get_ordered_lesson_rows(course: str) -> list:
 
 
 def build_outline(
-	chapters: list, lesson_rows: list, files_by_name: dict, completed: set, progress: bool
+	chapters: list,
+	lesson_rows: list,
+	files_by_name: dict,
+	completed: set,
+	progress: bool,
+	enforce_completion: bool = False,
 ) -> list:
 	chapter_idx_by_name = {c.name: c.idx for c in chapters}
 	lessons_by_chapter = {}
@@ -1352,6 +1361,13 @@ def build_outline(
 		if progress:
 			lesson.is_complete = lr.name in completed
 		lessons_by_chapter.setdefault(lr.chapter_name, []).append(lesson)
+
+	if progress and enforce_completion:
+		ordered_names = [lesson.name for c in chapters for lesson in lessons_by_chapter.get(c.name, [])]
+		locked = compute_locked_lessons(ordered_names, completed)
+		for lessons in lessons_by_chapter.values():
+			for lesson in lessons:
+				lesson.locked = 1 if lesson.name in locked else 0
 
 	outline = []
 	for c in chapters:

@@ -114,3 +114,19 @@ class TestLessonLockingIntegration(BaseTestUtils):
 	def test_malformed_course_argument_locks_nothing(self):
 		self.assertEqual(get_locked_lessons(None), set())
 		self.assertEqual(get_locked_lessons(["!=", ""]), set())
+
+	def test_outline_stamps_locked_when_the_gate_applies(self):
+		self._enable()
+		from lms.lms.utils import get_course_outline
+
+		outline = get_course_outline(self.course.name, progress=True)
+		lessons = [lesson for chapter in outline for lesson in chapter.lessons]
+		self.assertEqual([lesson.locked for lesson in lessons], [0, 1, 1])
+
+	def test_outline_without_progress_does_not_stamp_locked(self):
+		self._enable()
+		from lms.lms.utils import get_course_outline
+
+		outline = get_course_outline(self.course.name, progress=False)
+		lessons = [lesson for chapter in outline for lesson in chapter.lessons]
+		self.assertFalse(any("locked" in lesson for lesson in lessons))
