@@ -8,16 +8,21 @@
 					{{ __('This lesson is locked') }}
 				</div>
 			</div>
-			<div class="mt-1 mb-4 text-ink-gray-7">
-				{{ __('Complete the previous lesson to unlock this one.') }}
+			<div class="mt-1 text-ink-gray-7">
+				{{ __('This lesson is locked until the previous lessons are done.') }}
 			</div>
-			<Button
+			<div
 				v-if="currentLessonNumber"
-				variant="solid"
-				@click="goToCurrentLesson()"
+				class="mt-2 mb-4 text-ink-gray-5 tabular-nums"
+				role="status"
+				aria-live="polite"
 			>
-				{{ __('Go to my current lesson') }}
-			</Button>
+				{{
+					__('Taking you to your current lesson in {0}...').format(
+						redirectCountdown
+					)
+				}}
+			</div>
 		</div>
 	</div>
 	<div
@@ -61,7 +66,14 @@ import {
 	createResource,
 	usePageMeta,
 } from 'frappe-ui'
-import { computed, inject, onBeforeMount, ref } from 'vue'
+import {
+	computed,
+	inject,
+	onBeforeMount,
+	onBeforeUnmount,
+	ref,
+	watch,
+} from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/Layouts/PageHeader.vue'
 import { useSidebar } from '@/stores/sidebar'
@@ -104,7 +116,20 @@ const chapter = createDocumentResource({
 	onSuccess(data) {
 		progress.submit()
 	},
+	// `/learn/:chapterName` also matches a lesson URL with no lesson number, so a
+	// mistyped or tampered address resolves to a chapter that does not exist. Without
+	// this the page renders nothing at all.
+	onError() {
+		leaveForCourse()
+	},
 })
+
+const leaveForCourse = () => {
+	router.replace({
+		name: 'CourseDetail',
+		params: { courseName: props.courseName },
+	})
+}
 
 // This page reads the Course Chapter doc straight from the DB and iframes its
 // launch file; it never calls get_lesson, so without the outline it is a route
@@ -151,6 +176,10 @@ const currentLessonNumber = computed(
 			?.number
 )
 
+const REDIRECT_SECONDS = 3
+const redirectCountdown = ref(REDIRECT_SECONDS)
+let redirectTimer = null
+
 const goToCurrentLesson = () => {
 	if (!currentLessonNumber.value) return
 	const [chapterNumber, lessonNumber] = currentLessonNumber.value.split('-')
@@ -163,6 +192,28 @@ const goToCurrentLesson = () => {
 		},
 	})
 }
+
+// Counts down rather than redirecting on arrival, so the student reads why they were
+// moved instead of landing on an unexplained lesson.
+watch(
+	[isLocked, currentLessonNumber],
+	([locked, target]) => {
+		if (redirectTimer || !locked || !target) return
+		redirectCountdown.value = REDIRECT_SECONDS
+		redirectTimer = setInterval(() => {
+			redirectCountdown.value -= 1
+			if (redirectCountdown.value > 0) return
+			clearInterval(redirectTimer)
+			redirectTimer = null
+			goToCurrentLesson()
+		}, 1000)
+	},
+	{ immediate: true }
+)
+
+onBeforeUnmount(() => {
+	if (redirectTimer) clearInterval(redirectTimer)
+})
 
 const enrollment = createListResource({
 	doctype: 'LMS Enrollment',

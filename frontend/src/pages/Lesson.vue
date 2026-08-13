@@ -97,16 +97,22 @@
 							{{ __('This lesson is locked') }}
 						</div>
 					</div>
-					<div class="mt-1 mb-4 text-ink-gray-7">
+					<div class="mt-1 text-ink-gray-7">
 						{{
-							__(
-								'Complete the previous lesson to unlock this one. Taking you back to where you left off.'
+							__('This lesson is locked until the previous lessons are done.')
+						}}
+					</div>
+					<div
+						class="mt-2 mb-4 text-ink-gray-5 tabular-nums"
+						role="status"
+						aria-live="polite"
+					>
+						{{
+							__('Taking you to your current lesson in {0}...').format(
+								redirectCountdown
 							)
 						}}
 					</div>
-					<Button variant="solid" @click="goToCurrentLesson()">
-						{{ __('Go to my current lesson') }}
-					</Button>
 				</div>
 			</div>
 			<div
@@ -552,7 +558,7 @@ const setupLesson = (data) => {
 		return
 	}
 	if (data.locked) {
-		goToLessonNumber(data.redirect_to, { replace: true })
+		startLockedRedirect(data.redirect_to)
 		return
 	}
 	if (data.is_scorm_package) {
@@ -766,10 +772,34 @@ const goToLessonNumber = (number, { replace = false } = {}) => {
 	else router.push(target)
 }
 
-const goToCurrentLesson = () => {
-	if (lesson.data?.redirect_to)
-		goToLessonNumber(lesson.data.redirect_to, { replace: true })
+const REDIRECT_SECONDS = 3
+const redirectCountdown = ref(REDIRECT_SECONDS)
+let redirectTimer = null
+
+const clearLockedRedirect = () => {
+	if (redirectTimer) {
+		clearInterval(redirectTimer)
+		redirectTimer = null
+	}
 }
+
+// The panel counts down rather than redirecting on arrival, so the student reads why
+// they were moved instead of landing on an unexplained lesson.
+const startLockedRedirect = (target) => {
+	clearLockedRedirect()
+	if (!target) return
+	redirectCountdown.value = REDIRECT_SECONDS
+	redirectTimer = setInterval(() => {
+		redirectCountdown.value -= 1
+		if (redirectCountdown.value > 0) return
+		clearLockedRedirect()
+		goToLessonNumber(target, { replace: true })
+	}, 1000)
+}
+
+onBeforeUnmount(() => {
+	clearLockedRedirect()
+})
 
 const goPrev = () => {
 	if (hasPrev.value)

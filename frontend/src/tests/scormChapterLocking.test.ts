@@ -78,7 +78,22 @@ vi.mock('@/components/Layouts/PageHeader.vue', () => ({
 	default: { name: 'PageHeader', template: '<div><slot /></div>' },
 }))
 
-vi.stubGlobal('__', (s: string) => s)
+// Mirrors src/translation.js: a message with {0}-style placeholders returns a
+// formatter object, not a string. A stub that always returns the string hides a
+// real "__(...).format is not a function" crash.
+const translateStub = (s: string) =>
+	/{\d+}/.test(s)
+		? {
+				format: (...args: unknown[]) =>
+					s.replace(/{(\d+)}/g, (match, index) =>
+						args[Number(index)] === undefined
+							? match
+							: String(args[Number(index)])
+					),
+		  }
+		: s
+
+vi.stubGlobal('__', translateStub)
 
 import SCORMChapter from '@/pages/SCORMChapter.vue'
 
@@ -89,7 +104,7 @@ async function mountChapter() {
 	const wrapper = mount(SCORMChapter, {
 		props: { courseName: 'COURSE-1', chapterName: 'CH-SCORM' },
 		global: {
-			mocks: { __: (s: string) => s },
+			mocks: { __: translateStub },
 			provide: { $user: { data: { name: 'student@example.com' } } },
 		},
 	})
@@ -155,24 +170,34 @@ describe('SCORMChapter.vue refuses a gated chapter', () => {
 		expect(wrapper.find('iframe').exists()).toBe(false)
 	})
 
-	it('offers the way back to the lesson the student may actually open', async () => {
-		wrapper = await mountChapter()
-		findResource('lms.lms.utils.get_course_outline').data = gatedOutline
-		await resolveChapter()
+	it('counts down and then sends the student to the lesson they may open', async () => {
+		vi.useFakeTimers()
+		try {
+			wrapper = await mountChapter()
+			findResource('lms.lms.utils.get_course_outline').data = gatedOutline
+			await resolveChapter()
 
-		expect(wrapper.text()).toContain('Go to my current lesson')
-		await wrapper.find('button').trigger('click')
+			expect(wrapper.text()).toContain(
+				'Taking you to your current lesson in 3...'
+			)
+			expect(replaceMock).not.toHaveBeenCalled()
 
-		expect(replaceMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				name: 'Lesson',
-				params: {
-					courseName: 'COURSE-1',
-					chapterNumber: '1',
-					lessonNumber: '1',
-				},
-			})
-		)
+			vi.advanceTimersByTime(3000)
+			await flushPromises()
+
+			expect(replaceMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					name: 'Lesson',
+					params: {
+						courseName: 'COURSE-1',
+						chapterNumber: '1',
+						lessonNumber: '1',
+					},
+				})
+			)
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
 	it('renders the package once the chapter is unlocked', async () => {

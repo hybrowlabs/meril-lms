@@ -138,7 +138,22 @@ vi.mock('@/components/Notes/InlineLessonMenu.vue', () => ({
 	default: stub('InlineLessonMenu'),
 }))
 
-vi.stubGlobal('__', (s: string) => s)
+// Mirrors src/translation.js: a message with {0}-style placeholders returns a
+// formatter object, not a string. A stub that always returns the string hides a
+// real "__(...).format is not a function" crash.
+const translateStub = (s: string) =>
+	/{\d+}/.test(s)
+		? {
+				format: (...args: unknown[]) =>
+					s.replace(/{(\d+)}/g, (match, index) =>
+						args[Number(index)] === undefined
+							? match
+							: String(args[Number(index)])
+					),
+		  }
+		: s
+
+vi.stubGlobal('__', translateStub)
 
 import Lesson from '@/pages/Lesson.vue'
 
@@ -154,7 +169,7 @@ async function mountLesson(
 	const wrapper = mount(Lesson, {
 		props: { courseName: 'COURSE-1', ...props },
 		global: {
-			mocks: { __: (s: string) => s },
+			mocks: { __: translateStub },
 			provide: {
 				$user: { data: { name: 'student@example.com' } },
 				$socket: { on: socketOnMock, off: socketOffMock },
@@ -323,52 +338,70 @@ describe('Lesson.vue Next affordance follows canGoNext', () => {
 })
 
 describe('Lesson.vue locked lesson payload', () => {
-	it('replaces (not pushes) to redirect_to and renders the locked panel', async () => {
-		wrapper = await mountLesson()
-		findResource('lms.lms.utils.get_lesson').data = {
-			locked: 1,
-			title: 'Lesson 3',
-			course_title: 'Course 1',
-			redirect_to: '2-3',
-		}
-		await flushPromises()
+	it('shows the locked panel and counts down before navigating', async () => {
+		vi.useFakeTimers()
+		try {
+			wrapper = await mountLesson()
+			findResource('lms.lms.utils.get_lesson').data = {
+				locked: 1,
+				title: 'Lesson 3',
+				course_title: 'Course 1',
+				redirect_to: '2-3',
+			}
+			await flushPromises()
 
-		expect(replaceMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				name: 'Lesson',
-				params: {
-					courseName: 'COURSE-1',
-					chapterNumber: '2',
-					lessonNumber: '3',
-				},
-			})
-		)
-		expect(pushMock).not.toHaveBeenCalled()
-		expect(wrapper.text()).toContain('This lesson is locked')
-		expect(wrapper.text()).toContain('Go to my current lesson')
+			expect(wrapper.text()).toContain('This lesson is locked')
+			expect(wrapper.text()).toContain(
+				'Taking you to your current lesson in 3...'
+			)
+			expect(replaceMock).not.toHaveBeenCalled()
+
+			vi.advanceTimersByTime(1000)
+			await flushPromises()
+			expect(wrapper.text()).toContain(
+				'Taking you to your current lesson in 2...'
+			)
+			expect(replaceMock).not.toHaveBeenCalled()
+
+			vi.advanceTimersByTime(2000)
+			await flushPromises()
+			expect(replaceMock).toHaveBeenCalledWith(
+				expect.objectContaining({
+					name: 'Lesson',
+					params: {
+						courseName: 'COURSE-1',
+						chapterNumber: '2',
+						lessonNumber: '3',
+					},
+				})
+			)
+			expect(pushMock).not.toHaveBeenCalled()
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
-	it('goToCurrentLesson also replaces using the payload redirect_to', async () => {
-		wrapper = await mountLesson()
-		findResource('lms.lms.utils.get_lesson').data = {
-			locked: 1,
-			title: 'Lesson 3',
-			course_title: 'Course 1',
-			redirect_to: '2-3',
-		}
-		await flushPromises()
-		replaceMock.mockReset()
-		;(wrapper.vm as any).goToCurrentLesson()
+	it('stops the countdown when the page is left before it finishes', async () => {
+		vi.useFakeTimers()
+		try {
+			wrapper = await mountLesson()
+			findResource('lms.lms.utils.get_lesson').data = {
+				locked: 1,
+				title: 'Lesson 3',
+				course_title: 'Course 1',
+				redirect_to: '2-3',
+			}
+			await flushPromises()
 
-		expect(replaceMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				params: {
-					courseName: 'COURSE-1',
-					chapterNumber: '2',
-					lessonNumber: '3',
-				},
-			})
-		)
+			wrapper.unmount()
+			wrapper = null
+			vi.advanceTimersByTime(5000)
+			await flushPromises()
+
+			expect(replaceMock).not.toHaveBeenCalled()
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 })
 
