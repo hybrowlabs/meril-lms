@@ -340,6 +340,16 @@ def get_lesson_index(lesson_name: str) -> str:
 	return f"{chapter.idx}-{lesson.idx}"
 
 
+def get_current_lesson_number(course: str) -> str:
+	"""The {chapter}-{lesson} number of the lesson this user is currently on."""
+	current_lesson = frappe.db.get_value(
+		"LMS Enrollment", {"course": course, "member": frappe.session.user}, "current_lesson"
+	)
+	if not current_lesson:
+		return "1-1"
+	return get_lesson_index(current_lesson)
+
+
 def get_lesson_url(course: str, lesson_number: str):
 	if not lesson_number:
 		return
@@ -1438,6 +1448,18 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 
 	if not lesson_details:
 		return {}
+
+	# Local import: permissions imports from utils at module load, so importing it
+	# at the top of utils would create a cycle.
+	from lms.lms.permissions import get_locked_lessons
+
+	if lesson_name in get_locked_lessons(course):
+		return {
+			"locked": 1,
+			"title": lesson_details.title,
+			"course_title": frappe.db.get_value("LMS Course", course, "title"),
+			"redirect_to": get_current_lesson_number(course),
+		}
 
 	if lesson_details.is_scorm_package:
 		return {

@@ -130,3 +130,65 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		outline = get_course_outline(self.course.name, progress=False)
 		lessons = [lesson for chapter in outline for lesson in chapter.lessons]
 		self.assertFalse(any("locked" in lesson for lesson in lessons))
+
+	def test_get_lesson_refuses_a_locked_lesson(self):
+		self._enable()
+		from lms.lms.utils import get_lesson
+
+		payload = get_lesson(self.course.name, 1, 2)
+		self.assertEqual(payload.get("locked"), 1)
+		self.assertEqual(payload.get("redirect_to"), "1-1")
+		self.assertNotIn("content", payload)
+		self.assertNotIn("body", payload)
+
+	def test_get_lesson_serves_the_current_lesson(self):
+		self._enable()
+		from lms.lms.utils import get_lesson
+
+		payload = get_lesson(self.course.name, 1, 1)
+		self.assertFalse(payload.get("locked"))
+		self.assertEqual(payload.get("title"), "Locking Lesson 1")
+
+	def test_redirect_target_follows_the_enrollment_pointer(self):
+		self._enable()
+		frappe.set_user("Administrator")
+		progress = self._create_progress(self.student.email, self.course.name, self.lessons[0].name)
+		frappe.db.set_value("LMS Course Progress", progress.name, "status", "Complete")
+		enrollment = frappe.db.get_value(
+			"LMS Enrollment", {"course": self.course.name, "member": self.student.email}
+		)
+		frappe.db.set_value("LMS Enrollment", enrollment, "current_lesson", self.lessons[1].name)
+		frappe.set_user(self.student.email)
+
+		from lms.lms.utils import get_lesson
+
+		payload = get_lesson(self.course.name, 1, 3)
+		self.assertEqual(payload.get("locked"), 1)
+		self.assertEqual(payload.get("redirect_to"), "1-2")
+
+	def test_get_lesson_refuses_a_locked_scorm_lesson(self):
+		self._enable()
+		frappe.set_user("Administrator")
+		scorm_chapter = self._create_chapter("Locking SCORM Chapter", self.course.name)
+		self._create_chapter_reference(self.course.name, scorm_chapter.name, idx=2)
+		frappe.db.set_value(
+			"Course Chapter", scorm_chapter.name, {"is_scorm_package": 1, "launch_file": "index.html"}
+		)
+		scorm_lesson = self._create_lesson("SCORM Lesson", scorm_chapter.name, self.course.name)
+		self._create_lesson_reference(scorm_chapter.name, scorm_lesson.name)
+		frappe.set_user(self.student.email)
+
+		from lms.lms.utils import get_lesson
+
+		payload = get_lesson(self.course.name, 2, 1)
+		self.assertEqual(payload.get("locked"), 1)
+		self.assertNotIn("is_scorm_package", payload)
+
+	def test_course_author_still_gets_a_locked_lesson(self):
+		self._enable()
+		frappe.set_user(self.author.email)
+		from lms.lms.utils import get_lesson
+
+		payload = get_lesson(self.course.name, 1, 3)
+		self.assertFalse(payload.get("locked"))
+		self.assertEqual(payload.get("title"), "Locking Lesson 3")
