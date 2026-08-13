@@ -84,9 +84,18 @@
 						"
 					>
 						<component
-							:is="inlineSelect ? 'div' : 'router-link'"
-							:to="inlineSelect ? undefined : lessonRoute(lesson)"
-							:class="inlineSelect ? 'cursor-pointer' : ''"
+							:is="inlineSelect || lesson.locked ? 'div' : 'router-link'"
+							:to="
+								inlineSelect || lesson.locked ? undefined : lessonRoute(lesson)
+							"
+							:class="
+								lesson.locked
+									? 'cursor-not-allowed opacity-60'
+									: inlineSelect
+									? 'cursor-pointer'
+									: ''
+							"
+							:aria-disabled="lesson.locked ? 'true' : undefined"
 							@click="onLessonClick(lesson)"
 						>
 							<div class="flex items-center text-sm leading-5 group">
@@ -123,7 +132,12 @@
 									/>
 								</div>
 								<span
-									v-if="lesson.is_complete"
+									v-if="lesson.locked"
+									class="lucide-lock-keyhole h-4 w-4 text-ink-gray-4 ms-2"
+									:title="__('Complete the previous lesson to unlock this one')"
+								/>
+								<span
+									v-else-if="lesson.is_complete"
 									class="lucide-check h-4 w-4 text-green-700 ms-2"
 								/>
 							</div>
@@ -274,6 +288,7 @@ function lessonRoute(lesson: OutlineLesson): RouteLocationRaw {
 }
 
 function onLessonClick(lesson: OutlineLesson) {
+	if (lesson.locked) return
 	if (!props.inlineSelect) return
 	emit('select-lesson', {
 		chapterNumber: lesson.number.split('-')[0],

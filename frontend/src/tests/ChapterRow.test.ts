@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ChapterRow from '@/components/ChapterRow.vue'
+import type { OutlineChapter } from '@/types'
 
 const pushMock = vi.hoisted(() => vi.fn())
 
@@ -48,7 +49,7 @@ vi.mock('vuedraggable', () => ({
 
 vi.stubGlobal('__', (s: string) => s)
 
-const chapter = {
+const chapter: OutlineChapter = {
 	name: 'CH-2',
 	title: 'Old Chapter',
 	idx: 2,
@@ -56,10 +57,10 @@ const chapter = {
 	lessons: [{ name: 'LESSON-1', title: 'Lesson 1', number: '2-1' }],
 }
 
-const mountRow = () =>
+const mountRow = (chapterOverride: OutlineChapter = chapter) =>
 	mount(ChapterRow, {
 		props: {
-			chapter,
+			chapter: chapterOverride,
 			index: 1,
 			courseName: 'course-1',
 			allowEdit: true,
@@ -89,5 +90,50 @@ describe('ChapterRow inline rename', () => {
 			{ chapter, title: 'Renamed Chapter' },
 		])
 		expect(wrapper.text()).not.toContain('Lesson 1')
+	})
+})
+
+describe('ChapterRow locked lesson', () => {
+	it('renders a lock and no router-link for a locked lesson', () => {
+		const wrapper = mountRow({
+			...chapter,
+			idx: 1,
+			lessons: [
+				{ name: 'LESSON-1', title: 'Lesson 1', number: '2-1', locked: 1 },
+			],
+		})
+
+		expect(wrapper.find('.lucide-lock-keyhole').exists()).toBe(true)
+		expect(wrapper.find('a').exists()).toBe(false)
+	})
+
+	it('does not emit select-lesson when a locked inline row is clicked', async () => {
+		const wrapper = mount(ChapterRow, {
+			props: {
+				chapter: {
+					...chapter,
+					idx: 1,
+					lessons: [
+						{
+							name: 'LESSON-1',
+							title: 'Lesson 1',
+							number: '2-1',
+							locked: 1,
+						},
+					],
+				},
+				index: 1,
+				courseName: 'course-1',
+				inlineSelect: true,
+			},
+			global: {
+				mocks: { __: (s: string) => s },
+				provide: { $user: { data: { name: 'admin@example.com' } } },
+			},
+		})
+
+		await wrapper.get('[aria-disabled="true"]').trigger('click')
+
+		expect(wrapper.emitted('select-lesson')).toBeUndefined()
 	})
 })
