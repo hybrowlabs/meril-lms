@@ -1311,10 +1311,19 @@ def compute_locked_lessons(ordered_lesson_names: list, completed: set) -> set:
 	A lesson is open when it is at or before the first incomplete lesson, or when the
 	student already completed it (so enabling the setting mid-cohort never revokes
 	access to work already done).
+
+	Names are deduped on first occurrence: a lesson reachable from two chapters would
+	otherwise be locked by its later occurrence and, since the return value is a set of
+	names, lock its earlier one too — with lesson one locked, even the redirect target
+	is locked and the course is a dead end.
 	"""
 	locked = set()
+	seen = set()
 	past_first_incomplete = False
 	for name in ordered_lesson_names:
+		if name in seen:
+			continue
+		seen.add(name)
 		if name in completed:
 			continue
 		if past_first_incomplete:
@@ -1325,19 +1334,38 @@ def compute_locked_lessons(ordered_lesson_names: list, completed: set) -> set:
 
 
 def get_ordered_lesson_rows(course: str) -> list:
-	"""Outline lesson rows for a course, in (chapter idx, lesson idx) order."""
-	chapters = get_outline_chapter(course)
-	if not chapters:
-		return []
+	"""Lesson identity rows for a course, in (chapter idx, lesson idx) order.
 
-	rows_by_chapter = {}
-	for row in get_outline_lessons([c.name for c in chapters]):
-		rows_by_chapter.setdefault(row.chapter_name, []).append(row)
+	Deliberately narrow. The lock rule needs nothing but names and order, so this must
+	not reuse get_outline_lessons: that selects body and content, the two largest text
+	columns, and every gated lesson view would then transfer the whole course.
 
-	ordered = []
-	for chapter in chapters:
-		ordered.extend(sorted(rows_by_chapter.get(chapter.name, []), key=lambda r: r.lesson_idx))
-	return ordered
+	The joins mirror get_outline_chapter / get_outline_lessons exactly (both reference
+	tables inner-joined to their target doctype) so this list and the one build_outline
+	derives its locks from can never diverge over a dangling reference row.
+	"""
+	ChapterReference = frappe.qb.DocType("Chapter Reference")
+	CourseChapter = frappe.qb.DocType("Course Chapter")
+	LessonReference = frappe.qb.DocType("Lesson Reference")
+	CourseLesson = frappe.qb.DocType("Course Lesson")
+	return (
+		frappe.qb.from_(ChapterReference)
+		.join(CourseChapter)
+		.on(CourseChapter.name == ChapterReference.chapter)
+		.join(LessonReference)
+		.on(LessonReference.parent == CourseChapter.name)
+		.join(CourseLesson)
+		.on(CourseLesson.name == LessonReference.lesson)
+		.select(
+			CourseLesson.name.as_("name"),
+			ChapterReference.chapter.as_("chapter_name"),
+			ChapterReference.idx.as_("chapter_idx"),
+			LessonReference.idx.as_("lesson_idx"),
+		)
+		.where(ChapterReference.parent == course)
+		.orderby(ChapterReference.idx)
+		.orderby(LessonReference.idx)
+	).run(as_dict=True)
 
 
 def build_outline(

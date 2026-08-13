@@ -30,6 +30,12 @@ class TestComputeLockedLessons(FrappeTestCase):
 	def test_empty_course_locks_nothing(self):
 		self.assertEqual(compute_locked_lessons([], set()), set())
 
+	def test_a_repeated_lesson_does_not_lock_its_own_first_occurrence(self):
+		# A lesson referenced from two chapters used to be locked by its later
+		# occurrence, which — the return value being a set of names — locked the first
+		# one too. With lesson one locked there is nowhere left to redirect to.
+		locked = compute_locked_lessons(["L1", "L2", "L1"], set())
+		self.assertEqual(locked, {"L2"})
 
 
 class TestLessonLockingIntegration(BaseTestUtils):
@@ -258,6 +264,16 @@ class TestLessonLockingIntegration(BaseTestUtils):
 
 		self.assertEqual(get_course_details(self.course.name).current_lesson, "1-2")
 
+	def test_ordered_lesson_rows_carry_no_lesson_bodies(self):
+		# The lock rule needs names and order only; body/content would put the whole
+		# course text on the wire for every gated lesson view.
+		from lms.lms.utils import get_ordered_lesson_rows
+
+		rows = get_ordered_lesson_rows(self.course.name)
+		self.assertEqual([row.name for row in rows], [lesson.name for lesson in self.lessons])
+		for row in rows:
+			self.assertNotIn("body", row)
+			self.assertNotIn("content", row)
 
 	def test_save_progress_refuses_a_locked_lesson(self):
 		self._enable()
