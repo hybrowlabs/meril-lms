@@ -198,6 +198,37 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		self.assertNotIn("content", payload)
 		self.assertNotIn("body", payload)
 
+	def test_get_lesson_sends_a_nonexistent_lesson_number_back_to_the_current_one(self):
+		"""Typing a lesson number that does not exist is the same URL tampering the gate
+		catches, so a gated course lands the student on their current lesson rather than
+		bouncing them to the course page."""
+		self._enable()
+		from lms.lms.utils import get_lesson
+
+		# Chapter 1 has three lessons and there is no chapter 9.
+		for chapter, lesson in ((1, 99), (9, 1)):
+			with self.subTest(chapter=chapter, lesson=lesson):
+				payload = get_lesson(self.course.name, chapter, lesson)
+				self.assertEqual(payload.get("locked"), 1)
+				self.assertEqual(payload.get("not_found"), 1)
+				self.assertEqual(payload.get("redirect_to"), "1-1")
+
+	def test_a_lesson_that_exists_but_is_locked_is_not_flagged_not_found(self):
+		# Both payloads redirect, so the page tells them apart on this flag alone:
+		# "finish the earlier lessons to unlock this one" is false of a lesson that
+		# does not exist.
+		self._enable()
+		from lms.lms.utils import get_lesson
+
+		payload = get_lesson(self.course.name, 1, 2)
+		self.assertEqual(payload.get("locked"), 1)
+		self.assertIsNone(payload.get("not_found"))
+
+	def test_a_nonexistent_lesson_number_is_still_empty_without_the_gate(self):
+		from lms.lms.utils import get_lesson
+
+		self.assertEqual(get_lesson(self.course.name, 9, 1), {})
+
 	def test_get_lesson_serves_the_current_lesson(self):
 		self._enable()
 		from lms.lms.utils import get_lesson

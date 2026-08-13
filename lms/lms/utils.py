@@ -1430,6 +1430,33 @@ def build_outline(
 	return outline
 
 
+def _gate_redirect(course: str) -> dict:
+	"""The locked payload for a lesson number that resolves to nothing.
+
+	Typing a lesson number that does not exist is the same URL tampering the gate is
+	there to catch, so on a gated course it lands the student back on their current
+	lesson rather than on the course page. Off a gated course the caller keeps the
+	existing empty response.
+
+	`not_found` travels with `locked` so the page can say which of the two happened:
+	the lesson does not exist, and telling the student to finish the earlier lessons to
+	unlock it would be a lie.
+	"""
+	from lms.lms.permissions import get_lesson_gate
+
+	_locked, resume = get_lesson_gate(course)
+	if not resume:
+		return {}
+
+	return {
+		"locked": 1,
+		"not_found": 1,
+		"title": _("Lesson not found"),
+		"course_title": frappe.db.get_value("LMS Course", course, "title"),
+		"redirect_to": get_lesson_index(resume),
+	}
+
+
 @frappe.whitelist(allow_guest=True)
 @rate_limit(limit=500, seconds=60 * 60)
 def get_lesson(course: str, chapter: int, lesson: int) -> dict:
@@ -1449,14 +1476,14 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 		.limit(1)
 	).run(as_dict=1)
 	if not chapter_row:
-		return {}
+		return _gate_redirect(course)
 
 	chapter_name = chapter_row[0].name
 	chapter_title = chapter_row[0].title
 
 	lesson_name = frappe.db.get_value("Lesson Reference", {"parent": chapter_name, "idx": lesson}, "lesson")
 	if not lesson_name:
-		return {}
+		return _gate_redirect(course)
 
 	lesson_details = frappe.db.get_value(
 		"Course Lesson",
@@ -1481,7 +1508,7 @@ def get_lesson(course: str, chapter: int, lesson: int) -> dict:
 	)
 
 	if not lesson_details:
-		return {}
+		return _gate_redirect(course)
 
 	# Local import: permissions imports from utils at module load, so importing it
 	# at the top of utils would create a cycle.
