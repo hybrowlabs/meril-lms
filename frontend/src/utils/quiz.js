@@ -6,6 +6,7 @@ import { usersStore } from '../stores/user'
 import translationPlugin from '../translation'
 import { CircleHelp } from 'lucide-vue-next'
 import router from '@/router'
+import { blockNotice } from '@/utils/blockDom'
 
 export class Quiz {
 	constructor({ data, api, readOnly }) {
@@ -63,11 +64,7 @@ export class Quiz {
 			this.quizApp.mount(this.wrapper)
 			return
 		}
-		this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-sidebar mb-4'>
-            <span class="font-medium">
-                Quiz: ${quiz}
-            </span>
-        </div>`
+		this.wrapper.replaceChildren(blockNotice(`Quiz: ${quiz}`))
 		return
 	}
 

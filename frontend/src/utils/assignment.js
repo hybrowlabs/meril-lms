@@ -6,6 +6,7 @@ import translationPlugin from '../translation'
 import { call } from 'frappe-ui'
 import router from '@/router'
 import { getLmsRoute } from '@/utils/basePath'
+import { blockNotice, embedFrame } from '@/utils/blockDom'
 
 export class Assignment {
 	constructor({ data, api, readOnly, config }) {
@@ -55,7 +56,10 @@ export class Assignment {
 						submission || 'new'
 					}?fromLesson=1${studentView}`
 				)
-				this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[500px]"></iframe>`
+				const frame = embedFrame(submissionPath, {
+					class: 'w-full h-[500px]',
+				})
+				this.wrapper.replaceChildren(...(frame ? [frame] : []))
 			}
 			call('lms.lms.api.get_own_assignment_submission', {
 				assignment: assignment,
@@ -71,11 +75,9 @@ export class Assignment {
 			},
 			fieldname: ['title'],
 		}).then((data) => {
-			this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-sidebar mb-4'>
-				<span class="font-medium">
-					Assignment: ${data.title}
-				</span>
-			</div>`
+			this.wrapper.replaceChildren(
+				blockNotice(`Assignment: ${data.title}`)
+			)
 			return
 		})
 	}

@@ -6,6 +6,7 @@ import ProgrammingExerciseModal from '@/components/Modals/ProgrammingExerciseMod
 import { call } from 'frappe-ui'
 import { usersStore } from '@/stores/user'
 import { getLmsRoute } from '@/utils/basePath'
+import { blockNotice, embedFrame } from '@/utils/blockDom'
 
 export class Program {
 	data: any
@@ -95,7 +96,10 @@ export class Program {
 				const submissionPath = getLmsRoute(
 					`programming-exercises/${exercise}/submission/${submission}?fromLesson=1${studentView}`
 				)
-				this.wrapper.innerHTML = `<iframe src="${submissionPath}" class="w-full h-[900px] border rounded-md"></iframe>`
+				const frame = embedFrame(submissionPath, {
+					class: 'w-full h-[900px] border rounded-md',
+				})
+				this.wrapper.replaceChildren(...(frame ? [frame] : []))
 			})
 			return
 		}
@@ -106,11 +110,9 @@ export class Program {
 			},
 			fieldname: 'title',
 		}).then((data: { title: string }) => {
-			this.wrapper.innerHTML = `<div class='border rounded-md p-4 text-center bg-surface-sidebar mb-4'>
-                <span class="font-medium">
-                    Programming Exercise: ${data.title}
-                </span>
-            </div>`
+			this.wrapper.replaceChildren(
+				blockNotice(`Programming Exercise: ${data.title}`)
+			)
 			return
 		})
 	}
