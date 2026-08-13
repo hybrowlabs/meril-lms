@@ -1,29 +1,10 @@
 <template>
 	<PageHeader :breadcrumbs="breadcrumbs" />
 	<div v-if="isLocked" class="sm:border-e">
-		<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
-			<div class="flex items-center justify-center mt-4 gap-x-2">
-				<span class="lucide-lock-keyhole size-4 text-ink-gray-5" />
-				<div class="text-p-lg-semibold text-ink-gray-7">
-					{{ __('This lesson is locked') }}
-				</div>
-			</div>
-			<div class="mt-1 text-p-base text-ink-gray-7">
-				{{ __('This lesson is locked until the previous lessons are done.') }}
-			</div>
-			<div
-				v-if="currentLessonNumber"
-				class="mt-2 mb-4 text-p-sm text-ink-gray-5 tabular-nums"
-				role="status"
-				aria-live="polite"
-			>
-				{{
-					__('Taking you to your current lesson in {0}...').format(
-						redirectCountdown
-					)
-				}}
-			</div>
-		</div>
+		<LockedLessonNotice
+			:redirect="!!currentLessonNumber"
+			@done="goToCurrentLesson()"
+		/>
 	</div>
 	<div
 		v-else-if="
@@ -66,16 +47,10 @@ import {
 	createResource,
 	usePageMeta,
 } from 'frappe-ui'
-import {
-	computed,
-	inject,
-	onBeforeMount,
-	onBeforeUnmount,
-	ref,
-	watch,
-} from 'vue'
+import { computed, inject, onBeforeMount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/Layouts/PageHeader.vue'
+import LockedLessonNotice from '@/components/LockedLessonNotice.vue'
 import { useSidebar } from '@/stores/sidebar'
 import { sessionStore } from '../stores/session'
 import { safeUrl } from '@/utils/safeUrl'
@@ -176,10 +151,6 @@ const currentLessonNumber = computed(
 			?.number
 )
 
-const REDIRECT_SECONDS = 3
-const redirectCountdown = ref(REDIRECT_SECONDS)
-let redirectTimer = null
-
 const goToCurrentLesson = () => {
 	if (!currentLessonNumber.value) return
 	const [chapterNumber, lessonNumber] = currentLessonNumber.value.split('-')
@@ -192,28 +163,6 @@ const goToCurrentLesson = () => {
 		},
 	})
 }
-
-// Counts down rather than redirecting on arrival, so the student reads why they were
-// moved instead of landing on an unexplained lesson.
-watch(
-	[isLocked, currentLessonNumber],
-	([locked, target]) => {
-		if (redirectTimer || !locked || !target) return
-		redirectCountdown.value = REDIRECT_SECONDS
-		redirectTimer = setInterval(() => {
-			redirectCountdown.value -= 1
-			if (redirectCountdown.value > 0) return
-			clearInterval(redirectTimer)
-			redirectTimer = null
-			goToCurrentLesson()
-		}, 1000)
-	},
-	{ immediate: true }
-)
-
-onBeforeUnmount(() => {
-	if (redirectTimer) clearInterval(redirectTimer)
-})
 
 const enrollment = createListResource({
 	doctype: 'LMS Enrollment',

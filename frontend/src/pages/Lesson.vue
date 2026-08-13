@@ -90,30 +90,10 @@
 				</div>
 			</div>
 			<div v-else-if="lesson.data.locked" class="sm:border-e">
-				<div class="shadow rounded-md w-3/4 mt-10 mx-auto text-center p-4">
-					<div class="flex items-center justify-center mt-4 gap-x-2">
-						<span class="lucide-lock-keyhole size-4 text-ink-gray-5" />
-						<div class="text-p-lg-semibold text-ink-gray-7">
-							{{ __('This lesson is locked') }}
-						</div>
-					</div>
-					<div class="mt-1 text-p-base text-ink-gray-7">
-						{{
-							__('This lesson is locked until the previous lessons are done.')
-						}}
-					</div>
-					<div
-						class="mt-2 mb-4 text-p-sm text-ink-gray-5 tabular-nums"
-						role="status"
-						aria-live="polite"
-					>
-						{{
-							__('Taking you to your current lesson in {0}...').format(
-								redirectCountdown
-							)
-						}}
-					</div>
-				</div>
+				<LockedLessonNotice
+					:redirect="!!lesson.data.redirect_to"
+					@done="goToCurrentLesson()"
+				/>
 			</div>
 			<div
 				v-else
@@ -429,6 +409,7 @@ import ProgressBar from '@/components/ProgressBar.vue'
 import Discussions from '@/components/Discussions.vue'
 import CertificationLinks from '@/components/CertificationLinks.vue'
 import CourseOutline from '@/components/CourseOutline.vue'
+import LockedLessonNotice from '@/components/LockedLessonNotice.vue'
 import StudentLessonSidebar from '@/components/StudentLessonSidebar.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import PageHeader from '@/components/Layouts/PageHeader.vue'
@@ -558,7 +539,6 @@ const setupLesson = (data) => {
 		return
 	}
 	if (data.locked) {
-		startLockedRedirect(data.redirect_to)
 		return
 	}
 	if (data.is_scorm_package) {
@@ -772,34 +752,10 @@ const goToLessonNumber = (number, { replace = false } = {}) => {
 	else router.push(target)
 }
 
-const REDIRECT_SECONDS = 3
-const redirectCountdown = ref(REDIRECT_SECONDS)
-let redirectTimer = null
-
-const clearLockedRedirect = () => {
-	if (redirectTimer) {
-		clearInterval(redirectTimer)
-		redirectTimer = null
-	}
+const goToCurrentLesson = () => {
+	if (lesson.data?.redirect_to)
+		goToLessonNumber(lesson.data.redirect_to, { replace: true })
 }
-
-// The panel counts down rather than redirecting on arrival, so the student reads why
-// they were moved instead of landing on an unexplained lesson.
-const startLockedRedirect = (target) => {
-	clearLockedRedirect()
-	if (!target) return
-	redirectCountdown.value = REDIRECT_SECONDS
-	redirectTimer = setInterval(() => {
-		redirectCountdown.value -= 1
-		if (redirectCountdown.value > 0) return
-		clearLockedRedirect()
-		goToLessonNumber(target, { replace: true })
-	}, 1000)
-}
-
-onBeforeUnmount(() => {
-	clearLockedRedirect()
-})
 
 const goPrev = () => {
 	if (hasPrev.value)

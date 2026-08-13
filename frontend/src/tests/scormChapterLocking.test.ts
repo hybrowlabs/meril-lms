@@ -178,7 +178,7 @@ describe('SCORMChapter.vue refuses a gated chapter', () => {
 			await resolveChapter()
 
 			expect(wrapper.text()).toContain(
-				'Taking you to your current lesson in 3...'
+				'Taking you to your current lesson in 3s'
 			)
 			expect(replaceMock).not.toHaveBeenCalled()
 
