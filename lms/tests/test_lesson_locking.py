@@ -438,3 +438,10 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		outline = get_course_outline(self.course.name, progress=True)
 		lessons = [lesson for chapter in outline for lesson in chapter.lessons]
 		self.assertIsNone(lessons[2].quiz_id)
+
+
+class TestLessonLockingImportExport(FrappeTestCase):
+	def test_export_carries_the_setting(self):
+		from lms.lms.course_import_export import get_course_fields
+
+		self.assertIn("enforce_lesson_completion", get_course_fields())
