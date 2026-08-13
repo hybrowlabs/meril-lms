@@ -499,7 +499,6 @@ onMounted(() => {
 	socket.on('update_lesson_progress', (data) => {
 		if (data.course === props.courseName) {
 			lessonProgress.value = data.progress
-			outline.reload()
 		}
 	})
 })
@@ -650,6 +649,11 @@ const progress = createResource({
 	onSuccess(data) {
 		lessonProgress.value = data
 		completedLesson.value = lesson.data?.name
+		// This user's own completion is the only thing that changes this user's lock
+		// state. update_lesson_progress is broadcast to the whole website room, so
+		// reloading from the socket handler refetched the outline in every concurrent
+		// viewer's browser whenever anyone completed anything.
+		outline.reload()
 	},
 })
 
@@ -728,7 +732,15 @@ const outlineLessons = computed(() =>
 const nextLessonLocked = computed(
 	() => !!outlineLessons.value[currentIndex.value + 1]?.locked
 )
-const canGoNext = computed(() => hasNext.value && !nextLessonLocked.value)
+const outlineReady = computed(() => Array.isArray(outline.data))
+// Next used to be outline-independent (v-if="lesson.data.next"). Keep that
+// behaviour until the outline resolves, and if it never does: an unresolved,
+// errored or rate-limited outline would otherwise hide Next AND the Back to
+// Course fallback, leaving no forward affordance at all — on ungated courses too.
+const canGoNext = computed(() => {
+	if (!outlineReady.value) return !!lesson.data?.next
+	return hasNext.value && !nextLessonLocked.value
+})
 
 const goToLessonNumber = (number, { replace = false } = {}) => {
 	trackVideoWatchDuration()
@@ -757,7 +769,9 @@ const goPrev = () => {
 }
 
 const goNext = () => {
-	if (canGoNext.value)
+	// The mobile pager is driven by the outline, so it needs the outline-derived
+	// index too — canGoNext alone can be true before the outline resolves.
+	if (canGoNext.value && hasNext.value)
 		goToLessonNumber(lessonNumbers.value[currentIndex.value + 1])
 }
 

@@ -41,6 +41,9 @@ vi.mock('frappe-ui', async () => {
 				loading: false,
 				_config: config,
 				submit: vi.fn((_params: any, handlers: any) => {
+					// frappe-ui runs the resource-level onSuccess as well as the
+					// per-call one; the outline reload lives on the former.
+					config?.onSuccess?.(resource.data)
 					handlers?.onSuccess?.(resource.data)
 					return Promise.resolve()
 				}),
@@ -370,18 +373,94 @@ describe('Lesson.vue locked lesson payload', () => {
 })
 
 describe('Lesson.vue unlocks the next lesson without a reload', () => {
-	it('reloads the outline when progress lands for this course, and ignores other courses', async () => {
+	it('reloads the outline from this user own completion, not from the broadcast', async () => {
+		wrapper = await mountLesson()
+		const outline = findResource('lms.lms.utils.get_course_outline')
+		const progress = findResource(
+			'lms.lms.doctype.course_lesson.course_lesson.save_progress'
+		)
+		findResource('lms.lms.utils.get_lesson').data = {
+			...baseLesson,
+			membership: { progress: 0 },
+		}
+		await flushPromises()
+		outline.reload.mockClear()
+		;(wrapper.vm as any).markProgress()
+		await flushPromises()
+
+		expect(progress.submit).toHaveBeenCalled()
+		expect(outline.reload).toHaveBeenCalledTimes(1)
+	})
+
+	it('leaves the outline alone when someone else completion is broadcast', async () => {
+		// update_lesson_progress goes to the site-wide website room, so reloading from
+		// it refetched the outline in every concurrent viewer of the course.
 		wrapper = await mountLesson()
 		const outline = findResource('lms.lms.utils.get_course_outline')
 		const handlerCall = socketOnMock.mock.calls.find(
 			(call: unknown[]) => call[0] === 'update_lesson_progress'
 		)
 		expect(handlerCall).toBeDefined()
-		const handler = handlerCall![1] as (data: { course: string }) => void
+		const handler = handlerCall![1] as (data: {
+			course: string
+			progress: number
+		}) => void
+		outline.reload.mockClear()
 
-		handler({ course: 'COURSE-1' })
-		handler({ course: 'OTHER-COURSE' })
+		handler({ course: 'COURSE-1', progress: 40 })
 
-		expect(outline.reload).toHaveBeenCalledTimes(1)
+		expect(outline.reload).not.toHaveBeenCalled()
+		expect((wrapper.vm as any).lessonProgress).toBe(40)
+	})
+})
+
+describe('Lesson.vue Next survives an outline that never resolves', () => {
+	it('shows Next from lesson.data.next while the outline is still unresolved', async () => {
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_lesson').data = { ...baseLesson }
+		await flushPromises()
+
+		expect(findResource('lms.lms.utils.get_course_outline').data).toBeNull()
+		expect((wrapper.vm as any).canGoNext).toBe(true)
+		expect(wrapper.text()).toContain('Next')
+	})
+
+	it('still offers Back to Course on the last lesson with no outline', async () => {
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_lesson').data = {
+			...baseLesson,
+			next: null,
+		}
+		await flushPromises()
+
+		expect((wrapper.vm as any).canGoNext).toBe(false)
+		expect(wrapper.text()).toContain('Back to Course')
+	})
+
+	it('switchLesson navigates on the unresolved-outline fallback', async () => {
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_lesson').data = { ...baseLesson }
+		await flushPromises()
+		;(wrapper.vm as any).switchLesson('next')
+
+		expect(pushMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: 'Lesson',
+				params: {
+					courseName: 'COURSE-1',
+					chapterNumber: '1',
+					lessonNumber: '2',
+				},
+			})
+		)
+	})
+
+	it('goNext stays put while the outline is unresolved, since it has no index', async () => {
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_lesson').data = { ...baseLesson }
+		await flushPromises()
+		;(wrapper.vm as any).goNext()
+
+		expect(pushMock).not.toHaveBeenCalled()
 	})
 })
