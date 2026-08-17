@@ -1,9 +1,5 @@
 <template>
-	<header
-		class="sticky top-0 z-10 flex items-center justify-between border-b bg-surface-base px-3 py-2.5 sm:px-5"
-	>
-		<Breadcrumbs class="h-7" :items="breadcrumbs" />
-	</header>
+	<PageHeader :breadcrumbs="breadcrumbs" />
 	<div
 		v-if="
 			readyToRender &&
@@ -13,7 +9,7 @@
 		"
 	>
 		<iframe
-			:src="chapter.doc.launch_file"
+			:src="safeUrl(chapter.doc.launch_file)"
 			:title="chapter.doc?.title || __('Lesson content')"
 			class="w-full h-[calc(100vh-3.00rem)]"
 		/>
@@ -37,7 +33,6 @@
 </template>
 <script setup>
 import {
-	Breadcrumbs,
 	Button,
 	call,
 	createDocumentResource,
@@ -46,8 +41,10 @@ import {
 	usePageMeta,
 } from 'frappe-ui'
 import { computed, inject, onBeforeMount, ref } from 'vue'
+import PageHeader from '@/components/Layouts/PageHeader.vue'
 import { useSidebar } from '@/stores/sidebar'
 import { sessionStore } from '../stores/session'
+import { safeUrl } from '@/utils/safeUrl'
 
 const { brand } = sessionStore()
 const sidebarStore = useSidebar()
