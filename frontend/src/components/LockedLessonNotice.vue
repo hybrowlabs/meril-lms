@@ -26,14 +26,14 @@
 						__('Taking you to your current lesson in {0}s').format(secondsLeft)
 					}}
 				</div>
-				<div class="sr-only" role="status">{{ announcement }}</div>
 			</div>
+			<div class="sr-only" role="status">{{ announcement }}</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
 	redirect: {
@@ -51,25 +51,36 @@ const emit = defineEmits(['done'])
 const secondsLeft = ref(props.seconds)
 const announcement = ref('')
 let timer = null
+let announceTimer = null
 
 const stop = () => {
 	if (timer) {
 		clearInterval(timer)
 		timer = null
 	}
+	if (announceTimer) {
+		clearTimeout(announceTimer)
+		announceTimer = null
+	}
 }
 
 // role="status" implies aria-atomic, so a per-second countdown queues one full
 // polite announcement per tick and crowds out the sentence explaining the lock.
-// The visible counter is hidden from AT and the reason is announced once, after
-// a tick so the live region registers it as a change rather than initial content.
+// The visible counter is hidden from AT and the reason is announced once.
+//
+// The region is rendered unconditionally, outside the redirect block, so it is
+// already in the accessibility tree before it has content. Populating it in the
+// same frame as its own insertion reads as initial content, which most screen
+// readers do not announce at all, so the text lands a frame later.
+const ANNOUNCE_DELAY = 100
+
 const announce = () => {
 	announcement.value = ''
-	nextTick(() => {
+	announceTimer = setTimeout(() => {
 		announcement.value = __(
 			'This lesson is locked. Taking you to your current lesson in {0} seconds.'
 		).format(props.seconds)
-	})
+	}, ANNOUNCE_DELAY)
 }
 
 // The bar drains rather than the page jumping on arrival, so the student reads why

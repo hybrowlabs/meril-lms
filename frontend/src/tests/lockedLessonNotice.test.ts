@@ -43,18 +43,32 @@ describe('LockedLessonNotice', () => {
 		expect(counter.text()).toContain('3')
 	})
 
-	it('announces the reason once, not once per second', async () => {
+	// The region must already be in the accessibility tree before it gets text:
+	// content set in the same frame as the region's own insertion reads as initial
+	// content, which most screen readers do not announce at all.
+	it('renders the live region empty, then fills it a frame later', async () => {
 		const wrapper = mountNotice()
 		const status = wrapper.get('[role="status"]')
 
 		expect(status.classes()).toContain('sr-only')
-		expect(status.text()).toBe('')
 
 		await nextTick()
-		const announced = status.text()
-		expect(announced).toBe(
+		expect(status.text()).toBe('')
+
+		vi.advanceTimersByTime(100)
+		await nextTick()
+		expect(status.text()).toBe(
 			'This lesson is locked. Taking you to your current lesson in 3 seconds.'
 		)
+	})
+
+	it('announces the reason once, not once per second', async () => {
+		const wrapper = mountNotice()
+		const status = wrapper.get('[role="status"]')
+
+		vi.advanceTimersByTime(100)
+		await nextTick()
+		const announced = status.text()
 
 		vi.advanceTimersByTime(2000)
 		await nextTick()
@@ -78,17 +92,21 @@ describe('LockedLessonNotice', () => {
 		expect(wrapper.emitted('done')).toHaveLength(1)
 	})
 
-	it('renders no countdown and no live region when redirect is off', () => {
+	it('renders no countdown and announces nothing when redirect is off', async () => {
 		const wrapper = mountNotice({ redirect: false })
 
 		expect(wrapper.find('.tabular-nums').exists()).toBe(false)
-		expect(wrapper.find('[role="status"]').exists()).toBe(false)
 		expect(wrapper.text()).toContain('This lesson is locked')
+
+		vi.advanceTimersByTime(1000)
+		await nextTick()
+		expect(wrapper.get('[role="status"]').text()).toBe('')
 	})
 
 	it('reports the configured duration in the announcement', async () => {
 		const wrapper = mountNotice({ seconds: 10 })
 
+		vi.advanceTimersByTime(100)
 		await nextTick()
 		expect(wrapper.get('[role="status"]').text()).toContain('in 10 seconds')
 	})
