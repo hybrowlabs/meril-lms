@@ -21,22 +21,19 @@
 						:style="{ width: `${(secondsLeft / seconds) * 100}%` }"
 					/>
 				</div>
-				<div
-					class="text-p-xs text-ink-gray-5 tabular-nums"
-					role="status"
-					aria-live="polite"
-				>
+				<div class="text-p-xs text-ink-gray-5 tabular-nums" aria-hidden="true">
 					{{
 						__('Taking you to your current lesson in {0}s').format(secondsLeft)
 					}}
 				</div>
+				<div class="sr-only" role="status">{{ announcement }}</div>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
 	redirect: {
@@ -52,6 +49,7 @@ const props = defineProps({
 const emit = defineEmits(['done'])
 
 const secondsLeft = ref(props.seconds)
+const announcement = ref('')
 let timer = null
 
 const stop = () => {
@@ -61,11 +59,25 @@ const stop = () => {
 	}
 }
 
+// role="status" implies aria-atomic, so a per-second countdown queues one full
+// polite announcement per tick and crowds out the sentence explaining the lock.
+// The visible counter is hidden from AT and the reason is announced once, after
+// a tick so the live region registers it as a change rather than initial content.
+const announce = () => {
+	announcement.value = ''
+	nextTick(() => {
+		announcement.value = __(
+			'This lesson is locked. Taking you to your current lesson in {0} seconds.'
+		).format(props.seconds)
+	})
+}
+
 // The bar drains rather than the page jumping on arrival, so the student reads why
 // they were moved instead of landing on an unexplained lesson.
 const start = () => {
 	stop()
 	secondsLeft.value = props.seconds
+	announce()
 	timer = setInterval(() => {
 		secondsLeft.value -= 1
 		if (secondsLeft.value > 0) return
