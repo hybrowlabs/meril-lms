@@ -106,10 +106,6 @@
 									? 'cursor-pointer'
 									: ''
 							"
-							:aria-disabled="lesson.locked ? 'true' : undefined"
-							:aria-label="
-								lesson.locked ? lesson.title + ' — ' + __('locked') : undefined
-							"
 							@click="onLessonClick(lesson)"
 						>
 							<div class="flex items-center text-sm leading-5 group">
@@ -145,11 +141,16 @@
 										class="lucide-trash-2 h-4 w-4 text-ink-red-6 invisible group-hover:visible"
 									/>
 								</div>
-								<span
-									v-if="lesson.locked"
-									class="lucide-lock-keyhole h-4 w-4 text-ink-gray-4 ms-2"
-									:title="__('Complete the previous lesson to unlock this one')"
-								/>
+								<template v-if="lesson.locked">
+									<span
+										class="lucide-lock-keyhole h-4 w-4 text-ink-gray-4 ms-2"
+										:title="
+											__('Complete the previous lesson to unlock this one')
+										"
+										aria-hidden="true"
+									/>
+									<span class="sr-only">{{ __('Locked') }}</span>
+								</template>
 								<span
 									v-else-if="lesson.is_complete"
 									class="lucide-check h-4 w-4 text-green-700 ms-2"

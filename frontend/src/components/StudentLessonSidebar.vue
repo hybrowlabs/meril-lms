@@ -85,12 +85,6 @@
 											? 'bg-surface-gray-2 text-ink-gray-9'
 											: '',
 									]"
-									:aria-disabled="lesson.locked ? 'true' : undefined"
-									:aria-label="
-										lesson.locked
-											? lesson.title + ' — ' + __('locked')
-											: undefined
-									"
 									@click="onLessonClick(lesson)"
 								>
 									<component
@@ -98,10 +92,13 @@
 										class="size-4 stroke-1.5 shrink-0 text-ink-gray-7"
 									/>
 									<span class="truncate flex-1">{{ lesson.title }}</span>
-									<LockKeyhole
-										v-if="lesson.locked"
-										class="size-4 stroke-1.5 shrink-0 text-ink-gray-4"
-									/>
+									<template v-if="lesson.locked">
+										<LockKeyhole
+											class="size-4 stroke-1.5 shrink-0 text-ink-gray-4"
+											aria-hidden="true"
+										/>
+										<span class="sr-only">{{ __('Locked') }}</span>
+									</template>
 									<CircleCheck
 										v-else-if="lesson.is_complete"
 										class="size-4 stroke-1.5 shrink-0 text-green-700 fill-none"

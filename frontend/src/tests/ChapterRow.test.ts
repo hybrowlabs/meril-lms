@@ -110,6 +110,30 @@ describe('ChapterRow locked lesson', () => {
 		expect(wrapper.find('a').exists()).toBe(false)
 	})
 
+	// The locked row is a plain <div> (implicit role="generic"), and ARIA
+	// prohibits naming a generic element, so `aria-label` on it is not
+	// guaranteed to reach a screen reader. The state travels as real text
+	// instead, which is exposed whatever the role, and the icon is hidden so
+	// it is not announced twice.
+	it('exposes the locked state as text, not as aria-label on a div', () => {
+		const wrapper = mountRow({
+			...chapter,
+			idx: 1,
+			lessons: [
+				{ name: 'LESSON-1', title: 'Lesson 1', number: '2-1', locked: 1 },
+			],
+		})
+
+		const row = wrapper.get('.cursor-not-allowed')
+		expect(row.attributes('aria-label')).toBeUndefined()
+		expect(row.attributes('aria-disabled')).toBeUndefined()
+		expect(row.get('.sr-only').text()).toBe('Locked')
+		expect(row.text()).toContain('Lesson 1')
+
+		const lock = wrapper.get('.lucide-lock-keyhole')
+		expect(lock.attributes('aria-hidden')).toBe('true')
+	})
+
 	it('still links an unlocked lesson', () => {
 		const wrapper = mountRow({
 			...chapter,
@@ -121,6 +145,7 @@ describe('ChapterRow locked lesson', () => {
 
 		expect(wrapper.find('a').exists()).toBe(true)
 		expect(wrapper.find('.lucide-lock-keyhole').exists()).toBe(false)
+		expect(wrapper.text()).not.toContain('Locked')
 	})
 
 	// A SCORM chapter renders no DisclosurePanel, so it never reaches the per-lesson
@@ -185,7 +210,7 @@ describe('ChapterRow locked lesson', () => {
 			},
 		})
 
-		await wrapper.get('[aria-disabled="true"]').trigger('click')
+		await wrapper.get('.cursor-not-allowed').trigger('click')
 
 		expect(wrapper.emitted('select-lesson')).toBeUndefined()
 	})

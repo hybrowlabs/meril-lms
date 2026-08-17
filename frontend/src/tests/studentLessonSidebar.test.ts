@@ -70,8 +70,10 @@ describe('StudentLessonSidebar locked lesson', () => {
 
 		expect(rows).toHaveLength(3)
 		expect(rows[2].find('a').exists()).toBe(false)
-		expect(rows[2].attributes('aria-disabled')).toBeUndefined()
-		expect(rows[2].find('[aria-disabled="true"]').exists()).toBe(true)
+		expect(rows[2].find('.cursor-not-allowed').exists()).toBe(true)
+		expect(rows[2].find('.sr-only').text()).toBe('Locked')
+		expect(rows[2].find('[aria-label]').exists()).toBe(false)
+		expect(rows[2].find('[aria-disabled]').exists()).toBe(false)
 	})
 
 	it('still links unlocked lessons', () => {
@@ -86,7 +88,7 @@ describe('StudentLessonSidebar locked lesson', () => {
 		const wrapper = mountSidebar()
 		const rows = wrapper.findAll('li li')
 
-		await rows[2].find('[aria-disabled="true"]').trigger('click')
+		await rows[2].find('.cursor-not-allowed').trigger('click')
 
 		expect(wrapper.emitted('select-lesson')).toBeUndefined()
 	})
