@@ -1,11 +1,23 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Plyr is mocked the same way as plyr.test.ts: this suite only cares that
-// enablePlyr finds the markup LessonContent renders, not what the player does.
+// Plyr's YouTube provider REPLACES the element it is given —
+// `player.media = replaceElement(container, player.media)` (plyr.mjs:5901), i.e.
+// `oldChild.parentNode.replaceChild(newChild, oldChild)`, and the replacement
+// carries no `video-player` class. The fake must do the same or the mock hides
+// the class of bug where Vue keeps patching a node Plyr already detached.
 const plyrCtor = vi.hoisted(() =>
-	vi.fn(function FakePlyr(this: { on: () => void }) {
+	vi.fn(function FakePlyr(this: { on: () => void }, el: Element) {
 		this.on = () => {}
+		if (el?.parentNode) {
+			const container = document.createElement('div')
+			container.id = 'plyr-youtube-fake'
+			container.setAttribute(
+				'data-replaced-embed-id',
+				el.getAttribute('data-plyr-embed-id') || ''
+			)
+			el.parentNode.replaceChild(container, el)
+		}
 	})
 )
 vi.mock('plyr', () => ({ default: plyrCtor }))
@@ -146,5 +158,37 @@ describe('enforce_video_completion gates youtube-field lessons', () => {
 				enforceVideo: 1,
 			})
 		).toBe(true)
+	})
+
+	// Lesson.vue reuses LessonContent across lessons (no :key on it) and resets
+	// plyrSources before re-running enablePlyr. Since Plyr detaches the node it
+	// initialises, an unkeyed player element leaves Vue patching a node that is
+	// no longer in the document: the next lesson keeps showing the previous
+	// video AND enablePlyr finds nothing, so the dwell timer is not suppressed
+	// and the lesson auto-completes — the exact bug this component was changed
+	// to fix.
+	it('tracks the next lesson after navigating between two youtube-field lessons', async () => {
+		const wrapper = mountContent({
+			content: 'Lesson A',
+			youtube: 'https://www.youtube.com/watch?v=AAAAAAAAAAA',
+		})
+
+		expect(await enablePlyr()).toHaveLength(1)
+
+		await wrapper.setProps({
+			content: 'Lesson B',
+			youtube: 'https://www.youtube.com/watch?v=BBBBBBBBBBB',
+		})
+
+		const plyrSources = await enablePlyr()
+
+		expect(document.body.innerHTML).not.toContain('AAAAAAAAAAA')
+		expect(plyrSources).toHaveLength(1)
+		expect(
+			shouldStartDwellTimer({
+				hasVideo: hasVideoListener(plyrSources),
+				enforceVideo: 1,
+			})
+		).toBe(false)
 	})
 })

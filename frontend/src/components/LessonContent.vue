@@ -1,5 +1,5 @@
 <template>
-	<div v-if="youtubeEmbedId(youtube)">
+	<div v-if="youtubeEmbedId(youtube)" :key="youtubeEmbedId(youtube)">
 		<div
 			class="video-player"
 			data-plyr-provider="youtube"
@@ -17,6 +17,7 @@
 		<div v-if="block.includes('{{ YouTubeVideo')">
 			<div
 				v-if="youtubeEmbedId(getId(block))"
+				:key="youtubeEmbedId(getId(block))"
 				class="video-player"
 				data-plyr-provider="youtube"
 				:data-plyr-embed-id="youtubeEmbedId(getId(block))"
