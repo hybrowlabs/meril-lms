@@ -47,7 +47,8 @@ vi.mock('frappe-ui', () => ({
 	// Emits for real: clearing a field is the only way to reach the form's
 	// empty-vs-null comparison. `data-label` lets a test address one field.
 	FormControl: {
-		props: ['modelValue', 'label', 'type', 'required'],
+		name: 'FormControl',
+		props: ['modelValue', 'label', 'type', 'required', 'options'],
 		emits: ['update:modelValue'],
 		template: `<label>{{ label }}<input :data-label="label" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" /></label>`,
 	},
@@ -295,6 +296,25 @@ describe('the profile edit route', () => {
 		expect(valueOf('Last Name')).toBe('Doe')
 		expect(valueOf('LinkedIn ID')).toBe('')
 		expect(wrapper.text()).not.toContain('Not Saved')
+	})
+
+	// '' is the only empty the field's options accept, in object form because
+	// Select drops a falsy option and the blank row would vanish with it.
+	it('offers the Open to blank as the value the field allows', async () => {
+		const router = makeRouter()
+		await router.push(`/user/${USERNAME}/edit`)
+		const wrapper = mountForm(router, USERNAME)
+		await flushPromises()
+
+		const openTo = wrapper
+			.findAllComponents({ name: 'FormControl' })
+			.find((control) => control.props('label') === 'Open to')
+
+		expect(openTo?.props('options')).toEqual([
+			{ label: '', value: '' },
+			'Work',
+			'Hiring',
+		])
 	})
 
 	// An unfilled field arrives as null, an input can only return '', so clearing

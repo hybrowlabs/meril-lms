@@ -38,7 +38,7 @@
 					<FormControl
 						v-model="profile.open_to"
 						type="select"
-						:options="[' ', 'Work', 'Hiring']"
+						:options="[{ label: '', value: '' }, 'Work', 'Hiring']"
 						:label="__('Open to')"
 						:placeholder="__('Looking for new work or hiring talent?')"
 					/>
