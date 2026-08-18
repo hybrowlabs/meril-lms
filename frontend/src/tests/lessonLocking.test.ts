@@ -351,16 +351,12 @@ describe('Lesson.vue locked lesson payload', () => {
 			await flushPromises()
 
 			expect(wrapper.text()).toContain('This lesson is locked')
-			expect(wrapper.text()).toContain(
-				'Taking you to your current lesson in 3s'
-			)
+			expect(wrapper.text()).toContain('3s')
 			expect(replaceMock).not.toHaveBeenCalled()
 
 			vi.advanceTimersByTime(1000)
 			await flushPromises()
-			expect(wrapper.text()).toContain(
-				'Taking you to your current lesson in 2s'
-			)
+			expect(wrapper.text()).toContain('2s')
 			expect(replaceMock).not.toHaveBeenCalled()
 
 			vi.advanceTimersByTime(2000)
@@ -398,7 +394,7 @@ describe('Lesson.vue locked lesson payload', () => {
 		expect(wrapper.text()).toContain('Lesson not found')
 		expect(wrapper.text()).not.toContain('This lesson is locked')
 		expect(wrapper.text()).not.toContain(
-			'Finish the earlier lessons to unlock this one'
+			'Finish the lessons before it to unlock this one'
 		)
 	})
 

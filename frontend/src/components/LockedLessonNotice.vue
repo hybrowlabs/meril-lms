@@ -1,45 +1,47 @@
 <template>
-	<div class="flex h-full items-center justify-center px-5 py-20">
-		<div class="flex flex-col items-center gap-4">
-			<div
-				class="size-14 rounded-full bg-surface-gray-2 flex items-center justify-center"
-			>
+	<div class="p-5">
+		<div class="flex items-center gap-3 rounded-lg bg-surface-amber-2 p-3">
+			<div class="grid size-7 shrink-0 place-items-center text-ink-amber-6">
 				<span
 					:class="notFound ? 'lucide-file-question' : 'lucide-lock-keyhole'"
-					class="size-6 text-ink-gray-6"
+					class="size-4"
+					aria-hidden="true"
 				/>
 			</div>
-			<div class="flex flex-col items-center gap-1">
-				<div class="text-p-lg-medium text-ink-gray-8">
+			<div class="flex min-w-0 flex-1 flex-col">
+				<span class="text-p-sm-medium text-ink-gray-8">
 					{{ notFound ? __('Lesson not found') : __('This lesson is locked') }}
-				</div>
-				<div class="text-center text-p-sm text-ink-gray-6 max-w-72">
+				</span>
+				<span class="text-p-sm text-ink-gray-6">
 					{{
 						notFound
-							? __('There is no such lesson in this course.')
-							: __('Finish the earlier lessons to unlock this one.')
+							? __('There is no lesson at this address in this course.')
+							: __('Finish the lessons before it to unlock this one.')
 					}}
-				</div>
+				</span>
 			</div>
-			<div v-if="redirect" class="flex flex-col items-center gap-2 w-52 mt-1">
-				<div class="h-1 w-full rounded-full bg-surface-gray-3 overflow-hidden">
-					<div
-						class="h-full rounded-full bg-surface-gray-6 transition-[width] duration-1000 ease-linear"
-						:style="{ width: `${(secondsLeft / seconds) * 100}%` }"
-					/>
-				</div>
-				<div class="text-p-xs text-ink-gray-5 tabular-nums" aria-hidden="true">
-					{{
-						__('Taking you to your current lesson in {0}s').format(secondsLeft)
-					}}
-				</div>
-			</div>
-			<div class="sr-only" role="status">{{ announcement }}</div>
+			<template v-if="redirect">
+				<span
+					class="shrink-0 text-p-xs text-ink-gray-5 tabular-nums"
+					aria-hidden="true"
+				>
+					{{ __('{0}s').format(secondsLeft) }}
+				</span>
+				<Button
+					theme="gray"
+					variant="subtle"
+					class="border border-outline-gray-2 bg-surface-base hover:bg-surface-base hover:border-outline-gray-3 active:bg-surface-gray-2 focus-visible:bg-surface-base"
+					:label="__('Go now')"
+					@click="goNow()"
+				/>
+			</template>
 		</div>
+		<div class="sr-only" role="status">{{ announcement }}</div>
 	</div>
 </template>
 
 <script setup>
+import { Button } from 'frappe-ui'
 import { onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
@@ -101,8 +103,8 @@ const announce = () => {
 	}, ANNOUNCE_DELAY)
 }
 
-// The bar drains rather than the page jumping on arrival, so the student reads why
-// they were moved instead of landing on an unexplained lesson.
+// The counter runs down rather than the page jumping on arrival, so the student
+// reads why they were moved instead of landing on an unexplained lesson.
 const start = () => {
 	stop()
 	secondsLeft.value = props.seconds
@@ -113,6 +115,13 @@ const start = () => {
 		stop()
 		emit('done')
 	}, 1000)
+}
+
+// Skipping the wait must also kill the interval, or it fires again on a page the
+// student has already left.
+const goNow = () => {
+	stop()
+	emit('done')
 }
 
 watch(

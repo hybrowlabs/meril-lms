@@ -107,7 +107,9 @@ describe('LockedLessonNotice', () => {
 		const wrapper = mountNotice({ notFound: true })
 
 		expect(wrapper.text()).toContain('Lesson not found')
-		expect(wrapper.text()).toContain('There is no such lesson in this course.')
+		expect(wrapper.text()).toContain(
+			'There is no lesson at this address in this course.'
+		)
 		expect(wrapper.text()).not.toContain('This lesson is locked')
 
 		vi.advanceTimersByTime(100)
@@ -115,6 +117,24 @@ describe('LockedLessonNotice', () => {
 		expect(wrapper.get('[role="status"]').text()).toBe(
 			'Lesson not found. Taking you to your current lesson in 3 seconds.'
 		)
+	})
+
+	it('skips the wait when the student asks to go now', async () => {
+		const wrapper = mountNotice()
+
+		await wrapper.get('button').trigger('click')
+		expect(wrapper.emitted('done')).toHaveLength(1)
+
+		// The interval has to die with it, or it fires again on a page the student
+		// has already left.
+		vi.advanceTimersByTime(5000)
+		expect(wrapper.emitted('done')).toHaveLength(1)
+	})
+
+	it('offers no way out when there is nowhere to send the student', () => {
+		const wrapper = mountNotice({ redirect: false })
+
+		expect(wrapper.find('button').exists()).toBe(false)
 	})
 
 	it('reports the configured duration in the announcement', async () => {

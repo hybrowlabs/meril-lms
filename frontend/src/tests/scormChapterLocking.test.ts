@@ -177,9 +177,7 @@ describe('SCORMChapter.vue refuses a gated chapter', () => {
 			findResource('lms.lms.utils.get_course_outline').data = gatedOutline
 			await resolveChapter()
 
-			expect(wrapper.text()).toContain(
-				'Taking you to your current lesson in 3s'
-			)
+			expect(wrapper.text()).toContain('3s')
 			expect(replaceMock).not.toHaveBeenCalled()
 
 			vi.advanceTimersByTime(3000)
