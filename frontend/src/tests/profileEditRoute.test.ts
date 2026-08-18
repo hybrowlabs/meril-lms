@@ -278,4 +278,39 @@ describe('the profile edit route', () => {
 
 		expect(router.currentRoute.value.name).toBe('ProfileAbout')
 	})
+
+	// Guards the seeding loop: it walks the draft's keys, so a key it misses is
+	// silently left blank rather than failing loudly.
+	it('seeds every field from the profile it was handed', async () => {
+		const router = makeRouter()
+		await router.push(`/user/${USERNAME}/edit`)
+		const wrapper = mountForm(router, USERNAME)
+		await flushPromises()
+
+		const valueOf = (label: string) =>
+			(wrapper.find(`input[data-label="${label}"]`).element as HTMLInputElement)
+				.value
+
+		expect(valueOf('First Name')).toBe('John')
+		expect(valueOf('Last Name')).toBe('Doe')
+		expect(valueOf('LinkedIn ID')).toBe('')
+		expect(wrapper.text()).not.toContain('Not Saved')
+	})
+
+	// An unfilled field arrives as null, an input can only return '', so clearing
+	// one used to latch "Not Saved" with no way off it but saving.
+	it('stays pristine when a null-backed field is cleared', async () => {
+		const router = makeRouter()
+		await router.push(`/user/${USERNAME}/edit`)
+		const wrapper = mountForm(router, USERNAME)
+		await flushPromises()
+
+		const linkedin = wrapper.find('input[data-label="LinkedIn ID"]')
+		await linkedin.setValue('a')
+		expect(wrapper.text()).toContain('Not Saved')
+
+		await linkedin.setValue('')
+		await flushPromises()
+		expect(wrapper.text()).not.toContain('Not Saved')
+	})
 })
