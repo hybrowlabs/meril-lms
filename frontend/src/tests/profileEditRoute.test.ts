@@ -44,10 +44,12 @@ vi.mock('frappe-ui', () => ({
 		inheritAttrs: false,
 		template: `<button v-bind="$attrs"><slot name="icon" /><slot /></button>`,
 	},
+	// Emits for real: clearing a field is the only way to reach the form's
+	// empty-vs-null comparison. `data-label` lets a test address one field.
 	FormControl: {
 		props: ['modelValue', 'label', 'type', 'required'],
 		emits: ['update:modelValue'],
-		template: `<label>{{ label }}<input :value="modelValue" /></label>`,
+		template: `<label>{{ label }}<input :data-label="label" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" /></label>`,
 	},
 	Badge: passthrough,
 	TabButtons: passthrough,
@@ -134,14 +136,22 @@ describe('the profile edit route', () => {
 			writable: true,
 			configurable: true,
 		})
+		// get_profile_details is a bare frappe.db.get_value, so a field the user
+		// never filled in arrives as null, not ''. `headline: ''` is the third
+		// case: what a field holds after one save through this form.
 		profileResource.data = {
 			name: 'john@example.com',
 			username: USERNAME,
 			first_name: 'John',
 			last_name: 'Doe',
 			user_image: '/files/john.png',
-			headline: 'Learner',
+			headline: '',
+			bio: null,
 			language: 'en',
+			open_to: '',
+			linkedin: null,
+			github: null,
+			twitter: null,
 		}
 		profileResource.reload.mockClear()
 	})
