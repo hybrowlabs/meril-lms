@@ -92,6 +92,7 @@
 			<div v-else-if="lesson.data.locked" class="sm:border-e">
 				<LockedLessonNotice
 					:redirect="!!lesson.data.redirect_to"
+					:notFound="!!lesson.data.not_found"
 					@done="goToCurrentLesson()"
 				/>
 			</div>

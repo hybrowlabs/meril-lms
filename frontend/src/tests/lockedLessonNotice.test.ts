@@ -103,6 +103,20 @@ describe('LockedLessonNotice', () => {
 		expect(wrapper.get('[role="status"]').text()).toBe('')
 	})
 
+	it('does not blame the lock for a lesson that does not exist', async () => {
+		const wrapper = mountNotice({ notFound: true })
+
+		expect(wrapper.text()).toContain('Lesson not found')
+		expect(wrapper.text()).toContain('There is no such lesson in this course.')
+		expect(wrapper.text()).not.toContain('This lesson is locked')
+
+		vi.advanceTimersByTime(100)
+		await nextTick()
+		expect(wrapper.get('[role="status"]').text()).toBe(
+			'Lesson not found. Taking you to your current lesson in 3 seconds.'
+		)
+	})
+
 	it('reports the configured duration in the announcement', async () => {
 		const wrapper = mountNotice({ seconds: 10 })
 

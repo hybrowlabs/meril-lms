@@ -381,6 +381,27 @@ describe('Lesson.vue locked lesson payload', () => {
 		}
 	})
 
+	it('says the lesson does not exist rather than that it is locked', async () => {
+		// A lesson number that resolves to nothing comes back on the same redirecting
+		// payload, and the panel used to read "This lesson is locked / Finish the
+		// earlier lessons to unlock this one" under a "Lesson not found" breadcrumb.
+		wrapper = await mountLesson()
+		findResource('lms.lms.utils.get_lesson').data = {
+			locked: 1,
+			not_found: 1,
+			title: 'Lesson not found',
+			course_title: 'Course 1',
+			redirect_to: '1-1',
+		}
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('Lesson not found')
+		expect(wrapper.text()).not.toContain('This lesson is locked')
+		expect(wrapper.text()).not.toContain(
+			'Finish the earlier lessons to unlock this one'
+		)
+	})
+
 	it('stops the countdown when the page is left before it finishes', async () => {
 		vi.useFakeTimers()
 		try {

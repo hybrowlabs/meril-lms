@@ -4,14 +4,21 @@
 			<div
 				class="size-14 rounded-full bg-surface-gray-2 flex items-center justify-center"
 			>
-				<span class="lucide-lock-keyhole size-6 text-ink-gray-6" />
+				<span
+					:class="notFound ? 'lucide-file-question' : 'lucide-lock-keyhole'"
+					class="size-6 text-ink-gray-6"
+				/>
 			</div>
 			<div class="flex flex-col items-center gap-1">
 				<div class="text-p-lg-medium text-ink-gray-8">
-					{{ __('This lesson is locked') }}
+					{{ notFound ? __('Lesson not found') : __('This lesson is locked') }}
 				</div>
 				<div class="text-center text-p-sm text-ink-gray-6 max-w-72">
-					{{ __('Finish the earlier lessons to unlock this one.') }}
+					{{
+						notFound
+							? __('There is no such lesson in this course.')
+							: __('Finish the earlier lessons to unlock this one.')
+					}}
 				</div>
 			</div>
 			<div v-if="redirect" class="flex flex-col items-center gap-2 w-52 mt-1">
@@ -43,6 +50,13 @@ const props = defineProps({
 	seconds: {
 		type: Number,
 		default: 3,
+	},
+	// The gate answers a lesson number that resolves to nothing with the same
+	// redirecting payload, and telling that student to finish the earlier lessons
+	// to unlock this one would be a lie.
+	notFound: {
+		type: Boolean,
+		default: false,
 	},
 })
 
@@ -77,9 +91,13 @@ const ANNOUNCE_DELAY = 100
 const announce = () => {
 	announcement.value = ''
 	announceTimer = setTimeout(() => {
-		announcement.value = __(
-			'This lesson is locked. Taking you to your current lesson in {0} seconds.'
-		).format(props.seconds)
+		announcement.value = props.notFound
+			? __(
+					'Lesson not found. Taking you to your current lesson in {0} seconds.'
+			  ).format(props.seconds)
+			: __(
+					'This lesson is locked. Taking you to your current lesson in {0} seconds.'
+			  ).format(props.seconds)
 	}, ANNOUNCE_DELAY)
 }
 
