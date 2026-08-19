@@ -8,9 +8,10 @@
 				<button
 					type="button"
 					data-palette-item
+					:data-active="item.isActive ? 'true' : 'false'"
 					class="flex items-center justify-between p-2 rounded hover:bg-surface-gray-2 cursor-pointer w-full text-start"
 					:class="{ 'bg-surface-gray-2': item.isActive }"
-					@click="emit('navigateTo', item.route)"
+					@click="emit('select', item)"
 				>
 					<div class="flex items-center gap-x-3">
 						<component
@@ -30,20 +31,12 @@
 </template>
 <script lang="ts" setup>
 import { inject } from 'vue'
+import type { PaletteGroup, PaletteItem } from './paletteTypes'
 
 const dayjs = inject<any>('$dayjs')
-const emit = defineEmits(['navigateTo'])
+const emit = defineEmits<{ select: [item: PaletteItem] }>()
 
-const props = defineProps<{
-	list: Array<{
-		title: string
-		items: Array<{
-			title: string
-			route: { name: string; params?: Record<string, string> }
-			icon?: any
-			isActive?: boolean
-			modified?: string
-		}>
-	}>
+defineProps<{
+	list: PaletteGroup[]
 }>()
 </script>

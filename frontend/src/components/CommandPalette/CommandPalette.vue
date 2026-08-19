@@ -10,28 +10,33 @@
 					<input
 						ref="inputRef"
 						type="text"
+						role="combobox"
+						aria-expanded="true"
+						aria-controls="command-palette-results"
 						:placeholder="__('Search')"
 						class="w-full border-none bg-transparent py-3 !ps-2 pe-4.5 text-base text-ink-gray-7 placeholder-ink-gray-4 focus:ring-0"
 						@input="onInput"
+						@keydown="onKeydown"
 						v-model="query"
 						autocomplete="off"
 					/>
 				</div>
 
-				<div class="max-h-96 overflow-auto mb-2">
-					<div v-if="query.length" class="mt-5 space-y-5">
-						<CommandPaletteGroup
-							:list="searchResults"
-							@navigateTo="navigateTo"
-						/>
+				<div
+					id="command-palette-results"
+					class="max-h-96 overflow-auto mb-2"
+					ref="resultsRef"
+				>
+					<div class="mt-5 space-y-5">
+						<CommandPaletteGroup :list="groups" @select="run" />
 					</div>
-
-					<div v-else class="mt-5 space-y-5">
-						<CommandPaletteGroup
-							:list="jumpToOptions"
-							@navigateTo="navigateTo"
-						/>
-					</div>
+					<p
+						v-if="showsEmptyState"
+						class="px-4.5 py-2 text-ink-gray-5"
+						role="status"
+					>
+						{{ __('No results found') }}
+					</p>
 				</div>
 
 				<div
@@ -71,162 +76,172 @@
 </template>
 <script setup lang="ts">
 import { createResource, debounce, Dialog } from 'frappe-ui'
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BookOpen, Briefcase, Users } from 'lucide-vue-next'
 import CommandPaletteGroup from './CommandPaletteGroup.vue'
+import type { PaletteGroup, PaletteItem, PaletteRoute } from './paletteTypes'
+import { routeForSearchHit } from './paletteTypes'
 
 const chipClass =
 	'inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-surface-gray-2'
 
+// Below this the palette keeps showing the jump-to list. The results pane used
+// to take over at one character while the search only ran from three, so the
+// dialog went blank for exactly the two keystrokes that start every search.
+const MIN_QUERY_LENGTH = 2
+
 const show = defineModel<boolean>({ required: true, default: false })
 const router = useRouter()
 const query = ref<string>('')
-const searchResults = ref<Array<any>>([])
+const searchResults = ref<PaletteGroup[]>([])
+const inputRef = ref<HTMLInputElement | null>(null)
+const resultsRef = ref<HTMLElement | null>(null)
+
+// -1 is "the user has not arrowed yet", which is what lets the first ArrowDown
+// land on the first row rather than the second.
+const activeIndex = ref(-1)
+
+// The query a response belongs to; a slower earlier response is dropped rather
+// than allowed to land under whatever the user has typed since.
+let requestedQuery = ''
 
 const search = createResource({
 	url: 'lms.command_palette.search_sqlite',
-	makeParams: () => ({
-		query: query.value,
-	}),
-	onSuccess() {
-		generateSearchResults()
+	makeParams: () => {
+		requestedQuery = query.value
+		return { query: query.value }
+	},
+	onSuccess(data: unknown) {
+		if (requestedQuery !== query.value) return
+		searchResults.value = toGroups(data)
 	},
 })
 
+const isSearching = computed(() => query.value.length >= MIN_QUERY_LENGTH)
+
+const groups = computed<PaletteGroup[]>(() => {
+	const source = isSearching.value ? searchResults.value : jumpToOptions.value
+	let index = 0
+	return source.map((group) => ({
+		title: group.title,
+		items: group.items.map((item) => ({
+			...item,
+			isActive: index++ === activeIndex.value,
+		})),
+	}))
+})
+
+const flatItems = computed<PaletteItem[]>(() =>
+	groups.value.flatMap((group) => group.items)
+)
+
+const showsEmptyState = computed(
+	() => isSearching.value && !flatItems.value.length && !search.loading
+)
+
 const debouncedSearch = debounce(() => {
-	if (query.value.length > 2) {
-		search.reload()
-	}
-}, 500)
+	if (isSearching.value) search.reload()
+}, 300)
 
 const onInput = () => {
 	debouncedSearch()
 }
 
-const generateSearchResults = () => {
-	search.data?.forEach((type: any) => {
-		let result: { title: string; items: any[] } = { title: '', items: [] }
-		result.title = type.title
-		type.items.forEach((item: any) => {
-			let paramName = item.doctype === 'LMS Course' ? 'courseName' : 'batchName'
-			item.route = {
-				name: item.doctype === 'LMS Course' ? 'CourseDetail' : 'BatchDetail',
-				params: {
-					[paramName]: item.name,
-				},
-			}
-			item.isActive = false
-		})
-		result.items = type.items
-		searchResults.value.push(result)
-	})
+/** Search hits whose doctype has no route are dropped, not pointed at a wrong page. */
+const toGroups = (data: unknown): PaletteGroup[] => {
+	if (!Array.isArray(data)) return []
+	return data
+		.map((group: any) => ({
+			title: group.title,
+			items: (group.items ?? [])
+				.map((item: any) => {
+					const route = routeForSearchHit(item.doctype, item.name)
+					return route ? { ...item, route } : null
+				})
+				.filter(Boolean) as PaletteItem[],
+		}))
+		.filter((group) => group.items.length > 0)
 }
 
 watch(query, () => {
-	searchResults.value = []
+	activeIndex.value = -1
+	if (!isSearching.value) searchResults.value = []
 })
 
 watch(show, () => {
 	if (!show.value) {
 		query.value = ''
 		searchResults.value = []
+		activeIndex.value = -1
 	}
 })
 
-onMounted(() => {
-	addKeyboardShortcuts()
-})
-
-const addKeyboardShortcuts = () => {
-	window.addEventListener('keydown', (e: KeyboardEvent) => {
-		if (e.key === 'ArrowUp' && show.value) {
-			e.preventDefault()
-			shortcutForArrowKey(-1)
-		} else if (e.key === 'ArrowDown' && show.value) {
-			shortcutForArrowKey(1)
-		} else if (e.key === 'Enter' && show.value) {
-			// A focused result button fires its own click; let that be the
-			// single navigation instead of racing this handler.
-			if ((e.target as HTMLElement)?.closest?.('[data-palette-item]')) return
-			shortcutForEnter()
-		} else if (e.key === 'Escape' && show.value) {
-			show.value = false
-		}
-	})
+const onKeydown = (e: KeyboardEvent) => {
+	if (e.key === 'ArrowDown') {
+		e.preventDefault()
+		moveActive(1)
+	} else if (e.key === 'ArrowUp') {
+		e.preventDefault()
+		moveActive(-1)
+	} else if (e.key === 'Enter') {
+		e.preventDefault()
+		// Enter with nothing arrowed to opens the top hit, which is what the
+		// caret sitting in a search box implies.
+		const item = flatItems.value[Math.max(activeIndex.value, 0)]
+		if (item) run(item)
+	} else if (e.key === 'Escape') {
+		show.value = false
+	}
 }
 
-const shortcutForArrowKey = (direction: number) => {
-	let currentList = query.value.length
-		? searchResults.value
-		: jumpToOptions.value
-	let allItems = currentList.flatMap((result: any) => result.items)
-	let indexOfActive = allItems.findIndex((option: any) => option.isActive)
-	let newIndex = indexOfActive + direction
-	if (newIndex < 0) newIndex = allItems.length - 1
-	if (newIndex >= allItems.length) newIndex = 0
-	allItems[indexOfActive].isActive = false
-	allItems[newIndex].isActive = true
+const moveActive = (direction: number) => {
+	const total = flatItems.value.length
+	if (!total) return
+	const next = activeIndex.value + direction
+	if (next < 0) activeIndex.value = total - 1
+	else if (next >= total) activeIndex.value = 0
+	else activeIndex.value = next
 	nextTick(scrollActiveItemIntoView)
 }
 
 const scrollActiveItemIntoView = () => {
-	const activeItem = document.querySelector(
-		'.hover\\:bg-surface-gray-2.bg-surface-gray-2'
-	) as HTMLElement
-	if (activeItem) {
-		activeItem.scrollIntoView({ block: 'nearest' })
-	}
+	resultsRef.value
+		?.querySelector('[data-palette-item][data-active="true"]')
+		?.scrollIntoView({ block: 'nearest' })
 }
 
-const shortcutForEnter = () => {
-	let currentList = query.value.length
-		? searchResults.value
-		: jumpToOptions.value
-	let allItems = currentList.flatMap((result: any) => result.items)
-	let activeOption = allItems.find((option) => option.isActive)
-	if (activeOption) {
-		navigateTo(activeOption.route)
-	}
+const run = (item: PaletteItem) => {
+	if (item.route) navigateTo(item.route)
 }
 
-const navigateTo = (route: {
-	name: string
-	params?: Record<string, any>
-	query?: Record<string, any>
-}) => {
+const navigateTo = (route: PaletteRoute) => {
 	show.value = false
 	query.value = ''
-	router.replace({ name: route.name, params: route.params, query: route.query })
+	searchResults.value = []
+	// push, not replace: reaching a course through the palette should still
+	// leave the page you came from on the back stack.
+	router.push({ name: route.name, params: route.params, query: route.query })
 }
 
-const jumpToOptions = ref([
+const jumpToOptions = ref<PaletteGroup[]>([
 	{
 		title: __('Jump to'),
 		items: [
 			{
 				title: 'Courses',
 				icon: BookOpen,
-				route: {
-					name: 'Courses',
-				},
-				isActive: true,
+				route: { name: 'Courses' },
 			},
 			{
 				title: 'Batches',
 				icon: Users,
-				route: {
-					name: 'Batches',
-				},
-				isActive: false,
+				route: { name: 'Batches' },
 			},
 			{
 				title: 'Jobs',
 				icon: Briefcase,
-				route: {
-					name: 'Jobs',
-				},
-				isActive: false,
+				route: { name: 'Jobs' },
 			},
 		],
 	},
