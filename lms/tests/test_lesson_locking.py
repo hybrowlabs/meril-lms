@@ -1,6 +1,7 @@
 # Copyright (c) 2026, FOSS United and Contributors
 # See license.txt
 
+import json
 from unittest.mock import patch
 
 import frappe
@@ -519,7 +520,18 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		# submission counts as a pass and the flow actually reaches the progress
 		# write, which is where the rollback happened.
 		frappe.db.set_value("LMS Quiz", quiz.name, "passing_percentage", 0)
-		batch = self._create_batch(self.course.name, instructor=self.author.email, title="Locking Batch")
+		# _create_batch links its courses row to a Course Evaluator, and that in turn
+		# links a User. Both helpers default to frappe@example.com, which nothing in
+		# this suite seeds — a site carrying either from an earlier run hides that,
+		# CI's fresh one does not. Build both off this suite's own author instead, so
+		# the test depends on nothing outside its own setUp.
+		self._create_evaluator(self.author.email)
+		batch = self._create_batch(
+			self.course.name,
+			instructor=self.author.email,
+			title="Locking Batch",
+			evaluator=self.author.email,
+		)
 		batch_doc = frappe.get_doc("LMS Batch", batch.name)
 		batch_doc.append("assessment", {"assessment_type": "LMS Quiz", "assessment_name": quiz.name})
 		batch_doc.save()
@@ -529,7 +541,10 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		from lms.lms.doctype.lms_quiz.lms_quiz import submit_quiz
 
 		self.assertIn(self.lessons[2].name, get_locked_lessons(self.course.name))
-		result = submit_quiz(quiz.name, [])
+		# A JSON string, not a list: submit_quiz is whitelisted and `results` is typed
+		# `str | None`, so frappe coerces the argument through pydantic exactly as it
+		# would over HTTP. Every other caller in the suite passes json.dumps(...).
+		result = submit_quiz(quiz.name, json.dumps([]))
 
 		self.assertTrue(frappe.db.exists("LMS Quiz Submission", result["submission"]))
 		# The lesson stays locked: skipping the write must not become a way past the gate.
