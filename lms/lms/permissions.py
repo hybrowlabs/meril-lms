@@ -114,14 +114,17 @@ def can_access_quiz(quiz: str, *, user: str | None = None) -> bool:
 		# the same rule as the lesson that embeds it — the quiz id is a bearer handle,
 		# so withholding it from the outline would not revoke it from a student who
 		# already saw it while the setting was off.
-		placements = set()
+		# Grouped by course, not held as flat (course, lesson) pairs: every check below
+		# except the last is course-level, and a quiz embedded in several lessons of one
+		# course would otherwise repeat the membership read and the whole lock chain per
+		# lesson for a set that cannot differ between them.
+		placements = {}
 		if quiz_row.course:
-			placements.add((quiz_row.course, quiz_row.lesson))
+			placements.setdefault(quiz_row.course, set()).add(quiz_row.lesson)
 		for row in frappe.get_all("Course Lesson", filters={"quiz_id": quiz}, fields=["course", "name"]):
-			placements.add((row.course, row.name))
-		for course, lesson in placements:
-			if not course:
-				continue
+			if row.course:
+				placements.setdefault(row.course, set()).add(row.name)
+		for course, lessons in placements.items():
 			if can_modify_course(course):
 				return True
 			if not get_membership(course, user):
@@ -134,7 +137,7 @@ def can_access_quiz(quiz: str, *, user: str | None = None) -> bool:
 			# and leaves .course standing, and `None not in locked` is true of every
 			# course, so such a placement used to grant any enrolled member access to a
 			# quiz whose lesson is still locked. It grants nothing now.
-			if lesson and lesson not in locked:
+			if any(lesson and lesson not in locked for lesson in lessons):
 				return True
 
 		assessment_batches = frappe.get_all(

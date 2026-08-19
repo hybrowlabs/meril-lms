@@ -461,6 +461,22 @@ class TestLessonLockingIntegration(BaseTestUtils):
 		self.assertEqual(get_locked_lessons(self.course.name), set())
 		self.assertTrue(can_access_quiz(quiz.name))
 
+	def test_two_placements_in_one_course_compute_the_lock_state_once(self):
+		# A quiz reachable from more than one lesson of the same course walked the whole
+		# lock chain per placement: get_membership plus the ordered rows and the progress
+		# read, repeated for a set that cannot differ between them.
+		self._enable()
+		quiz = self._create_lesson_quiz(self.lessons[2].name)
+		frappe.db.set_value("Course Lesson", self.lessons[1].name, "quiz_id", quiz.name)
+
+		from lms.lms import permissions
+		from lms.lms.permissions import can_access_quiz
+
+		with patch.object(permissions, "_lock_state", wraps=permissions._lock_state) as lock_state:
+			self.assertFalse(can_access_quiz(quiz.name))
+
+		self.assertEqual(lock_state.call_count, 1)
+
 	def test_outline_does_not_publish_the_quiz_of_a_locked_lesson(self):
 		self._enable()
 		quiz = self._create_lesson_quiz(self.lessons[2].name)
