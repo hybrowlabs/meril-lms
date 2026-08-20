@@ -9,6 +9,7 @@ from lms.command_palette import (
 	COURSE_SCOPED_DOCTYPES,
 	DOCTYPE_GROUPS,
 	PERMISSION_CHECKED_DOCTYPES,
+	RESULT_FIELDS,
 	get_grouped_results,
 	get_permitted_names,
 	is_visible,
@@ -224,6 +225,33 @@ class TestStaleIndexRows(FrappeTestCase):
 		finally:
 			frappe.set_user("Administrator")
 		self.assertEqual(groups, [])
+
+
+class TestResultProjection(FrappeTestCase):
+	"""`title_only` makes frappe select the raw `content` column rather than a
+	snippet of it, so an unprojected row carries a whole course description."""
+
+	def test_a_row_carries_only_what_the_palette_draws(self):
+		result = {
+			"results": [
+				row(
+					"LMS Course",
+					"c1",
+					published=1,
+					modified=1,
+					content="the entire course description, every word of it",
+					author="someone@example.com",
+					score=2.5,
+				)
+			]
+		}
+		item = prepare_search_results(result)[0]["items"][0]
+		self.assertEqual(set(item), set(RESULT_FIELDS))
+
+	def test_the_indexed_content_never_leaves_the_server(self):
+		result = {"results": [row("LMS Course", "c1", published=1, modified=1, content="prose")]}
+		item = prepare_search_results(result)[0]["items"][0]
+		self.assertNotIn("content", item)
 
 
 class TestAuthoredScope(BaseTestUtils):

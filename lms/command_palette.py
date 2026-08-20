@@ -38,6 +38,14 @@ COURSE_SCOPED_DOCTYPES = ("LMS Quiz", "LMS Assignment")
 
 AUTHORING_ROLES = ("Moderator", "Course Creator", "Batch Evaluator")
 
+# All of an index row that a palette row draws, and so all of it that leaves the
+# server. `title_only` makes frappe select the raw `content` column rather than a
+# snippet of it, so an unprojected row carries a whole course description or
+# assignment question — up to 100 of them per keystroke, for a UI that renders
+# the title and a relative date.
+RESULT_FIELDS = ("doctype", "name", "title", "modified")
+
+
 @frappe.whitelist()
 def search_sqlite(query: str, category: str | None = None):
 	from lms.sqlite import LearningSearch, LearningSearchIndexMissingError
@@ -76,9 +84,13 @@ def prepare_search_results(result: dict):
 			continue
 		items = remove_duplicates(groups[key])
 		items.sort(key=lambda x: x.get("modified"), reverse=True)
-		out.append({"title": key, "items": items})
+		out.append({"title": key, "items": [as_palette_item(item) for item in items]})
 
 	return out
+
+
+def as_palette_item(row):
+	return {field: row.get(field) for field in RESULT_FIELDS}
 
 
 def get_grouped_results(result):
