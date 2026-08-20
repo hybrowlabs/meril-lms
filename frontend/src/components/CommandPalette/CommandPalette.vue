@@ -238,9 +238,11 @@ const showsEmptyState = computed(
 		!searchFailed.value
 )
 
-/** A failed request is not an empty result set, and saying so hides an outage. */
+/** A failed request is not an empty result set, and saying so hides an outage.
+ * Not gated on an empty list either: a query that spells a section name fills
+ * one row from `matchingSections`, which is enough to have hidden the failure. */
 const showsErrorState = computed(
-	() => searchFailed.value && hasSettled.value && !flatItems.value.length
+	() => isSearching.value && searchFailed.value && hasSettled.value
 )
 
 const debouncedSearch = debounce(() => {

@@ -446,3 +446,26 @@ describe('command palette keyboard scope', () => {
 		)
 	})
 })
+
+/**
+ * A section row matching the query is enough to fill the list, which is what
+ * used to hide an outage behind it: the error was only drawn when nothing at
+ * all had been found.
+ */
+describe('command palette outage reporting', () => {
+	it('reports an outage even when a section row matched the query', async () => {
+		const wrapper = build()
+		resource.submit = vi.fn(async () => {
+			throw new Error('500')
+		}) as any
+
+		const input = wrapper.find('input')
+		await input.setValue('cour')
+		await input.trigger('input')
+		await nextTick()
+		await nextTick()
+
+		expect(rows(wrapper).map((item) => item.title)).toContain('Courses')
+		expect(wrapper.text()).toContain('Could not search')
+	})
+})
