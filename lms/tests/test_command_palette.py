@@ -19,7 +19,8 @@ from lms.lms.test_helpers import BaseTestUtils
 
 
 def row(doctype, name, **extra):
-	return {"doctype": doctype, "name": name, **extra}
+	"""An index row the way the index writes one: `id` is `<doctype>:<name>`."""
+	return {"id": f"{doctype}:{name}", "doctype": doctype, "name": name, **extra}
 
 
 class TestSearchCategoryValidation(FrappeTestCase):
@@ -185,3 +186,41 @@ class TestProgramScope(BaseTestUtils):
 		finally:
 			frappe.set_user("Administrator")
 		self.assertEqual(permitted["LMS Program"], set())
+
+
+class TestStaleIndexRows(FrappeTestCase):
+	"""Course Instructor rows were indexed and then rewritten to look like their
+	parent course, which left `id` naming the child row while `doctype` and
+	`name` named the course. They stopped being indexed, but every learning.db
+	built before that still holds them at the `published` value they were
+	written with, and `remove_doc` deletes by `LMS Course:<name>`, so nothing
+	reaches them until the index is rebuilt."""
+
+	def stale_twin(self, doctype, name, **extra):
+		twin = row(doctype, name, **extra)
+		twin["id"] = "Course Instructor:5f4dcc3b5a"
+		return twin
+
+	def test_a_row_standing_for_another_document_is_dropped(self):
+		twin = self.stale_twin("LMS Course", "draft-course", published=1)
+		self.assertEqual(get_grouped_results({"results": [twin]}), {})
+
+	def test_the_matching_row_is_kept(self):
+		course = row("LMS Course", "draft-course", published=1)
+		self.assertEqual(list(get_grouped_results({"results": [course]})), ["Courses"])
+
+	# The twin is what carried the stale `published`, and the visibility check
+	# runs before `remove_duplicates` — so deduplicating never reached it.
+	def test_a_stale_twin_cannot_publish_the_course_it_names(self):
+		result = {
+			"results": [
+				row("LMS Course", "draft-course", published=0, modified=1),
+				self.stale_twin("LMS Course", "draft-course", published=1, modified=1),
+			]
+		}
+		frappe.set_user("Guest")
+		try:
+			groups = prepare_search_results(result)
+		finally:
+			frappe.set_user("Administrator")
+		self.assertEqual(groups, [])

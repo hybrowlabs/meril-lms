@@ -38,7 +38,6 @@ COURSE_SCOPED_DOCTYPES = ("LMS Quiz", "LMS Assignment")
 
 AUTHORING_ROLES = ("Moderator", "Course Creator", "Batch Evaluator")
 
-
 @frappe.whitelist()
 def search_sqlite(query: str, category: str | None = None):
 	from lms.sqlite import LearningSearch, LearningSearchIndexMissingError
@@ -84,7 +83,7 @@ def prepare_search_results(result: dict):
 
 def get_grouped_results(result):
 	roles = frappe.get_roles()
-	rows = result["results"]
+	rows = [row for row in result["results"] if describes_its_own_doc(row)]
 	permitted = get_permitted_names(rows)
 
 	groups = {}
@@ -95,6 +94,21 @@ def get_grouped_results(result):
 			continue
 		groups.setdefault(group, []).append(r)
 	return groups
+
+
+def describes_its_own_doc(row):
+	"""Whether an index row still stands for the document it names.
+
+	Course Instructor rows used to be indexed and then rewritten to look like
+	their parent course, which left `id` naming the child row while `doctype`
+	and `name` named the course. They stopped being indexed, but every
+	`learning.db` built before that still holds them, frozen at whatever
+	`published` said when they were written — and `remove_duplicates` runs after
+	the visibility check, so an unpublished course kept surfacing through its
+	stale twin. `remove_doc` deletes by `LMS Course:<name>` and never reaches
+	one, so they outlive the course itself until the index is rebuilt.
+	"""
+	return row.get("id") == f"{row.get('doctype')}:{row.get('name')}"
 
 
 def is_visible(row, doctype, roles, permitted):
