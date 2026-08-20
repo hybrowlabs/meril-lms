@@ -448,6 +448,52 @@ describe('command palette keyboard scope', () => {
 })
 
 /**
+ * Narrowing to a category does not abort the request the root search left in
+ * flight, so its answer used to land inside the category and fill it with rows
+ * from outside it.
+ */
+describe('command palette scope changes', () => {
+	it('drops the root search once a category has been opened', async () => {
+		// One releaser per request, so the root's answer can be made to land
+		// after the user has already narrowed to Batches.
+		const releases: Array<(value: unknown) => void> = []
+		resource.submit = vi.fn(
+			() => new Promise((resolve) => releases.push(resolve))
+		) as any
+
+		const wrapper = build()
+		const input = wrapper.find('input')
+		await input.setValue('batc')
+		await input.trigger('input')
+		await nextTick()
+		const rootRequests = releases.splice(0)
+		expect(rootRequests.length).toBeGreaterThan(0)
+
+		// Back to the browse list, then into the Batches category.
+		await input.setValue('')
+		await input.trigger('input')
+		await nextTick()
+		const index = rows(wrapper).findIndex((item) => item.title === 'Batches')
+		expect(index).toBeGreaterThanOrEqual(0)
+		for (let i = 0; i <= index; i++) await press(wrapper, 'ArrowDown')
+		await press(wrapper, 'Enter')
+		await nextTick()
+
+		for (const release of rootRequests) release(RESULTS)
+		await nextTick()
+		await nextTick()
+
+		// Searching inside the category is what draws whatever is held; the
+		// second request is left in flight so nothing overwrites it first.
+		await input.setValue('kub')
+		await input.trigger('input')
+		await nextTick()
+
+		expect(rows(wrapper).map((item) => item.title)).not.toContain(COURSE.title)
+	})
+})
+
+/**
  * A section row matching the query is enough to fill the list, which is what
  * used to hide an outage behind it: the error was only drawn when nothing at
  * all had been found.

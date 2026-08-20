@@ -82,7 +82,7 @@
 </template>
 <script setup lang="ts">
 import { createResource, debounce, Dialog } from 'frappe-ui'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { usersStore } from '@/stores/user'
 import { useSettings } from '@/stores/settings'
@@ -128,8 +128,21 @@ const activeIndex = ref(-1)
 
 // One token per request. Comparing against the current query instead would miss
 // two requests for *different* queries overlapping and landing out of order:
-// frappe-ui never aborts the one already in flight.
+// frappe-ui never aborts the one already in flight. Everything that invalidates
+// the search in progress — a scope change, a close, unmounting — bumps this, so
+// a response already on its way lands in a scope that no longer wants it and is
+// dropped.
 let searchToken = 0
+
+// The token the waiting debounced tick is holding. frappe-ui's `debounce` hands
+// back a bare function with no `.cancel()`, so a scheduled search is disarmed
+// rather than cleared: the tick still runs, sees that `searchToken` has moved
+// past it, and asks the server for nothing.
+let armedToken = 0
+const invalidateSearch = () => {
+	searchToken += 1
+}
+
 const searchFailed = ref(false)
 
 // Whether a search for the current typing run has come back at all. Tying the
@@ -145,8 +158,7 @@ const search = createResource({ url: 'lms.command_palette.search_sqlite' })
 // switched off was still offered a Jobs row here.
 const sidebarVisibility = computed(() => settingsStore.sidebarSettings.data)
 
-const runSearch = async () => {
-	const token = ++searchToken
+const runSearch = async (token: number) => {
 	const params = scope.value
 		? { query: query.value, category: scope.value }
 		: { query: query.value }
@@ -246,12 +258,18 @@ const showsErrorState = computed(
 )
 
 const debouncedSearch = debounce(() => {
-	if (isSearching.value) runSearch()
+	if (armedToken !== searchToken) return
+	if (isSearching.value) runSearch(armedToken)
 }, 300)
 
 const onInput = () => {
+	armedToken = ++searchToken
 	debouncedSearch()
 }
+
+// A trailing tick used to fire its request after the dialog was gone. The token
+// dropped the response, but the round trip still went out.
+onUnmounted(invalidateSearch)
 
 /** Search hits whose doctype has no route are dropped, not pointed at a wrong page. */
 const toGroups = (data: unknown): PaletteGroup[] => {
@@ -276,6 +294,7 @@ const toGroups = (data: unknown): PaletteGroup[] => {
 watch(query, () => {
 	activeIndex.value = -1
 	if (!isSearching.value) {
+		invalidateSearch()
 		searchResults.value = []
 		hasSettled.value = false
 		searchFailed.value = false
@@ -289,15 +308,10 @@ watch(show, () => {
 		settingsStore.loadSidebarSettings()
 		return
 	}
-	query.value = ''
-	searchResults.value = []
-	activeIndex.value = -1
-	// Without this the palette reopened still narrowed to whatever category
-	// was last opened, with no visible sign that it was filtering.
+	// Without this the palette reopened still narrowed to whatever category was
+	// last opened, with no visible sign that it was filtering.
 	scope.value = null
-	searchFailed.value = false
-	hasSettled.value = false
-	searchToken += 1
+	resetSearch()
 })
 
 const onKeydown = (e: KeyboardEvent) => {
@@ -373,18 +387,26 @@ const run = (item: PaletteItem) => {
 
 const enterScope = (category: string) => {
 	scope.value = category
-	query.value = ''
-	searchResults.value = []
-	activeIndex.value = -1
+	resetSearch()
 	focusInput()
 }
 
 const leaveScope = () => {
 	scope.value = null
+	resetSearch()
+	focusInput()
+}
+
+/** Both directions across a scope boundary clear the same state. The token bump
+ * is what stops the old scope's reply, which frappe-ui is still fetching, from
+ * repopulating the new one. */
+const resetSearch = () => {
+	invalidateSearch()
 	query.value = ''
 	searchResults.value = []
 	activeIndex.value = -1
-	focusInput()
+	searchFailed.value = false
+	hasSettled.value = false
 }
 
 /** Clicking a row destroys that button, so without this the caret would be left
