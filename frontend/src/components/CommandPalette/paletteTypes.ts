@@ -1,5 +1,3 @@
-import type { Component } from 'vue'
-
 export interface PaletteRoute {
 	name: string
 	params?: Record<string, string>
@@ -14,7 +12,8 @@ export interface PaletteItem {
 	perform?: () => void
 	doctype?: string
 	name?: string
-	icon?: Component
+	/** A generated `lucide-*` class. */
+	icon?: string
 	/** Unix seconds, as the search index stores it. */
 	modified?: number
 	isActive?: boolean

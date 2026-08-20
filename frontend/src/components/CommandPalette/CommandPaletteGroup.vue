@@ -19,10 +19,9 @@
 					@click="emit('select', item)"
 				>
 					<div class="flex items-center gap-x-3">
-						<component
+						<span
 							v-if="item.icon"
-							:is="item.icon"
-							class="size-4 stroke-1.5 text-ink-gray-6"
+							:class="[item.icon, 'size-4 text-ink-gray-6']"
 						/>
 						<div v-safe-html:rich="item.title"></div>
 					</div>

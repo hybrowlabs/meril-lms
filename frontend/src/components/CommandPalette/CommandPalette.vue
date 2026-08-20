@@ -85,7 +85,6 @@
 import { createResource, debounce, Dialog } from 'frappe-ui'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Settings } from 'lucide-vue-next'
 import { usersStore } from '@/stores/user'
 import { useSettings } from '@/stores/settings'
 // @ts-expect-error utils/index.js has no type declarations yet
@@ -442,7 +441,7 @@ const accountItems = computed<PaletteItem[]>(() => {
 	return [
 		{
 			title: __('Settings'),
-			icon: Settings,
+			icon: 'lucide-settings',
 			perform: () => {
 				settingsStore.isSettingsOpen = true
 			},

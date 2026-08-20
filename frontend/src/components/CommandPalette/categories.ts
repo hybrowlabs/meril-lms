@@ -1,22 +1,9 @@
-import {
-	BookOpen,
-	Briefcase,
-	CircleHelp,
-	Code,
-	GraduationCap,
-	Home,
-	Pencil,
-	Route,
-	TrendingUp,
-	Users,
-} from 'lucide-vue-next'
-import type { Component } from 'vue'
-
 export interface Category {
 	/** Sent to search_sqlite, which maps it to a doctype; never a doctype here. */
 	id: string
 	label: string
-	icon: Component
+	/** A generated `lucide-*` class, the way the rest of the app names icons. */
+	icon: string
 	/** The category's own list page, and the sidebar entry it is gated by. */
 	listRoute: string
 }
@@ -31,15 +18,35 @@ export interface Category {
  * is what actually withholds records.
  */
 export const CATEGORIES: Category[] = [
-	{ id: 'courses', label: 'Courses', icon: BookOpen, listRoute: 'Courses' },
-	{ id: 'batches', label: 'Batches', icon: Users, listRoute: 'Batches' },
-	{ id: 'programs', label: 'Programs', icon: Route, listRoute: 'Programs' },
-	{ id: 'jobs', label: 'Jobs', icon: Briefcase, listRoute: 'Jobs' },
-	{ id: 'quizzes', label: 'Quizzes', icon: CircleHelp, listRoute: 'Quizzes' },
+	{
+		id: 'courses',
+		label: 'Courses',
+		icon: 'lucide-book-open',
+		listRoute: 'Courses',
+	},
+	{
+		id: 'batches',
+		label: 'Batches',
+		icon: 'lucide-users',
+		listRoute: 'Batches',
+	},
+	{
+		id: 'programs',
+		label: 'Programs',
+		icon: 'lucide-route',
+		listRoute: 'Programs',
+	},
+	{ id: 'jobs', label: 'Jobs', icon: 'lucide-briefcase', listRoute: 'Jobs' },
+	{
+		id: 'quizzes',
+		label: 'Quizzes',
+		icon: 'lucide-circle-help',
+		listRoute: 'Quizzes',
+	},
 	{
 		id: 'assignments',
 		label: 'Assignments',
-		icon: Pencil,
+		icon: 'lucide-pencil',
 		listRoute: 'Assignments',
 	},
 ]
@@ -74,7 +81,8 @@ export function categoryById(id: string | null): Category | undefined {
 export interface NavTarget {
 	id: string
 	label: string
-	icon: Component
+	/** A generated `lucide-*` class, the way the rest of the app names icons. */
+	icon: string
 	/** Route name. Selecting the row goes straight here. */
 	route: string
 }
@@ -88,23 +96,23 @@ export interface NavTarget {
  * and pushing either as a route name lands nowhere.
  */
 export const NAV_TARGETS: NavTarget[] = [
-	{ id: 'home', label: 'Home', icon: Home, route: 'Home' },
+	{ id: 'home', label: 'Home', icon: 'lucide-home', route: 'Home' },
 	{
 		id: 'certifications',
 		label: 'Certifications',
-		icon: GraduationCap,
+		icon: 'lucide-graduation-cap',
 		route: 'CertifiedParticipants',
 	},
 	{
 		id: 'statistics',
 		label: 'Statistics',
-		icon: TrendingUp,
+		icon: 'lucide-trending-up',
 		route: 'Statistics',
 	},
 	{
 		id: 'programming-exercises',
 		label: 'Programming Exercises',
-		icon: Code,
+		icon: 'lucide-code',
 		route: 'ProgrammingExercises',
 	},
 ]
