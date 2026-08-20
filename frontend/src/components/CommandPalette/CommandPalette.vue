@@ -92,8 +92,9 @@ import { useSettings } from '@/stores/settings'
 import { getSidebarLinks } from '@/utils'
 import CommandPaletteGroup from './CommandPaletteGroup.vue'
 import type { PaletteGroup, PaletteItem, PaletteRoute } from './paletteTypes'
-import { routeForSearchHit } from './paletteTypes'
+import { MODAL_FORM_ROUTES, routeForSearchHit } from './paletteTypes'
 import { categoryById, visibleCategories } from './categories'
+import { openFormRoute } from '@/composables/useFormRoute'
 
 const chipClass =
 	'inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-surface-gray-2'
@@ -157,6 +158,15 @@ const runSearch = async () => {
 }
 
 const isSearching = computed(() => query.value.length >= MIN_QUERY_LENGTH)
+
+/** The same test Programs.vue gates its own card click on. */
+const routeContext = computed(() => ({
+	canEditPrograms:
+		!window.read_only_mode &&
+		Boolean(
+			userResource.data?.is_moderator || userResource.data?.is_instructor
+		),
+}))
 
 /** Sections whose name the query is starting to spell. Typing "cour" should
  * offer the Courses page itself before the courses it matched. */
@@ -223,7 +233,11 @@ const toGroups = (data: unknown): PaletteGroup[] => {
 			title: group.title,
 			items: (group.items ?? [])
 				.map((item: any) => {
-					const route = routeForSearchHit(item.doctype, item.name)
+					const route = routeForSearchHit(
+						item.doctype,
+						item.name,
+						routeContext.value
+					)
 					return route ? { ...item, route } : null
 				})
 				.filter(Boolean) as PaletteItem[],
@@ -341,9 +355,13 @@ const navigateTo = (route: PaletteRoute) => {
 	show.value = false
 	query.value = ''
 	searchResults.value = []
+	const to = { name: route.name, params: route.params, query: route.query }
 	// push, not replace: reaching a course through the palette should still
-	// leave the page you came from on the back stack.
-	router.push({ name: route.name, params: route.params, query: route.query })
+	// leave the page you came from on the back stack. A form route needs the
+	// marker openFormRoute stamps, or closing the modal ejects the user instead
+	// of returning them to the list underneath it.
+	if (MODAL_FORM_ROUTES.has(route.name)) openFormRoute(router, to)
+	else router.push(to)
 }
 
 const scopedCategory = computed(() => categoryById(scope.value))

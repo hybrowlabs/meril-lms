@@ -25,12 +25,25 @@ export interface PaletteGroup {
 	items: PaletteItem[]
 }
 
+/** What the palette knows about the visitor when it picks a route. */
+export interface PaletteRouteContext {
+	/**
+	 * Mirrors Programs.vue's own `canCreateProgram()`. Its cards open the edit
+	 * form for these users and do nothing at all for anyone else, so this is
+	 * what decides whether a program hit is an edit or a read.
+	 */
+	canEditPrograms?: boolean
+}
+
 /**
  * Where a search hit opens. Every doctype but LMS Course used to fall through to
  * the batch route, so a job hit navigated to /batches/JOB-0001; an unmapped
  * doctype now yields nothing and its row is dropped instead.
  */
-const ROUTE_BUILDERS: Record<string, (name: string) => PaletteRoute> = {
+const ROUTE_BUILDERS: Record<
+	string,
+	(name: string, context: PaletteRouteContext) => PaletteRoute
+> = {
 	'LMS Course': (name) => ({
 		name: 'CourseDetail',
 		params: { courseName: name },
@@ -45,15 +58,29 @@ const ROUTE_BUILDERS: Record<string, (name: string) => PaletteRoute> = {
 		name: 'AssignmentForm',
 		params: { assignmentID: name },
 	}),
-	'LMS Program': (name) => ({
-		name: 'ProgramDetail',
-		params: { programName: name },
-	}),
+	// Programs.vue splits by role: a student gets the read-only detail page,
+	// while a moderator or instructor gets a list whose cards open ProgramForm.
+	// Sending everyone to ProgramDetail dropped an author on a page with no way
+	// into the program they were looking for.
+	'LMS Program': (name, context) =>
+		context.canEditPrograms
+			? { name: 'ProgramForm', params: { programName: name } }
+			: { name: 'ProgramDetail', params: { programName: name } },
 }
+
+/**
+ * Routes that render as a modal over their list page. Both pages open them
+ * through `openFormRoute`, which stamps the history entry so the form's own
+ * close pops back to the list; a bare push leaves no marker and degrades that
+ * close into a replace. QuizForm is absent on purpose — it is a top-level route
+ * that the quiz list reaches with a plain row link.
+ */
+export const MODAL_FORM_ROUTES = new Set(['ProgramForm', 'AssignmentForm'])
 
 export function routeForSearchHit(
 	doctype: string,
-	name: string
+	name: string,
+	context: PaletteRouteContext = {}
 ): PaletteRoute | null {
-	return ROUTE_BUILDERS[doctype]?.(name) ?? null
+	return ROUTE_BUILDERS[doctype]?.(name, context) ?? null
 }
