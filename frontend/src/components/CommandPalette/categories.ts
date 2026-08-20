@@ -2,8 +2,12 @@ import {
 	BookOpen,
 	Briefcase,
 	CircleHelp,
+	Code,
+	GraduationCap,
+	Home,
 	Pencil,
 	Route,
+	TrendingUp,
 	Users,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
@@ -48,17 +52,65 @@ interface SidebarGroup {
 	items: SidebarItem[]
 }
 
-/** Categories whose page this user is being offered in the sidebar. */
-export function visibleCategories(sidebarLinks: SidebarGroup[]): Category[] {
-	const offered = new Set(
+function offeredRoutes(sidebarLinks: SidebarGroup[]): Set<string | undefined> {
+	return new Set(
 		(sidebarLinks ?? [])
 			.flatMap((group) => group.items ?? [])
 			.map((item) => item.to)
 	)
+}
+
+/** Categories whose page this user is being offered in the sidebar. */
+export function visibleCategories(sidebarLinks: SidebarGroup[]): Category[] {
+	const offered = offeredRoutes(sidebarLinks)
 	return CATEGORIES.filter((category) => offered.has(category.listRoute))
 }
 
 export function categoryById(id: string | null): Category | undefined {
 	if (!id) return undefined
 	return CATEGORIES.find((category) => category.id === id)
+}
+
+export interface NavTarget {
+	id: string
+	label: string
+	icon: Component
+	/** Route name. Selecting the row goes straight here. */
+	route: string
+}
+
+/**
+ * Sidebar pages with no records behind them, so there is nothing to scope a
+ * search to — the row navigates instead of drilling in.
+ *
+ * Listed by hand rather than derived from the sidebar, because a sidebar `to`
+ * is not always a route name: Contact Us carries a URL or a mailto address,
+ * and pushing either as a route name lands nowhere.
+ */
+export const NAV_TARGETS: NavTarget[] = [
+	{ id: 'home', label: 'Home', icon: Home, route: 'Home' },
+	{
+		id: 'certifications',
+		label: 'Certifications',
+		icon: GraduationCap,
+		route: 'CertifiedParticipants',
+	},
+	{
+		id: 'statistics',
+		label: 'Statistics',
+		icon: TrendingUp,
+		route: 'Statistics',
+	},
+	{
+		id: 'programming-exercises',
+		label: 'Programming Exercises',
+		icon: Code,
+		route: 'ProgrammingExercises',
+	},
+]
+
+/** Nav targets whose page this user is being offered in the sidebar. */
+export function visibleNavTargets(sidebarLinks: SidebarGroup[]): NavTarget[] {
+	const offered = offeredRoutes(sidebarLinks)
+	return NAV_TARGETS.filter((target) => offered.has(target.route))
 }

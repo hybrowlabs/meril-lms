@@ -67,15 +67,31 @@ const links = (...routes: string[]) => [{ items: routes.map((to) => ({ to })) }]
 // absent for a guest (`if (!userResource.data) return false`) and for a student
 // with no programs; Quizzes and Assignments are instructor/moderator/evaluator only.
 const GUEST = links('Courses', 'Batches', 'Jobs', 'Statistics')
-const STUDENT = links('Courses', 'Batches', 'Jobs', 'Certifications')
-const STUDENT_WITH_PROGRAMS = links('Courses', 'Batches', 'Programs', 'Jobs')
+// Certifications' `to` is the route name, not the label.
+const STUDENT = links(
+	'Courses',
+	'Batches',
+	'Jobs',
+	'CertifiedParticipants',
+	'Statistics'
+)
+const STUDENT_WITH_PROGRAMS = links(
+	'Courses',
+	'Batches',
+	'Programs',
+	'Jobs',
+	'Statistics'
+)
 const ADMIN = links(
 	'Courses',
 	'Batches',
 	'Programs',
 	'Jobs',
 	'Quizzes',
-	'Assignments'
+	'Assignments',
+	'CertifiedParticipants',
+	'Statistics',
+	'ProgrammingExercises'
 )
 
 function build() {
@@ -98,6 +114,14 @@ function titles(wrapper: ReturnType<typeof build>) {
 
 function press(wrapper: ReturnType<typeof build>, key: string) {
 	return wrapper.find('input').trigger('keydown', { key })
+}
+
+/** Types `text` and lets the (undebounced) search settle. */
+async function type(wrapper: ReturnType<typeof build>, text: string) {
+	const input = wrapper.find('input')
+	await input.setValue(text)
+	await input.trigger('input')
+	await nextTick()
 }
 
 /** Arrows onto the row with `title` and opens it. */
@@ -240,5 +264,87 @@ describe('command palette categories', () => {
 		const wrapper = build()
 		await open(wrapper, 'Settings')
 		expect(settings.isSettingsOpen).toBe(true)
+	})
+})
+
+/**
+ * Rows that only navigate. Statistics is a sidebar page with no records behind
+ * it, so it cannot be a searchable category — Enter has to take the user there
+ * rather than narrow the search to nothing.
+ */
+describe('command palette jump-to targets', () => {
+	it('offers Statistics', () => {
+		expect(titles(build())).toContain('Statistics')
+	})
+
+	it('navigates to Statistics rather than scoping the search', async () => {
+		const wrapper = build()
+		const row = rows(wrapper).find((item) => item.title === 'Statistics')
+		expect(row.category).toBeUndefined()
+		expect(row.route).toEqual(expect.objectContaining({ name: 'Statistics' }))
+	})
+
+	it.each([
+		{ label: 'Certifications', route: 'CertifiedParticipants' },
+		{ label: 'Programming Exercises', route: 'ProgrammingExercises' },
+		{ label: 'Home', route: 'Home' },
+	])('offers $label when the sidebar does', ({ label, route }) => {
+		sidebarLinks.value = links(route)
+		const row = rows(build()).find((item) => item.title === label)
+		expect(row?.route).toEqual(expect.objectContaining({ name: route }))
+	})
+
+	// Contact Us's `to` is a URL or a mailto address, never a route name, so
+	// mapping sidebar entries blindly would push a garbage route.
+	it('never offers Contact Us', () => {
+		sidebarLinks.value = links(
+			'https://example.com/support',
+			'help@example.com'
+		)
+		expect(titles(build())).not.toContain('Contact Us')
+		expect(rows(build())).toHaveLength(1) // Settings, from the Account group
+	})
+
+	it('withholds a target the sidebar is withholding', () => {
+		sidebarLinks.value = links('Courses')
+		expect(titles(build())).not.toContain('Statistics')
+	})
+
+	it.each(['Statistics', 'Certifications'])(
+		'finds %s by typing its name',
+		async (label) => {
+			const wrapper = build()
+			await type(wrapper, label.slice(0, 4).toLowerCase())
+			expect(titles(wrapper)).toContain(label)
+		}
+	)
+})
+
+/**
+ * Settings lived only in the pre-search browse list, so typing its name emptied
+ * the palette and reported "No results found" instead of offering it.
+ */
+describe('command palette settings row', () => {
+	it('finds Settings by typing its name', async () => {
+		const wrapper = build()
+		await type(wrapper, 'sett')
+
+		expect(titles(wrapper)).toContain('Settings')
+	})
+
+	it('still opens the dialog when reached by typing', async () => {
+		const wrapper = build()
+		await type(wrapper, 'sett')
+		await open(wrapper, 'Settings')
+
+		expect(settings.isSettingsOpen).toBe(true)
+	})
+
+	it('does not offer Settings to a searching student', async () => {
+		user.data = { is_student: true }
+		const wrapper = build()
+		await type(wrapper, 'sett')
+
+		expect(titles(wrapper)).not.toContain('Settings')
 	})
 })

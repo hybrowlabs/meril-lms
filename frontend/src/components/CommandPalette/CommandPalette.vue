@@ -93,7 +93,11 @@ import { getSidebarLinks } from '@/utils'
 import CommandPaletteGroup from './CommandPaletteGroup.vue'
 import type { PaletteGroup, PaletteItem, PaletteRoute } from './paletteTypes'
 import { MODAL_FORM_ROUTES, routeForSearchHit } from './paletteTypes'
-import { categoryById, visibleCategories } from './categories'
+import {
+	categoryById,
+	visibleCategories,
+	visibleNavTargets,
+} from './categories'
 import { openFormRoute } from '@/composables/useFormRoute'
 
 const chipClass =
@@ -168,18 +172,37 @@ const routeContext = computed(() => ({
 		),
 }))
 
-/** Sections whose name the query is starting to spell. Typing "cour" should
- * offer the Courses page itself before the courses it matched. */
-const matchingSections = computed<PaletteItem[]>(() => {
-	const term = query.value.trim().toLowerCase()
-	if (!term || scope.value) return []
-	return visibleCategories(getSidebarLinks())
-		.filter((entry) => String(__(entry.label)).toLowerCase().startsWith(term))
-		.map((entry) => ({
+/**
+ * Every row the palette offers by name, in the form it takes while searching: a
+ * category resolves to its own list page here rather than drilling in, because
+ * typing "cour" means "take me to Courses". Account rows belong here too —
+ * Settings lived only in the pre-search list, so typing its name emptied the
+ * palette and reported that nothing matched.
+ */
+const searchableSections = computed<PaletteItem[]>(() => {
+	const links = getSidebarLinks()
+	return [
+		...visibleCategories(links).map((entry) => ({
 			title: __(entry.label),
 			icon: entry.icon,
 			route: { name: entry.listRoute },
-		}))
+		})),
+		...visibleNavTargets(links).map((entry) => ({
+			title: __(entry.label),
+			icon: entry.icon,
+			route: { name: entry.route },
+		})),
+		...accountItems.value,
+	]
+})
+
+/** Sections whose name the query is starting to spell. */
+const matchingSections = computed<PaletteItem[]>(() => {
+	const term = query.value.trim().toLowerCase()
+	if (!term || scope.value) return []
+	return searchableSections.value.filter((section) =>
+		String(section.title).toLowerCase().startsWith(term)
+	)
 })
 
 const groups = computed<PaletteGroup[]>(() => {
@@ -385,14 +408,23 @@ const browseGroups = computed<PaletteGroup[]>(() => {
 		]
 	}
 
+	const links = getSidebarLinks()
 	const groups: PaletteGroup[] = [
 		{
 			title: __('Jump to'),
-			items: visibleCategories(getSidebarLinks()).map((entry) => ({
-				title: __(entry.label),
-				icon: entry.icon,
-				category: entry.id,
-			})),
+			items: [
+				...visibleCategories(links).map((entry) => ({
+					title: __(entry.label),
+					icon: entry.icon,
+					category: entry.id,
+				})),
+				// No records to narrow to, so these navigate rather than drill in.
+				...visibleNavTargets(links).map((entry) => ({
+					title: __(entry.label),
+					icon: entry.icon,
+					route: { name: entry.route },
+				})),
+			],
 		},
 	]
 
