@@ -145,6 +145,9 @@ const invalidateSearch = () => {
 
 const searchFailed = ref(false)
 
+// The query `searchResults` answers, which is not always the one on screen.
+const resultsQuery = ref<string | null>(null)
+
 // Whether a search for the current typing run has come back at all. Tying the
 // empty message to `search.loading` instead made it blink off and on with every
 // keystroke — the results area collapsed to nothing and the dialog resized on
@@ -159,6 +162,9 @@ const search = createResource({ url: 'lms.command_palette.search_sqlite' })
 const sidebarVisibility = computed(() => settingsStore.sidebarSettings.data)
 
 const runSearch = async (token: number) => {
+	// What this request is for. The response is matched back against it so the
+	// rows can say whether they still answer what is in the box.
+	const asked = query.value
 	const params = scope.value
 		? { query: query.value, category: scope.value }
 		: { query: query.value }
@@ -166,17 +172,33 @@ const runSearch = async (token: number) => {
 		const data = await search.submit(params)
 		if (token !== searchToken) return
 		searchResults.value = toGroups(data)
+		resultsQuery.value = asked
 		searchFailed.value = false
 		hasSettled.value = true
 	} catch (error) {
 		if (token !== searchToken) return
 		searchResults.value = []
+		resultsQuery.value = asked
 		searchFailed.value = true
 		hasSettled.value = true
 	}
 }
 
 const isSearching = computed(() => query.value.length >= MIN_QUERY_LENGTH)
+
+/**
+ * The rows on screen answer a query the user has already replaced. Going from
+ * one valid query to another leaves `isSearching` true, so the query watcher
+ * never clears them — deliberately, because clearing per keystroke is the blink
+ * that "stop the empty state blinking" fixed. They stay visible and stop being
+ * selectable instead, so Enter cannot open a row the query no longer matches.
+ */
+const resultsAreStale = computed(
+	() =>
+		isSearching.value &&
+		resultsQuery.value !== null &&
+		resultsQuery.value !== query.value
+)
 
 /** The same test Programs.vue gates its own card click on. */
 const routeContext = computed(() => ({
@@ -223,29 +245,48 @@ const matchingSections = computed<PaletteItem[]>(() => {
 const groups = computed<PaletteGroup[]>(() => {
 	const searched = isSearching.value
 	const sections = matchingSections.value
+	const stale = resultsAreStale.value
+	const hits = searchResults.value.map((group) => ({
+		...group,
+		isStale: stale,
+	}))
 	const source = searched
 		? sections.length
-			? [{ title: __('Jump to'), items: sections }, ...searchResults.value]
-			: searchResults.value
+			? [{ title: __('Jump to'), items: sections }, ...hits]
+			: hits
 		: browseGroups.value
+	// Stale rows are skipped by the counter, not just excluded from it, so the
+	// active index keeps addressing the same live row either way.
 	let index = 0
 	return source.map((group) => ({
 		title: group.title,
-		items: group.items.map((item) => ({
-			...item,
-			isActive: index++ === activeIndex.value,
-		})),
+		items: group.items.map((item) =>
+			group.isStale
+				? { ...item, isStale: true, isActive: false }
+				: { ...item, isActive: index++ === activeIndex.value }
+		),
 	}))
 })
 
+/**
+ * Everything drawn, stale rows included. "No results found" answers what is on
+ * screen rather than what can be selected — keying it to the selectable rows
+ * would blank it for every in-flight keystroke once a stale set was excluded,
+ * which is the blink "stop the empty state blinking" fixed.
+ */
+const renderedCount = computed(() =>
+	groups.value.reduce((total, group) => total + group.items.length, 0)
+)
+
+/** What the keyboard can reach: a stale row is on screen but not in here. */
 const flatItems = computed<PaletteItem[]>(() =>
-	groups.value.flatMap((group) => group.items)
+	groups.value.flatMap((group) => group.items).filter((item) => !item.isStale)
 )
 
 const showsEmptyState = computed(
 	() =>
 		isSearching.value &&
-		!flatItems.value.length &&
+		!renderedCount.value &&
 		hasSettled.value &&
 		!searchFailed.value
 )
@@ -378,6 +419,7 @@ const scrollActiveItemIntoView = () => {
 }
 
 const run = (item: PaletteItem) => {
+	if (item.isStale) return
 	if (item.category) enterScope(item.category)
 	else if (item.perform) {
 		show.value = false
@@ -404,6 +446,7 @@ const resetSearch = () => {
 	invalidateSearch()
 	query.value = ''
 	searchResults.value = []
+	resultsQuery.value = null
 	activeIndex.value = -1
 	searchFailed.value = false
 	hasSettled.value = false

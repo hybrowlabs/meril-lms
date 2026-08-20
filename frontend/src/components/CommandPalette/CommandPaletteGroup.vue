@@ -14,8 +14,14 @@
 					type="button"
 					data-palette-item
 					:data-active="item.isActive ? 'true' : 'false'"
-					class="flex items-center justify-between p-2 rounded hover:bg-surface-gray-2 cursor-pointer w-full text-start"
-					:class="{ 'bg-surface-gray-2': item.isActive }"
+					:disabled="item.isStale"
+					class="flex items-center justify-between p-2 rounded w-full text-start"
+					:class="[
+						item.isStale
+							? 'opacity-50 cursor-default'
+							: 'cursor-pointer hover:bg-surface-gray-2',
+						{ 'bg-surface-gray-2': item.isActive },
+					]"
 					@click="emit('select', item)"
 				>
 					<div class="flex items-center gap-x-3">

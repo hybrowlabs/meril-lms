@@ -515,3 +515,105 @@ describe('command palette outage reporting', () => {
 		expect(wrapper.text()).toContain('Could not search')
 	})
 })
+
+/**
+ * Results the visible query no longer matches.
+ *
+ * Going from one valid query to another leaves `isSearching` true, so the query
+ * watcher's clear branch never runs and the previous rows stay on screen for the
+ * debounce plus the replacement request. That is deliberate — clearing them per
+ * keystroke is the blink 5af4bf830 fixed — but they must not stay *selectable*,
+ * or Enter opens a row belonging to a query the user has already replaced.
+ */
+describe('command palette stale results', () => {
+	const KUBE = { title: 'Courses', items: [COURSE] }
+
+	/** Starts a second search and leaves its response in flight. */
+	async function retype(wrapper: ReturnType<typeof build>, term: string) {
+		resource.submit = vi.fn(() => new Promise(() => {}))
+		const input = wrapper.find('input')
+		await input.setValue(term)
+		await input.trigger('input')
+		await nextTick()
+	}
+
+	it('keeps the previous rows on screen, so the list does not blink', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kube', [KUBE])
+		await retype(wrapper, 'docker')
+
+		expect(rows(wrapper).map((item) => item.title)).toContain(COURSE.title)
+	})
+
+	it('does not open a stale row on Enter', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kube', [KUBE])
+		await retype(wrapper, 'docker')
+
+		await press(wrapper, 'Enter')
+		await nextTick()
+
+		expect(push).not.toHaveBeenCalled()
+	})
+
+	it('does not let the arrows reach a stale row', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kube', [KUBE])
+		await retype(wrapper, 'docker')
+
+		await press(wrapper, 'ArrowDown')
+		await press(wrapper, 'Enter')
+		await nextTick()
+
+		expect(push).not.toHaveBeenCalled()
+	})
+
+	it('does not open a stale row on click', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kube', [KUBE])
+		await retype(wrapper, 'docker')
+
+		const stale = rows(wrapper).find((item) => item.title === COURSE.title)
+		wrapper.findComponent({ name: 'PaletteGroup' }).vm.$emit('select', stale)
+		await nextTick()
+
+		expect(push).not.toHaveBeenCalled()
+	})
+
+	// A live section row is computed from the current query, so it stays usable
+	// while the hits behind it are stale.
+	it('still opens a section that matches the new query', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kube', [KUBE])
+		await retype(wrapper, 'cour')
+
+		await press(wrapper, 'Enter')
+		await nextTick()
+
+		expect(push).toHaveBeenCalledWith(
+			expect.objectContaining({ name: 'Courses' })
+		)
+	})
+
+	it('makes the rows selectable again once the new results land', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kube', [KUBE])
+		await retype(wrapper, 'docker')
+
+		// retype() leaves the request hanging; let the next one answer.
+		resource.submit = vi.fn(async (params: any) => {
+			resource.params = params
+			return resource.next
+		})
+		await search(wrapper, 'docker', [
+			{ title: 'Courses', items: [{ ...COURSE, name: 'docker-deep-dive' }] },
+		])
+
+		await press(wrapper, 'Enter')
+		await nextTick()
+
+		expect(push).toHaveBeenCalledWith(
+			expect.objectContaining({ params: { courseName: 'docker-deep-dive' } })
+		)
+	})
+})

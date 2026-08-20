@@ -17,11 +17,14 @@ export interface PaletteItem {
 	/** Unix seconds, as the search index stores it. */
 	modified?: number
 	isActive?: boolean
+	/** Belongs to a query the user has already replaced; shown, not selectable. */
+	isStale?: boolean
 }
 
 export interface PaletteGroup {
 	title: string
 	items: PaletteItem[]
+	isStale?: boolean
 }
 
 /** What the palette knows about the visitor when it picks a route. */
