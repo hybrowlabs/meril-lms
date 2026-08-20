@@ -413,3 +413,36 @@ describe('command palette form routes', () => {
 		)
 	})
 })
+
+/**
+ * The keys were bound to the `<input>`, so tabbing to a result button — the
+ * only other thing in the dialog that takes focus — killed the arrows and
+ * Enter. They belong to the panel, above both.
+ */
+describe('command palette keyboard scope', () => {
+	const fromResults = (wrapper: ReturnType<typeof build>, key: string) =>
+		wrapper.find('#command-palette-results').trigger('keydown', { key })
+
+	it('takes ArrowDown from outside the input', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kubernetes')
+
+		await fromResults(wrapper, 'ArrowDown')
+
+		const active = rows(wrapper).filter((item) => item.isActive)
+		expect(active).toHaveLength(1)
+		expect(active[0].title).toBe(COURSE.title)
+	})
+
+	it('takes Enter from outside the input', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kubernetes')
+
+		await fromResults(wrapper, 'ArrowDown')
+		await fromResults(wrapper, 'Enter')
+
+		expect(push).toHaveBeenCalledWith(
+			expect.objectContaining({ name: 'CourseDetail' })
+		)
+	})
+})

@@ -4,7 +4,7 @@
 			<Dialog.Title as-child>
 				<h2 class="sr-only">{{ __('Command palette') }}</h2>
 			</Dialog.Title>
-			<div class="text-base">
+			<div class="text-base" @keydown="onKeydown">
 				<div class="flex items-center gap-x-2 ps-4.5 border-b">
 					<span class="lucide-search size-4 text-ink-gray-4" />
 					<input
@@ -16,7 +16,6 @@
 						:placeholder="__('Search')"
 						class="w-full border-none bg-transparent py-3 !ps-2 pe-4.5 text-base text-ink-gray-7 placeholder-ink-gray-4 focus:ring-0"
 						@input="onInput"
-						@keydown="onKeydown"
 						v-model="query"
 						autocomplete="off"
 					/>
@@ -307,6 +306,9 @@ const onKeydown = (e: KeyboardEvent) => {
 		e.preventDefault()
 		moveActive(-1)
 	} else if (e.key === 'Enter') {
+		// A result button the user tabbed to takes Enter as a click of its own.
+		// Handling it here would open whichever row is highlighted instead.
+		if (isResultButton(e.target)) return
 		e.preventDefault()
 		// Enter with nothing arrowed to opens the top hit, which is what the
 		// caret sitting in a search box implies.
@@ -328,9 +330,16 @@ const onKeydown = (e: KeyboardEvent) => {
 	}
 }
 
+const isResultButton = (target: EventTarget | null): boolean =>
+	target instanceof Element && Boolean(target.closest('[data-palette-item]'))
+
 const moveActive = (direction: number) => {
 	const total = flatItems.value.length
 	if (!total) return
+	// The highlight belongs to the input's caret. Arrowing from a result button
+	// the user had tabbed to would otherwise leave focus and highlight on
+	// different rows, and Enter opens the focused one.
+	focusInput()
 	const next = activeIndex.value + direction
 	if (next < 0) activeIndex.value = total - 1
 	else if (next >= total) activeIndex.value = 0
@@ -376,8 +385,9 @@ const leaveScope = () => {
 	focusInput()
 }
 
-/** Clicking a row destroys that button and the keys are bound to the input, so
- * without this the palette stopped responding to the keyboard after a click. */
+/** Clicking a row destroys that button, so without this the caret would be left
+ * on nothing. The keys are bound to the dialog panel and keep working either
+ * way; typing is what needs the input back. */
 const focusInput = () => {
 	nextTick(() => inputRef.value?.focus())
 }
