@@ -162,15 +162,18 @@ def get_authored_names(doctype, names):
 		return set(names)
 
 	courses = get_instructed_courses()
-	if not courses:
-		return set()
 	rows = frappe.get_all(
 		doctype,
 		filters={"name": ("in", list(names))},
-		fields=["name", "course"],
+		fields=["name", "course", "owner"],
 		limit_page_length=0,
 	)
-	return {row.name for row in rows if row.course in courses}
+	# `course` is optional on both doctypes and the quiz form never asks for it,
+	# so course alone loses an author the quiz they have just made. It is also
+	# the only way in for a Batch Evaluator, who instructs no courses at all.
+	return {
+		row.name for row in rows if row.owner == frappe.session.user or (row.course and row.course in courses)
+	}
 
 
 def get_instructed_courses():

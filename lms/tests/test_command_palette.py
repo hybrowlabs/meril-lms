@@ -224,3 +224,39 @@ class TestStaleIndexRows(FrappeTestCase):
 		finally:
 			frappe.set_user("Administrator")
 		self.assertEqual(groups, [])
+
+
+class TestAuthoredScope(BaseTestUtils):
+	"""`course` is optional on LMS Quiz and LMS Assignment and the quiz form never
+	asks for it, so scoping by course alone lost an author the quiz they had just
+	made — and a Batch Evaluator, who instructs no courses, had no way in at all."""
+
+	def setUp(self):
+		super().setUp()
+		self.author = self._create_user("palette-author@example.com", "Pal", "Author", ["Course Creator"])
+		self.evaluator = self._create_user(
+			"palette-evaluator@example.com", "Pal", "Eval", ["Batch Evaluator"]
+		)
+		self.questions = self._create_quiz_questions()
+		self.quiz = self._create_quiz(title="Palette Authored Quiz")
+		frappe.db.set_value("LMS Quiz", self.quiz.name, "owner", self.author.name)
+
+	def permitted_for(self, user):
+		frappe.set_user(user)
+		try:
+			return get_permitted_names([row("LMS Quiz", self.quiz.name)])["LMS Quiz"]
+		finally:
+			frappe.set_user("Administrator")
+
+	def test_the_quiz_has_no_course_to_be_scoped_by(self):
+		self.assertFalse(frappe.db.get_value("LMS Quiz", self.quiz.name, "course"))
+
+	def test_an_author_is_given_the_quiz_they_made(self):
+		self.assertEqual(self.permitted_for(self.author.name), {self.quiz.name})
+
+	def test_an_evaluator_is_given_the_quiz_they_made(self):
+		frappe.db.set_value("LMS Quiz", self.quiz.name, "owner", self.evaluator.name)
+		self.assertEqual(self.permitted_for(self.evaluator.name), {self.quiz.name})
+
+	def test_another_author_is_not_given_it(self):
+		self.assertEqual(self.permitted_for(self.evaluator.name), set())
