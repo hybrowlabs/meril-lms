@@ -1,3 +1,5 @@
+import { isLinkEnabled, type SidebarVisibility } from '@/utils/mobileNav'
+
 export interface Category {
 	/** Sent to search_sqlite, which maps it to a doctype; never a doctype here. */
 	id: string
@@ -67,10 +69,25 @@ function offeredRoutes(sidebarLinks: SidebarGroup[]): Set<string | undefined> {
 	)
 }
 
-/** Categories whose page this user is being offered in the sidebar. */
-export function visibleCategories(sidebarLinks: SidebarGroup[]): Category[] {
+/**
+ * Categories whose page this user is being offered in the sidebar.
+ *
+ * `getSidebarLinks()` is only half of what the sidebar draws: AppSidebar filters
+ * its result again against `get_sidebar_settings`, the per-site on/off flags, so
+ * reading the first half alone offered a Jobs row on a site with Jobs switched
+ * off. `isLinkEnabled` is the phone bar's reading of those same flags, and the
+ * same label-to-key convention AppSidebar filters by.
+ */
+export function visibleCategories(
+	sidebarLinks: SidebarGroup[],
+	visibility?: SidebarVisibility
+): Category[] {
 	const offered = offeredRoutes(sidebarLinks)
-	return CATEGORIES.filter((category) => offered.has(category.listRoute))
+	return CATEGORIES.filter(
+		(category) =>
+			offered.has(category.listRoute) &&
+			isLinkEnabled(category.label, visibility)
+	)
 }
 
 export function categoryById(id: string | null): Category | undefined {
@@ -118,7 +135,13 @@ export const NAV_TARGETS: NavTarget[] = [
 ]
 
 /** Nav targets whose page this user is being offered in the sidebar. */
-export function visibleNavTargets(sidebarLinks: SidebarGroup[]): NavTarget[] {
+export function visibleNavTargets(
+	sidebarLinks: SidebarGroup[],
+	visibility?: SidebarVisibility
+): NavTarget[] {
 	const offered = offeredRoutes(sidebarLinks)
-	return NAV_TARGETS.filter((target) => offered.has(target.route))
+	return NAV_TARGETS.filter(
+		(target) =>
+			offered.has(target.route) && isLinkEnabled(target.label, visibility)
+	)
 }

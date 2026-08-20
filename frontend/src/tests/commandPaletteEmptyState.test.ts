@@ -44,7 +44,13 @@ vi.mock('@/utils', () => ({
 }))
 
 vi.mock('@/stores/settings', () => ({
-	useSettings: () => ({ isSettingsOpen: false, isSettingsMounted: true }),
+	useSettings: () => ({
+		isSettingsOpen: false,
+		isSettingsMounted: true,
+		// The palette filters its rows by these flags as well as by the sidebar.
+		sidebarSettings: { data: null },
+		loadSidebarSettings: vi.fn(async () => null),
+	}),
 }))
 vi.stubGlobal('__', (m: string) => (/{\d+}/.test(m) ? { format: () => m } : m))
 

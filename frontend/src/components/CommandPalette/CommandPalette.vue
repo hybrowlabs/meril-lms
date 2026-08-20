@@ -141,6 +141,11 @@ const hasSettled = ref(false)
 
 const search = createResource({ url: 'lms.command_palette.search_sqlite' })
 
+// `getSidebarLinks()` is the list before the site's own on/off flags are applied
+// — AppSidebar filters it a second time against these — so a site with Jobs
+// switched off was still offered a Jobs row here.
+const sidebarVisibility = computed(() => settingsStore.sidebarSettings.data)
+
 const runSearch = async () => {
 	const token = ++searchToken
 	const params = scope.value
@@ -181,12 +186,12 @@ const routeContext = computed(() => ({
 const searchableSections = computed<PaletteItem[]>(() => {
 	const links = getSidebarLinks()
 	return [
-		...visibleCategories(links).map((entry) => ({
+		...visibleCategories(links, sidebarVisibility.value).map((entry) => ({
 			title: __(entry.label),
 			icon: entry.icon,
 			route: { name: entry.listRoute },
 		})),
-		...visibleNavTargets(links).map((entry) => ({
+		...visibleNavTargets(links, sidebarVisibility.value).map((entry) => ({
 			title: __(entry.label),
 			icon: entry.icon,
 			route: { name: entry.route },
@@ -277,17 +282,21 @@ watch(query, () => {
 })
 
 watch(show, () => {
-	if (!show.value) {
-		query.value = ''
-		searchResults.value = []
-		activeIndex.value = -1
-		// Without this the palette reopened still narrowed to whatever category
-		// was last opened, with no visible sign that it was filtering.
-		scope.value = null
-		searchFailed.value = false
-		hasSettled.value = false
-		searchToken += 1
+	if (show.value) {
+		// The palette reads these flags itself rather than trusting AppSidebar to
+		// have fetched them; the store hands back the one in-flight request.
+		settingsStore.loadSidebarSettings()
+		return
 	}
+	query.value = ''
+	searchResults.value = []
+	activeIndex.value = -1
+	// Without this the palette reopened still narrowed to whatever category
+	// was last opened, with no visible sign that it was filtering.
+	scope.value = null
+	searchFailed.value = false
+	hasSettled.value = false
+	searchToken += 1
 })
 
 const onKeydown = (e: KeyboardEvent) => {
@@ -412,13 +421,13 @@ const browseGroups = computed<PaletteGroup[]>(() => {
 		{
 			title: __('Jump to'),
 			items: [
-				...visibleCategories(links).map((entry) => ({
+				...visibleCategories(links, sidebarVisibility.value).map((entry) => ({
 					title: __(entry.label),
 					icon: entry.icon,
 					category: entry.id,
 				})),
 				// No records to narrow to, so these navigate rather than drill in.
-				...visibleNavTargets(links).map((entry) => ({
+				...visibleNavTargets(links, sidebarVisibility.value).map((entry) => ({
 					title: __(entry.label),
 					icon: entry.icon,
 					route: { name: entry.route },

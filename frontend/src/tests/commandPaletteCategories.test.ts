@@ -38,7 +38,13 @@ vi.mock('@/components/CommandPalette/CommandPaletteGroup.vue', () => ({
 const user = { data: {} as Record<string, unknown> }
 vi.mock('@/stores/user', () => ({ usersStore: () => ({ userResource: user }) }))
 
-const settings = { isSettingsOpen: false, isSettingsMounted: true }
+const settings = {
+	isSettingsOpen: false,
+	isSettingsMounted: true,
+	// The per-site on/off flags, which gate a row on top of the sidebar.
+	sidebarSettings: { data: null as unknown },
+	loadSidebarSettings: vi.fn(async () => null),
+}
 // Category visibility comes from the sidebar, so this is what decides it.
 const sidebarLinks = { value: [] as any[] }
 vi.mock('@/utils', () => ({ getSidebarLinks: () => sidebarLinks.value }))
@@ -138,6 +144,7 @@ beforeEach(() => {
 	user.data = { is_moderator: true }
 	settings.isSettingsOpen = false
 	settings.isSettingsMounted = true
+	settings.sidebarSettings.data = null
 	resource.next = []
 	resource.params = null
 })
@@ -346,5 +353,49 @@ describe('command palette settings row', () => {
 		await type(wrapper, 'sett')
 
 		expect(titles(wrapper)).not.toContain('Settings')
+	})
+})
+
+/**
+ * `getSidebarLinks()` is only half the sidebar's rule. AppSidebar filters its
+ * result a second time against `get_sidebar_settings` — the per-site on/off
+ * flags — and the palette read only the first half, so a site with Jobs
+ * switched off was still offered a Jobs row.
+ */
+describe('command palette site visibility flags', () => {
+	it('withholds a category the site has switched off', () => {
+		settings.sidebarSettings.data = { jobs: 0 }
+		const offered = titles(build())
+		expect(offered).not.toContain('Jobs')
+		expect(offered).toContain('Courses')
+	})
+
+	it('withholds a nav target the site has switched off', () => {
+		settings.sidebarSettings.data = { statistics: 0 }
+		expect(titles(build())).not.toContain('Statistics')
+	})
+
+	// The flag key is the lowercased, underscored label, so a two-word target
+	// only matches if the label is converted the way AppSidebar converts it.
+	it('withholds a two-word nav target the site has switched off', () => {
+		settings.sidebarSettings.data = { programming_exercises: 0 }
+		expect(titles(build())).not.toContain('Programming Exercises')
+	})
+
+	it('keeps a row the flags say nothing about', () => {
+		settings.sidebarSettings.data = { jobs: 0 }
+		expect(titles(build())).toContain('Quizzes')
+	})
+
+	it('offers everything while the flags are still unresolved', () => {
+		settings.sidebarSettings.data = null
+		expect(titles(build())).toContain('Jobs')
+	})
+
+	it('withholds a switched-off category from a search too', async () => {
+		settings.sidebarSettings.data = { jobs: 0 }
+		const wrapper = build()
+		await type(wrapper, 'job')
+		expect(titles(wrapper)).not.toContain('Jobs')
 	})
 })
