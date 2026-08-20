@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 vi.mock('frappe-ui', () => ({
-	createResource: () => ({ data: [], reload: vi.fn() }),
+	createResource: () => ({ data: [], submit: vi.fn(async () => []) }),
 	debounce: (fn: () => void) => fn,
 	Dialog: Object.assign(
 		{
@@ -23,6 +23,30 @@ vi.mock('frappe-ui', () => ({
 }))
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+
+// The palette reads roles to decide which category rows to show, and the
+// settings store to decide whether the Settings row can do anything.
+vi.mock('@/stores/user', () => ({
+	usersStore: () => ({ userResource: { data: { is_moderator: true } } }),
+}))
+vi.mock('@/utils', () => ({
+	getSidebarLinks: () => [
+		{
+			items: [
+				{ to: 'Courses' },
+				{ to: 'Batches' },
+				{ to: 'Programs' },
+				{ to: 'Jobs' },
+				{ to: 'Quizzes' },
+				{ to: 'Assignments' },
+			],
+		},
+	],
+}))
+
+vi.mock('@/stores/settings', () => ({
+	useSettings: () => ({ isSettingsOpen: false, isSettingsMounted: true }),
+}))
 
 vi.mock('@/components/CommandPalette/CommandPaletteGroup.vue', () => ({
 	default: { props: ['list'], template: `<div />` },

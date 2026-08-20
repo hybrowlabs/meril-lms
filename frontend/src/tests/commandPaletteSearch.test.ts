@@ -12,23 +12,16 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 const resource = {
-	data: null as unknown,
 	next: null as unknown,
-	params: null as unknown,
-	options: null as any,
-	reload: vi.fn(),
+	params: null as any,
+	submit: vi.fn(async (params: any) => {
+		resource.params = params
+		return resource.next
+	}),
 }
 
 vi.mock('frappe-ui', () => ({
-	createResource: (options: any) => {
-		resource.options = options
-		resource.reload = vi.fn(() => {
-			resource.params = options.makeParams?.()
-			resource.data = resource.next
-			options.onSuccess?.(resource.data)
-		})
-		return resource
-	},
+	createResource: () => resource,
 	debounce: (fn: (...args: unknown[]) => void) => fn,
 	Dialog: Object.assign(
 		{
@@ -44,14 +37,47 @@ vi.mock('vue-router', () => ({
 	useRouter: () => ({ push, replace: vi.fn() }),
 }))
 
+// The palette reads roles to decide which category rows to show, and the
+// settings store to decide whether the Settings row can do anything.
+vi.mock('@/stores/user', () => ({
+	usersStore: () => ({ userResource: { data: { is_moderator: true } } }),
+}))
+vi.mock('@/utils', () => ({
+	getSidebarLinks: () => [
+		{
+			items: [
+				{ to: 'Courses' },
+				{ to: 'Batches' },
+				{ to: 'Programs' },
+				{ to: 'Jobs' },
+				{ to: 'Quizzes' },
+				{ to: 'Assignments' },
+			],
+		},
+	],
+}))
+
+vi.mock('@/stores/settings', () => ({
+	useSettings: () => ({ isSettingsOpen: false, isSettingsMounted: true }),
+}))
+
 vi.mock('@/components/CommandPalette/CommandPaletteGroup.vue', () => ({
 	default: { name: 'PaletteGroup', props: ['list'], template: `<div />` },
 }))
 
-// Called from `<script setup>` as well as the template, so it has to be global.
-// None of the palette's strings take `{0}` placeholders, which is why the plain
-// identity stub is faithful here and would not be elsewhere.
-vi.stubGlobal('__', (text: string) => text)
+// Mirrors src/translation.js: a message with {0} placeholders returns an object
+// carrying `format`, not a string. A plain identity stub would let a real
+// `.format is not a function` crash pass.
+vi.stubGlobal('__', (message: string) => {
+	if (!/{\d+}/.test(message)) return message
+	return {
+		format: (...args: string[]) =>
+			message.replace(
+				/{(\d+)}/g,
+				(match, index) => args[Number(index)] ?? match
+			),
+	}
+})
 
 import CommandPalette from '@/components/CommandPalette/CommandPalette.vue'
 
@@ -80,7 +106,7 @@ const RESULTS = [
 function build() {
 	return mount(CommandPalette, {
 		props: { modelValue: true },
-		global: { mocks: { __: (text: string) => text } },
+		global: { mocks: { __: (globalThis as any).__ } },
 	})
 }
 
@@ -165,6 +191,21 @@ describe('command palette search', () => {
 		},
 		{ item: BATCH, route: 'BatchDetail', params: { batchName: BATCH.name } },
 		{ item: JOB, route: 'JobDetail', params: { job: JOB.name } },
+		{
+			item: { doctype: 'LMS Quiz', name: 'quiz-1', title: 'Week 1 Quiz' },
+			route: 'QuizForm',
+			params: { quizID: 'quiz-1' },
+		},
+		{
+			item: { doctype: 'LMS Assignment', name: 'ASG-00001', title: 'Essay' },
+			route: 'AssignmentForm',
+			params: { assignmentID: 'ASG-00001' },
+		},
+		{
+			item: { doctype: 'LMS Program', name: 'Bootcamp', title: 'Bootcamp' },
+			route: 'ProgramDetail',
+			params: { programName: 'Bootcamp' },
+		},
 	])(
 		'routes a $item.doctype hit to $route',
 		async ({ item, route, params }) => {
@@ -183,6 +224,71 @@ describe('command palette search', () => {
 		await search(wrapper, 'k')
 
 		expect(rows(wrapper).length).toBeGreaterThan(0)
+	})
+
+	it('offers the matching section page above the hits', async () => {
+		const wrapper = build()
+		await search(wrapper, 'cour')
+
+		const first = rows(wrapper)[0]
+		expect(first.title).toBe('Courses')
+		expect(first.route).toEqual(expect.objectContaining({ name: 'Courses' }))
+	})
+
+	it('does not offer a section page that the query does not match', async () => {
+		const wrapper = build()
+		await search(wrapper, 'kubernetes')
+
+		expect(rows(wrapper).map((item) => item.title)).not.toContain('Courses')
+	})
+
+	// The guard used to compare against the current query, which cannot tell an
+	// older request from a newer one when both are for queries since replaced.
+	it('ignores a response that a newer request has already overtaken', async () => {
+		const wrapper = build()
+		const input = wrapper.find('input')
+
+		let releaseFirst: (value: unknown) => void = () => {}
+		const slow = new Promise((resolve) => (releaseFirst = resolve))
+		resource.submit = vi.fn(async (params: any) =>
+			params.query === 'kub' ? slow : RESULTS
+		) as any
+
+		await input.setValue('kub')
+		await input.trigger('input')
+		await input.setValue('kube')
+		await input.trigger('input')
+		await nextTick()
+		await nextTick()
+
+		const afterNewer = rows(wrapper).map((item: any) => item.title)
+
+		releaseFirst([
+			{ title: 'Courses', items: [{ ...COURSE, title: 'Stale hit' }] },
+		])
+		await nextTick()
+		await nextTick()
+
+		expect(rows(wrapper).map((item: any) => item.title)).toEqual(afterNewer)
+		expect(rows(wrapper).map((item: any) => item.title)).not.toContain(
+			'Stale hit'
+		)
+	})
+
+	it('says a failed search failed rather than that nothing matched', async () => {
+		const wrapper = build()
+		resource.submit = vi.fn(async () => {
+			throw new Error('500')
+		}) as any
+
+		const input = wrapper.find('input')
+		await input.setValue('kubernetes')
+		await input.trigger('input')
+		await nextTick()
+		await nextTick()
+
+		expect(wrapper.text()).toContain('Could not search')
+		expect(wrapper.text()).not.toContain('No results found')
 	})
 
 	it('replaces rather than appends when a second response lands', async () => {

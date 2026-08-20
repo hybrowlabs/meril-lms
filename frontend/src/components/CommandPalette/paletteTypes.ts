@@ -9,6 +9,9 @@ export interface PaletteRoute {
 export interface PaletteItem {
 	title: string
 	route?: PaletteRoute
+	/** Narrows the search to this category instead of acting. */
+	category?: string
+	perform?: () => void
 	doctype?: string
 	name?: string
 	icon?: Component
@@ -37,6 +40,15 @@ const ROUTE_BUILDERS: Record<string, (name: string) => PaletteRoute> = {
 		params: { batchName: name },
 	}),
 	'Job Opportunity': (name) => ({ name: 'JobDetail', params: { job: name } }),
+	'LMS Quiz': (name) => ({ name: 'QuizForm', params: { quizID: name } }),
+	'LMS Assignment': (name) => ({
+		name: 'AssignmentForm',
+		params: { assignmentID: name },
+	}),
+	'LMS Program': (name) => ({
+		name: 'ProgramDetail',
+		params: { programName: name },
+	}),
 }
 
 export function routeForSearchHit(

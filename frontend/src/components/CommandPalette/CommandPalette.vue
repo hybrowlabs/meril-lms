@@ -31,6 +31,13 @@
 						<CommandPaletteGroup :list="groups" @select="run" />
 					</div>
 					<p
+						v-if="showsErrorState"
+						class="px-4.5 py-2 text-ink-gray-5"
+						role="status"
+					>
+						{{ __('Could not search just now. Try again.') }}
+					</p>
+					<p
 						v-if="showsEmptyState"
 						class="px-4.5 py-2 text-ink-gray-5"
 						role="status"
@@ -62,7 +69,7 @@
 						</span>
 					</div>
 					<div class="flex items-center gap-x-2">
-						<span :class="[chipClass, 'px-1.5 text-xs text-ink-gray-7']">
+						<span :class="[wideChipClass, 'text-xs text-ink-gray-7']">
 							{{ __('esc') }}
 						</span>
 						<span>
@@ -78,13 +85,22 @@
 import { createResource, debounce, Dialog } from 'frappe-ui'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { BookOpen, Briefcase, Users } from 'lucide-vue-next'
+import { Settings } from 'lucide-vue-next'
+import { usersStore } from '@/stores/user'
+import { useSettings } from '@/stores/settings'
+// @ts-expect-error utils/index.js has no type declarations yet
+import { getSidebarLinks } from '@/utils'
 import CommandPaletteGroup from './CommandPaletteGroup.vue'
 import type { PaletteGroup, PaletteItem, PaletteRoute } from './paletteTypes'
 import { routeForSearchHit } from './paletteTypes'
+import { categoryById, visibleCategories } from './categories'
 
 const chipClass =
 	'inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-surface-gray-2'
+
+// `size-5` fixes a square, which crops a multi-letter key. Width grows instead.
+const wideChipClass =
+	'inline-flex h-5 min-w-5 w-auto shrink-0 items-center justify-center rounded-sm bg-surface-gray-2 px-1.5'
 
 // Below this the palette keeps showing the jump-to list. The results pane used
 // to take over at one character while the search only ran from three, so the
@@ -93,6 +109,11 @@ const MIN_QUERY_LENGTH = 2
 
 const show = defineModel<boolean>({ required: true, default: false })
 const router = useRouter()
+const { userResource } = usersStore()
+const settingsStore = useSettings()
+
+// The category the search is narrowed to, or null at the root.
+const scope = ref<string | null>(null)
 const query = ref<string>('')
 const searchResults = ref<PaletteGroup[]>([])
 const inputRef = ref<HTMLInputElement | null>(null)
@@ -102,26 +123,55 @@ const resultsRef = ref<HTMLElement | null>(null)
 // land on the first row rather than the second.
 const activeIndex = ref(-1)
 
-// The query a response belongs to; a slower earlier response is dropped rather
-// than allowed to land under whatever the user has typed since.
-let requestedQuery = ''
+// One token per request. Comparing against the current query instead would miss
+// two requests for *different* queries overlapping and landing out of order:
+// frappe-ui never aborts the one already in flight.
+let searchToken = 0
+const searchFailed = ref(false)
 
-const search = createResource({
-	url: 'lms.command_palette.search_sqlite',
-	makeParams: () => {
-		requestedQuery = query.value
-		return { query: query.value }
-	},
-	onSuccess(data: unknown) {
-		if (requestedQuery !== query.value) return
+const search = createResource({ url: 'lms.command_palette.search_sqlite' })
+
+const runSearch = async () => {
+	const token = ++searchToken
+	const params = scope.value
+		? { query: query.value, category: scope.value }
+		: { query: query.value }
+	try {
+		const data = await search.submit(params)
+		if (token !== searchToken) return
 		searchResults.value = toGroups(data)
-	},
-})
+		searchFailed.value = false
+	} catch (error) {
+		if (token !== searchToken) return
+		searchResults.value = []
+		searchFailed.value = true
+	}
+}
 
 const isSearching = computed(() => query.value.length >= MIN_QUERY_LENGTH)
 
+/** Sections whose name the query is starting to spell. Typing "cour" should
+ * offer the Courses page itself before the courses it matched. */
+const matchingSections = computed<PaletteItem[]>(() => {
+	const term = query.value.trim().toLowerCase()
+	if (!term || scope.value) return []
+	return visibleCategories(getSidebarLinks())
+		.filter((entry) => String(__(entry.label)).toLowerCase().startsWith(term))
+		.map((entry) => ({
+			title: __(entry.label),
+			icon: entry.icon,
+			route: { name: entry.listRoute },
+		}))
+})
+
 const groups = computed<PaletteGroup[]>(() => {
-	const source = isSearching.value ? searchResults.value : jumpToOptions.value
+	const searched = isSearching.value
+	const sections = matchingSections.value
+	const source = searched
+		? sections.length
+			? [{ title: __('Jump to'), items: sections }, ...searchResults.value]
+			: searchResults.value
+		: browseGroups.value
 	let index = 0
 	return source.map((group) => ({
 		title: group.title,
@@ -137,11 +187,20 @@ const flatItems = computed<PaletteItem[]>(() =>
 )
 
 const showsEmptyState = computed(
-	() => isSearching.value && !flatItems.value.length && !search.loading
+	() =>
+		isSearching.value &&
+		!flatItems.value.length &&
+		!search.loading &&
+		!searchFailed.value
+)
+
+/** A failed request is not an empty result set, and saying so hides an outage. */
+const showsErrorState = computed(
+	() => searchFailed.value && !flatItems.value.length
 )
 
 const debouncedSearch = debounce(() => {
-	if (isSearching.value) search.reload()
+	if (isSearching.value) runSearch()
 }, 300)
 
 const onInput = () => {
@@ -174,6 +233,11 @@ watch(show, () => {
 		query.value = ''
 		searchResults.value = []
 		activeIndex.value = -1
+		// Without this the palette reopened still narrowed to whatever category
+		// was last opened, with no visible sign that it was filtering.
+		scope.value = null
+		searchFailed.value = false
+		searchToken += 1
 	}
 })
 
@@ -191,7 +255,18 @@ const onKeydown = (e: KeyboardEvent) => {
 		const item = flatItems.value[Math.max(activeIndex.value, 0)]
 		if (item) run(item)
 	} else if (e.key === 'Escape') {
-		show.value = false
+		if (scope.value) {
+			// The dialog closes on Escape at the document level unless this is
+			// stopped, which made backing out one level impossible.
+			e.preventDefault()
+			e.stopPropagation()
+			leaveScope()
+		} else show.value = false
+	} else if (e.key === 'Backspace' && !query.value && scope.value) {
+		// Only on an empty query, so Backspace stays an ordinary edit while there
+		// is still something to delete.
+		e.preventDefault()
+		leaveScope()
 	}
 }
 
@@ -206,13 +281,47 @@ const moveActive = (direction: number) => {
 }
 
 const scrollActiveItemIntoView = () => {
-	resultsRef.value
-		?.querySelector('[data-palette-item][data-active="true"]')
-		?.scrollIntoView({ block: 'nearest' })
+	const active = resultsRef.value?.querySelector<HTMLElement>(
+		'[data-palette-item][data-active="true"]'
+	)
+	if (!active) return
+	// Scrolling the row alone left its heading clipped above the fold, so arrowing
+	// up to the top row of a group hid which group it belonged to.
+	const group = active.closest<HTMLElement>('[data-palette-group]')
+	const isFirstOfGroup = group?.querySelector('[data-palette-item]') === active
+	;(isFirstOfGroup && group ? group : active).scrollIntoView({
+		block: 'nearest',
+	})
 }
 
 const run = (item: PaletteItem) => {
-	if (item.route) navigateTo(item.route)
+	if (item.category) enterScope(item.category)
+	else if (item.perform) {
+		show.value = false
+		item.perform()
+	} else if (item.route) navigateTo(item.route)
+}
+
+const enterScope = (category: string) => {
+	scope.value = category
+	query.value = ''
+	searchResults.value = []
+	activeIndex.value = -1
+	focusInput()
+}
+
+const leaveScope = () => {
+	scope.value = null
+	query.value = ''
+	searchResults.value = []
+	activeIndex.value = -1
+	focusInput()
+}
+
+/** Clicking a row destroys that button and the keys are bound to the input, so
+ * without this the palette stopped responding to the keyboard after a click. */
+const focusInput = () => {
+	nextTick(() => inputRef.value?.focus())
 }
 
 const navigateTo = (route: PaletteRoute) => {
@@ -224,28 +333,59 @@ const navigateTo = (route: PaletteRoute) => {
 	router.push({ name: route.name, params: route.params, query: route.query })
 }
 
-const jumpToOptions = ref<PaletteGroup[]>([
-	{
-		title: __('Jump to'),
-		items: [
+const scopedCategory = computed(() => categoryById(scope.value))
+
+/** What the palette shows before a search: the categories, or, once inside one,
+ * the way out to that category's own page. */
+const browseGroups = computed<PaletteGroup[]>(() => {
+	const category = scopedCategory.value
+	if (category) {
+		return [
 			{
-				title: 'Courses',
-				icon: BookOpen,
-				route: { name: 'Courses' },
+				title: __(category.label),
+				items: [
+					{
+						title: __('View all {0}').format(__(category.label)),
+						icon: category.icon,
+						route: { name: category.listRoute },
+					},
+				],
 			},
-			{
-				title: 'Batches',
-				icon: Users,
-				route: { name: 'Batches' },
+		]
+	}
+
+	const groups: PaletteGroup[] = [
+		{
+			title: __('Jump to'),
+			items: visibleCategories(getSidebarLinks()).map((entry) => ({
+				title: __(entry.label),
+				icon: entry.icon,
+				category: entry.id,
+			})),
+		},
+	]
+
+	const account = accountItems.value
+	if (account.length) groups.push({ title: __('Account'), items: account })
+	return groups
+})
+
+/** Settings is a dialog owned by the desktop sidebar and open to moderators
+ * only; on a phone nothing listens to the flag, so the row would do nothing. */
+const accountItems = computed<PaletteItem[]>(() => {
+	if (!userResource.data?.is_moderator || !settingsStore.isSettingsMounted) {
+		return []
+	}
+	return [
+		{
+			title: __('Settings'),
+			icon: Settings,
+			perform: () => {
+				settingsStore.isSettingsOpen = true
 			},
-			{
-				title: 'Jobs',
-				icon: Briefcase,
-				route: { name: 'Jobs' },
-			},
-		],
-	},
-])
+		},
+	]
+})
 </script>
 <style>
 mark {
