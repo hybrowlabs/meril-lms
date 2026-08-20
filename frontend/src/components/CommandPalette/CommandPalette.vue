@@ -129,6 +129,12 @@ const activeIndex = ref(-1)
 let searchToken = 0
 const searchFailed = ref(false)
 
+// Whether a search for the current typing run has come back at all. Tying the
+// empty message to `search.loading` instead made it blink off and on with every
+// keystroke — the results area collapsed to nothing and the dialog resized on
+// each letter, which read as the palette tearing itself apart.
+const hasSettled = ref(false)
+
 const search = createResource({ url: 'lms.command_palette.search_sqlite' })
 
 const runSearch = async () => {
@@ -141,10 +147,12 @@ const runSearch = async () => {
 		if (token !== searchToken) return
 		searchResults.value = toGroups(data)
 		searchFailed.value = false
+		hasSettled.value = true
 	} catch (error) {
 		if (token !== searchToken) return
 		searchResults.value = []
 		searchFailed.value = true
+		hasSettled.value = true
 	}
 }
 
@@ -190,13 +198,13 @@ const showsEmptyState = computed(
 	() =>
 		isSearching.value &&
 		!flatItems.value.length &&
-		!search.loading &&
+		hasSettled.value &&
 		!searchFailed.value
 )
 
 /** A failed request is not an empty result set, and saying so hides an outage. */
 const showsErrorState = computed(
-	() => searchFailed.value && !flatItems.value.length
+	() => searchFailed.value && hasSettled.value && !flatItems.value.length
 )
 
 const debouncedSearch = debounce(() => {
@@ -225,7 +233,11 @@ const toGroups = (data: unknown): PaletteGroup[] => {
 
 watch(query, () => {
 	activeIndex.value = -1
-	if (!isSearching.value) searchResults.value = []
+	if (!isSearching.value) {
+		searchResults.value = []
+		hasSettled.value = false
+		searchFailed.value = false
+	}
 })
 
 watch(show, () => {
@@ -237,6 +249,7 @@ watch(show, () => {
 		// was last opened, with no visible sign that it was filtering.
 		scope.value = null
 		searchFailed.value = false
+		hasSettled.value = false
 		searchToken += 1
 	}
 })
