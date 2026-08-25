@@ -317,6 +317,29 @@ describe('the profile edit route', () => {
 		])
 	})
 
+	// The blank is only worth offering if choosing it lands back where the field
+	// started. Read off the option rather than written as '' so the value the row
+	// carries and the value the dirty-check accepts cannot drift apart. Driven
+	// through the control's v-model, not an input event: a select has no keystroke.
+	it('returns to pristine when Open to goes back to blank', async () => {
+		const router = makeRouter()
+		await router.push(`/user/${USERNAME}/edit`)
+		const wrapper = mountForm(router, USERNAME)
+		await flushPromises()
+
+		const openTo = wrapper
+			.findAllComponents({ name: 'FormControl' })
+			.find((control) => control.props('label') === 'Open to')
+
+		await openTo?.setValue('Work')
+		expect(wrapper.text()).toContain('Not Saved')
+
+		const blank = (openTo?.props('options') as { value: string }[])[0].value
+		await openTo?.setValue(blank)
+		await flushPromises()
+		expect(wrapper.text()).not.toContain('Not Saved')
+	})
+
 	// An unfilled field arrives as null, an input can only return '', so clearing
 	// one used to latch "Not Saved" with no way off it but saving.
 	it('stays pristine when a null-backed field is cleared', async () => {
