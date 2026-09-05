@@ -111,3 +111,4 @@ lms.patches.v2_0.sidebar_for_certified_members
 lms.patches.v2_0.move_batch_instructors_to_evaluators
 lms.patches.v2_0.clamp_enrollment_progress
 lms.patches.v2_0.repair_re_enrollment_progress
+lms.patches.v2_0.backfill_document_submission_datetime #05-09-2026
