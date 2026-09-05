@@ -1023,6 +1023,13 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                 }
             )
 
+            # The date carried on the document, and shown in the employee
+            # report, is the course completion date. `completed_on` is set by
+            # the enrollment once progress reaches 100% and the user certifies;
+            # when this runs ahead of certification it is still empty, and the
+            # moment of completion is now.
+            completed_at = (enrollment.completed_on if enrollment else None) or frappe.utils.now_datetime()
+
             if not existing:
                 # Create new Employee Course Documents
                 doc = frappe.get_doc({
@@ -1032,7 +1039,7 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                     "enrollment": enrollment.name if enrollment else None,
                     "enrollment_version": enrollment.enrollment_version if enrollment else 1,
                     "is_current_enrollment": 1,
-                    "submission_date": frappe.utils.now_datetime()
+                    "submission_datetime": completed_at
                 })
                 doc.insert(ignore_permissions=True)
                 frappe.db.commit()
@@ -1042,6 +1049,24 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                     "message": "Employee Course Documents created",
                     "doc_name": doc.name
                 }
+
+            # The record is already there — created up front by the enrollment,
+            # or by an earlier run of this. Without this branch completion left
+            # it untouched, which is why a re-enrolled employee never got a date.
+            frappe.db.set_value(
+                "Employee Course Documents",
+                existing,
+                "submission_datetime",
+                completed_at,
+                update_modified=False,
+            )
+            frappe.db.commit()
+
+            return {
+                "success": True,
+                "message": "Employee Course Documents updated",
+                "doc_name": existing
+            }
 
         return {"success": True, "message": "Documents already exist or not applicable"}
 
@@ -1510,6 +1535,10 @@ def save_user_course_document_with_file(
             # Update employee document fields
             doc.document_file = file_doc.file_url
             doc.workflow_state = "Uploaded"
+            # submission_datetime deliberately not touched here: it carries the
+            # course completion date, stamped by
+            # create_course_documents_on_completion. Stamping the upload time
+            # here would overwrite it.
             doc.save(ignore_permissions=True)
         elif distributor:
             file_doc = save_file(
