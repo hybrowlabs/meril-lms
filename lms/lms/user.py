@@ -160,6 +160,7 @@ def create_user_from_employee(employee_id, _method):
 					sender=get_default_sender(),
 					subject=subject,
 					message=message,
+					attachments=get_cbt_guide_attachment(),
 				)
 				# Create a Notification Log to send system notification
 				frappe.get_doc({
@@ -551,6 +552,7 @@ def resend_initial_email_to_employee(employee_id):
 			sender=get_default_sender(),
 			subject=subject,
 			message=message,
+			attachments=get_cbt_guide_attachment(),
 			now=True
 		)
 
