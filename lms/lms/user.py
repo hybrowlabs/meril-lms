@@ -12,6 +12,13 @@ from frappe.utils.password import update_password
 import json
 import os
 
+def get_current_financial_year():
+	"""Return the current Indian financial year (April-March) as 'YYYY-YYYY'"""
+	today = frappe.utils.getdate()
+	start_year = today.year if today.month >= 4 else today.year - 1
+	return f"{start_year}-{start_year + 1}"
+
+
 def get_default_sender():
 	"""Get the default outgoing email account"""
 	try:
@@ -134,21 +141,24 @@ def create_user_from_employee(employee_id, _method):
 				# Add default roles for employees
 				user_doc.add_roles("Employee", "Employee Self Service")
 				reset_password_link = get_reset_password_link(user_doc)
-				login_url = frappe.utils.get_url("/login")
+				portal_url = frappe.utils.get_url()
 				recipient_name = (
 					employee_doc.employee_name or employee_doc.first_name or full_name
 				)
 
-				subject = "Ethics & Compliance Training on HCPs/HCOs Interactions."
+				subject = f"Ethics & Compliance Training on HCPs/HCOs Interactions- {get_current_financial_year()}"
 				message = f"""<p>Dear {recipient_name},</p>
 
 <p>In line with our mandatory training, you have been enrolled for the <span style="font-weight:bold;">Ethics & Compliance Training on HCPs/HCOs Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
+<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
+
 <p style="font-weight:bold;">Login Credentials:</p>
-<p>Please click on the below link to log in:</p>
-<p>(<a href="{login_url}">{login_url}</a>)</p>
+<p>To begin with, kindly click on "Reset Password" to create your login credentials.</p>
 <p>User ID: {email}</p>
 <p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
+
+<p>LMS portal link: <a href="{portal_url}">{portal_url}</a></p>
 
 <p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
@@ -202,7 +212,8 @@ def get_cbt_guide_attachment():
 
 def get_distributor_initial_email_template(distributor_doc, email, reset_password_link):
 	"""Generate the initial email template for distributor user creation/resend"""
-	subject = "Ethics & Compliance Training on HCPs/HCOs Interactions."
+	portal_url = frappe.utils.get_url()
+	subject = f"Ethics & Compliance Training on HCPs/HCOs Interactions- {get_current_financial_year()}"
 	message = f'''<p>Dear {distributor_doc.distributor_name},</p>
 
 		<p>In line with our <span style="font-weight: bold;">mandatory training,</span> you have been enrolled for the <span style="font-weight: bold;">Ethics & Compliance Training on HCPs/HCOs Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
@@ -210,9 +221,11 @@ def get_distributor_initial_email_template(distributor_doc, email, reset_passwor
 		<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
 
 		<p style="font-weight: bold;">Login Credentials:</p>
-		<p style="font-weight: bold;margin-left:10px;"><span style="margin-right: 10px;">•</span>  Please click on the below link to Reset Password:</p>
-		<p style="margin-left:10px; margin-bottom: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{email}</span></p>
-		<p style="margin-left:10px; margin-top: 0;font-weight: bold;"><span style="margin-right: 10px;">•</span> Reset Password Link: <a href="{reset_password_link}">Click here to reset your password</a></p>
+		<p>To begin with, kindly click on "Reset Password" to create your login credentials.</p>
+		<p>User ID: {email}</p>
+		<p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
+
+		<p>LMS portal link: <a href="{portal_url}">{portal_url}</a></p>
 
 		<p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
@@ -225,15 +238,20 @@ def get_distributor_initial_email_template(distributor_doc, email, reset_passwor
 def get_employee_initial_email_template(employee_doc, email, reset_password_link):
 	"""Generate the initial email template for employee user creation/resend"""
 	recipient_name = employee_doc.employee_name or employee_doc.first_name or email
-	subject = "Ethics & Compliance Training on HCPs/HCOs Interactions."
+	portal_url = frappe.utils.get_url()
+	subject = f"Ethics & Compliance Training on HCPs/HCOs Interactions- {get_current_financial_year()}"
 	message = f"""<p>Dear {recipient_name},</p>
 
 <p>In line with our mandatory training, you have been enrolled for the <span style="font-weight:bold;">Ethics & Compliance Training on HCPs/HCOs Interactions.</span> This training is essential to ensure adherence to our ethical standards and regulatory guidelines.</p>
 
+<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
+
 <p style="font-weight:bold;">Login Credentials:</p>
-<p>Please click on the below link to log in:</p>
+<p>To begin with, kindly click on "Reset Password" to create your login credentials.</p>
 <p>User ID: {email}</p>
 <p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
+
+<p>LMS portal link: <a href="{portal_url}">{portal_url}</a></p>
 
 <p>We kindly request you to complete this training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
@@ -938,39 +956,26 @@ def send_daily_login_reminders():
 			# Increment reminder count
 			current_count = distributor.login_reminder_count or 0
 			new_count = current_count + 1
-			
-			# Determine reminder urgency based on days and count
+
 			days_since = distributor.days_since_creation
-			
-			if days_since <= 3:
-				urgency = "gentle"
-				subject_prefix = "👋 Gentle Reminder"
-			elif days_since <= 7:
-				urgency = "moderate" 
-				subject_prefix = "⏰ Important Reminder"
-			elif days_since <= 14:
-				urgency = "urgent"
-				subject_prefix = "🚨 Urgent Reminder"
-			else:
-				urgency = "final"
-				subject_prefix = "⚠️ Final Reminder"
-			
+
+			user_doc = frappe.get_doc("User", distributor.user_id)
+			reset_password_link = get_reset_password_link(user_doc)
+
 			# Create personalized reminder message
-			subject = f"{subject_prefix}: Please login to Meril Learning Portal - Ethics & Compliance Training on HCP/HCO Interactions"
-			
+			subject = f"Reminder {new_count} Ethics & Compliance Training on HCP/HCO Interactions- {get_current_financial_year()}"
+
 			message_content = get_login_reminder_message(
 				distributor.attendee_name,
-				distributor.distributor_company_name,
-				days_since,
-				new_count,
-				urgency
+				distributor.distributor_email_address,
+				reset_password_link
 			)
-			
+
 			# Send email to the distributor
 			frappe.sendmail(
 				recipients=[distributor.distributor_email_address],
 				sender=get_default_sender(),
-				subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
+				subject=subject,
 				message=message_content,
 				attachments=get_cbt_guide_attachment()
 			)
@@ -1022,60 +1027,30 @@ def send_daily_login_reminders():
 	}
 
 
-def get_login_reminder_message(name, company, days_since, reminder_count, urgency):
-	"""Generate personalized login reminder message based on urgency level"""
-	
-	base_message = f"""
-	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-		<h2 style="color: #2c3e50;">Hello {name}!</h2>
-		<p>We hope this message finds you well. This is a friendly reminder about your <b>Meril Learning Portal</b> account.</p>
-	"""
-	
-	if urgency == "gentle":
-		specific_message = f"""
-		<p>🎯 Your account was created <b>{days_since} day(s) ago</b>, and we're excited to have you join our learning community!</p>
-		<p>To get started with your training modules and resources, please login to your account using the credentials sent to you.</p>
-		"""
-	elif urgency == "moderate":
-		specific_message = f"""
-		<p>⏰ It's been <b>{days_since} days</b> since your account was created. We want to ensure you don't miss out on important training materials.</p>
-		<p>Your learning journey is waiting! Please take a moment to login and explore the available courses.</p>
-		"""
-	elif urgency == "urgent":
-		specific_message = f"""
-		<p>🚨 <b>Urgent Action Required:</b> It's been <b>{days_since} days</b> since your account was created.</p>
-		<p>To ensure compliance with training requirements and avoid any delays, please login to your account immediately.</p>
-		"""
-	else:  # final
-		specific_message = f"""
-		<p>⚠️ <b>Final Reminder:</b> Your account has been inactive for <b>{days_since} days</b>.</p>
-		<p>This is our final automated reminder. If you don't login soon, your account may require manual reactivation.</p>
-		<p>Please contact support if you're experiencing any login issues.</p>
-		"""
-	
-	footer_message = f"""
-		<div style="background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-left: 4px solid #007bff;">
-			<h3 style="margin: 0; color: #007bff;">🚀 Quick Login Steps:</h3>
-			<ol style="margin: 10px 0;">
-				<li>Go to the Meril Learning Portal</li>
-				<li>Use your email: <b>{company}</b></li>
-				<li>Enter the password sent in your welcome email</li>
-				<li>Start exploring your personalized learning path!</li>
-			</ol>
-		</div>
-		
-		<p style="margin-top: 30px;">
-			<strong>Need Help?</strong><br>
-			If you're having trouble logging in or can't find your password, please contact our support team.
-		</p>
-		
-		<p style="color: #6c757d; font-size: 12px; margin-top: 30px;">
-			This is reminder #{reminder_count} • Company: {company} • Days since account creation: {days_since}
-		</p>
-	</div>
-	"""
-	
-	return base_message + specific_message + footer_message
+def get_login_reminder_message(name, email, reset_password_link):
+	"""Generate the login reminder message for a distributor who hasn't logged in yet"""
+
+	portal_url = frappe.utils.get_url()
+
+	message = f"""<p>Dear {name},</p>
+
+<p>This is a kind reminder to complete the Ethics & Compliance Training on HCPs/HCOs Interactions. Our records indicate that the training is still pending.</p>
+
+<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
+
+<p style="font-weight:bold;">Login Credentials:</p>
+<p>To begin with, kindly click on "Reset Password" to create your login credentials.</p>
+<p>User ID: {email}</p>
+<p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
+
+<p>LMS portal link: <a href="{portal_url}">{portal_url}</a></p>
+
+<p>Kindly treat this as a priority and complete the training at your earliest.</p>
+
+<p>Best regards,</p>
+<p>Meril</p>"""
+
+	return message
 
 
 @frappe.whitelist()
@@ -1151,12 +1126,14 @@ def send_daily_course_reminders():
 			is_employee = frappe.db.exists("Employee", {"user_id": user})
 			for_role = "Administrator"
 			attendee_name = None
+			reset_password_link = None
 
 			if is_distributor:
 				subject = f"Reminder {new_count} {course_title}."
 				for_role = "Distributor"
 				# Get attendee_name from Distributor
 				attendee_name = frappe.db.get_value("Distributor", {"user_id": user}, "attendee_name")
+				reset_password_link = get_reset_password_link(frappe.get_doc("User", user))
 			elif is_employee:
 				subject = f"Reminder {new_count} {course_title}."
 				for_role = "Employee"
@@ -1167,9 +1144,9 @@ def send_daily_course_reminders():
 			# Determine reminder urgency based on days and count
 			days_since = enrollment.days_since_enrollment
 			progress = enrollment.progress or 0
-			
-	
-			
+
+
+
 			message_content = get_course_reminder_message(
 				for_role,
 				name,
@@ -1179,7 +1156,8 @@ def send_daily_course_reminders():
 				days_since,
 				progress,
 				new_count,
-				urgency
+				urgency,
+				reset_password_link
 			)
 			
 			# Send email to the user
@@ -1239,7 +1217,7 @@ def send_daily_course_reminders():
 	}
 
 
-def get_course_reminder_message(for_role, name, user_id, course_title, course_introduction, days_since, progress, reminder_count, urgency):
+def get_course_reminder_message(for_role, name, user_id, course_title, course_introduction, days_since, progress, reminder_count, urgency, reset_password_link=None):
 	"""Generate personalized course completion reminder message based on urgency level.
 
 	`name` is the display name (attendee/employee name) shown in greetings.
@@ -1247,6 +1225,7 @@ def get_course_reminder_message(for_role, name, user_id, course_title, course_in
 	"""
 
 	if for_role == "Distributor":
+		portal_url = frappe.utils.get_url()
 		return f'''<p>Dear {name},</p>
 
 		<p>This is a kind reminder to complete the <span style="font-weight:bold">{course_title}.</span> Our records indicate that the training is still pending.</p>
@@ -1254,9 +1233,11 @@ def get_course_reminder_message(for_role, name, user_id, course_title, course_in
 		<p>Please find attached step by step guide to complete the mandatory compliance training.</p>
 
 		<p style="font-weight: bold;">Login Credentials:</p>
-		<p style="font-weight: bold; margin-left: 10px;"><span style="margin-right: 10px;">•</span> Please click on the below link to log in:</p>
-		<a href="{frappe.utils.get_url("/login")}">{frappe.utils.get_url("/login")}</a>
-		<p style="margin-left:10px; margin-bottom: 0; font-weight: bold;"><span style="margin-right: 10px;">•</span> User ID: <span style="font-weight:normal;">{user_id}</span></p>
+		<p>To begin with, kindly click on "Reset Password" to create your login credentials.</p>
+		<p>User ID: {user_id}</p>
+		<p>Password: (<a href="{reset_password_link}">Reset password</a>)</p>
+
+		<p>LMS portal link: <a href="{portal_url}">{portal_url}</a></p>
 
 		<p>Kindly treat this as a priority and complete the training at your earliest. Timely completion is important to maintain compliance and avoid any lapses in regulatory obligations.</p>
 
@@ -1487,53 +1468,26 @@ def send_manual_login_reminder(distributor_id):
 		# Increment reminder count
 		current_count = distributor.login_reminder_count or 0
 		new_count = current_count + 1
-		
-		# Get days since credentials were sent
-		days_since = 0
-		if distributor.credentials_sent_date:
-			from datetime import datetime
-			credentials_date = frappe.utils.get_datetime(distributor.credentials_sent_date)
-			now = frappe.utils.now_datetime()
-			days_since = (now - credentials_date).days
-		
-		# Determine urgency based on days and count
-		if days_since <= 3:
-			urgency = "gentle"
-			subject_prefix = "👋 Manual Reminder"
-		elif days_since <= 7:
-			urgency = "moderate" 
-			subject_prefix = "⏰ Manual Reminder"
-		elif days_since <= 14:
-			urgency = "urgent"
-			subject_prefix = "🚨 Manual Reminder"
-		else:
-			urgency = "final"
-			subject_prefix = "⚠️ Manual Reminder"
-		
+
+		user_doc = frappe.get_doc("User", distributor.user_id)
+		reset_password_link = get_reset_password_link(user_doc)
+
 		# Create personalized reminder message
-		subject = f"{subject_prefix}: Please login to Meril Learning Portal"
-		
+		subject = f"Reminder {new_count} Ethics & Compliance Training on HCP/HCO Interactions- {get_current_financial_year()}"
+
 		message_content = get_login_reminder_message(
 			distributor.attendee_name,
-			distributor.distributor_company_name,
-			days_since,
-			new_count,
-			urgency
+			distributor.distributor_email_address,
+			reset_password_link
 		)
-		
-		# Add manual reminder note
-		message_content += f"""
-		<div style="border-top: 1px solid #ddd; margin-top: 20px; padding-top: 15px; font-size: 12px; color: #666;">
-			<p><strong>Note:</strong> This is a manual reminder sent by an administrator.</p>
-		</div>
-		"""
-		
+
 		# Send email to the distributor
 		frappe.sendmail(
 			recipients=[distributor.distributor_email_address],
 			sender=get_default_sender(),
-			subject=subject + " - Ethics & Compliance Training on HCP/HCO Interactions",
-			message=message_content
+			subject=subject,
+			message=message_content,
+			attachments=get_cbt_guide_attachment()
 		)
 		
 		# Update reminder count
