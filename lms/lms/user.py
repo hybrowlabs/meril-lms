@@ -170,7 +170,7 @@ def create_user_from_employee(employee_id, _method):
 					sender=get_default_sender(),
 					subject=subject,
 					message=message,
-					attachments=get_cbt_guide_attachment(),
+					attachments=get_employee_cbt_guide_attachment(),
 				)
 				# Create a Notification Log to send system notification
 				frappe.get_doc({
@@ -196,7 +196,7 @@ def generate_password(length=10):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 def get_cbt_guide_attachment():
-	"""Return the CBT guide PDF as an attachment dict for frappe.sendmail"""
+	"""Return the distributor CBT guide PDF as an attachment dict for frappe.sendmail"""
 	pdf_path = os.path.join(
 		frappe.get_app_path("lms"),
 		"..",
@@ -207,6 +207,21 @@ def get_cbt_guide_attachment():
 	if os.path.exists(pdf_path):
 		with open(pdf_path, "rb") as f:
 			return [{"fname": "Distributor_CBT_Step_by_Step_Guide.pdf", "fcontent": f.read()}]
+	return []
+
+
+def get_employee_cbt_guide_attachment():
+	"""Return the employee CBT guide PDF as an attachment dict for frappe.sendmail"""
+	pdf_path = os.path.join(
+		frappe.get_app_path("lms"),
+		"..",
+		"frontend",
+		"public",
+		"Employee Cbt Module – Step‑by‑step User Guide email Companion.pdf"
+	)
+	if os.path.exists(pdf_path):
+		with open(pdf_path, "rb") as f:
+			return [{"fname": "Employee_CBT_Step_by_Step_Guide.pdf", "fcontent": f.read()}]
 	return []
 
 
@@ -570,7 +585,7 @@ def resend_initial_email_to_employee(employee_id):
 			sender=get_default_sender(),
 			subject=subject,
 			message=message,
-			attachments=get_cbt_guide_attachment(),
+			attachments=get_employee_cbt_guide_attachment(),
 			now=True
 		)
 
