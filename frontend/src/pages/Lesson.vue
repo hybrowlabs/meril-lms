@@ -330,6 +330,7 @@ import {
 	Tooltip,
 	usePageMeta,
 	call,
+	toast,
 } from 'frappe-ui'
 import {
 	computed,
@@ -779,6 +780,12 @@ const progress = createResource({
 		console.log("progress onSuccess, data:", data)
 		lessonProgress.value = data
 		if(parseInt(data)==100){
+			// Employees open the certification wizard themselves with
+			// "Request Certificate" on the course page
+			if (user.data?.roles?.includes('Employee')) {
+				toast.success(__('Course completed. Click "Request Certificate" on the course page to get your certificate.'))
+				return
+			}
 			setCourseCompletion({
 				courseName: props.courseName,
 				showDocument: true

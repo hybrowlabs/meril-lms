@@ -76,7 +76,11 @@
 					class="w-full mt-2"
 					size="md"
 				>
-					{{ __('Get Documents') }}
+					{{
+						user.data?.roles?.includes('Employee')
+							? __('Request Certificate')
+							: __('Get Documents')
+					}}
 				</Button>
 				<router-link
 					v-if="user?.data?.is_moderator || is_instructor()"
