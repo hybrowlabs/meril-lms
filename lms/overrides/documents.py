@@ -3,7 +3,7 @@ from frappe import _
 import random
 import re
 from datetime import timedelta
-from frappe.utils import now_datetime, validate_email_address, get_datetime
+from frappe.utils import now_datetime, validate_email_address, get_datetime, flt
 import base64
 import unicodedata
 from frappe.utils.file_manager import save_file
@@ -89,22 +89,22 @@ def _is_row_course(course_name: str | None) -> bool:
     return normalized.startswith("row1") or normalized.startswith("row2")
 
 
+def _resolve_employee_certificate_format(employee_doc, course_name=None, course_title=None):
+    """Return (print_format, reason) for an employee's completion certificate, without side effects."""
+    if _is_row_course(course_name) or _is_row_course(course_title):
+        return "International Completion Certificate", "ROW1/ROW2 course detected - international format"
+
+    country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
+    if country == "india":
+        return "Employee Completion Certificate", "India country detected"
+    return "International Completion Certificate", f"International country detected: {country or 'Unknown'}"
+
+
 def get_employee_completion_certificate_name(employee_doc, course_name: str | None = None, course_title: str | None = None) -> str:
     """Automatically determine which completion certificate print format to use for an employee.
     No user selection required - system automatically detects the correct format.
     """
-    # Automatic certificate selection logic
-    if _is_row_course(course_name) or _is_row_course(course_title):
-        certificate_format = "International Completion Certificate"
-        reason = "ROW1/ROW2 course detected - international format"
-    else:
-        country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
-        if country == "india":
-            certificate_format = "Employee Completion Certificate"
-            reason = "India country detected"
-        else:
-            certificate_format = "International Completion Certificate"
-            reason = f"International country detected: {country or 'Unknown'}"
+    certificate_format, reason = _resolve_employee_certificate_format(employee_doc, course_name, course_title)
 
     # Log the automatic certificate selection
     try:
@@ -148,8 +148,7 @@ def _log_document_generation(employee_doc, course, template_info, document_type)
 def _update_employee_course_document_template(employee_name, course, template_info):
     """Update the Employee Course Documents record with template information."""
     try:
-        doc_name = frappe.db.exists("Employee Course Documents",
-                                   {"employee": employee_name, "course": course})
+        doc_name = get_current_course_documents("Employee Course Documents", "employee", employee_name, course)
         if doc_name:
             doc = frappe.get_doc("Employee Course Documents", doc_name)
             doc.document_options_json = template_info
@@ -159,9 +158,10 @@ def _update_employee_course_document_template(employee_name, course, template_in
 
 
 @frappe.whitelist(allow_guest=False)
-def get_employee_declaration_template(employee_doc, course_name: str | None = None, course_title: str | None = None):
+def get_employee_declaration_template(employee_doc, course_name: str | None = None, course_title: str | None = None, persist: bool = True):
     """Return metadata describing which declaration template to use for an employee.
     Automatically detects the correct format based on employee country and course type.
+    Pass persist=False to skip saving the selection on the current course documents record.
     """
 
     # Get employee country information
@@ -372,7 +372,7 @@ def get_employee_declaration_template(employee_doc, course_name: str | None = No
     _log_document_generation(employee_doc, course_name, template_info, "Employee Declaration")
 
     # Update the Employee Course Documents record if it exists
-    if hasattr(employee_doc, 'name'):
+    if persist and hasattr(employee_doc, 'name'):
         _update_employee_course_document_template(employee_doc.name, course_name, template_info)
 
     return template_info
@@ -426,10 +426,7 @@ def get_next_distributor_document(course=None):
 
     # Get already submitted documents for this distributor and course
     # Check child table for uploaded documents
-    existing_doc = frappe.db.exists(
-        "Distributor Course Documents",
-        {"distributor": distributor_id, "course": course}
-    )
+    existing_doc = get_current_course_documents("Distributor Course Documents", "distributor", distributor_id, course)
 
     submitted_names = set()
     if existing_doc:
@@ -475,9 +472,8 @@ def complete_certification(course=None, name=None, date=None):
             distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
 
             # Check if document record exists
-            existing = frappe.db.exists(
-                "Distributor Course Documents",
-                {"distributor": distributor_doc.name, "course": course}
+            existing = get_current_course_documents(
+                "Distributor Course Documents", "distributor", distributor_doc.name, course
             )
 
             if existing:
@@ -532,6 +528,171 @@ def complete_certification(course=None, name=None, date=None):
         return {"success": False, "error": str(e)}
 
 
+def get_current_course_documents(doctype, owner_field, owner, course, filters=None):
+    """Name of the member's current-cycle Employee/Distributor Course Documents record.
+
+    A re-admitted member has one record per enrollment cycle, so a plain
+    {owner, course} lookup can return an old cycle's record. Prefer the record
+    flagged current, then the highest enrollment version, then the newest.
+    """
+    rows = frappe.get_all(
+        doctype,
+        filters={owner_field: owner, "course": course, **(filters or {})},
+        pluck="name",
+        order_by="is_current_enrollment desc, enrollment_version desc, creation desc",
+        limit=1,
+    )
+    return rows[0] if rows else None
+
+
+def _get_member_course_context(user):
+    """Return (role, course-documents doctype, owner field, owner doc) for an Employee/Distributor user."""
+    roles = frappe.get_roles(user)
+    if "Distributor" in roles:
+        owner = frappe.db.get_value("Distributor", {"user_id": user}, ["name"], as_dict=True)
+        return "Distributor", "Distributor Course Documents", "distributor", owner
+    if "Employee" in roles:
+        owner = frappe.db.get_value("Employee", {"user_id": user}, "name")
+        return "Employee", "Employee Course Documents", "employee", owner and frappe.get_doc("Employee", owner)
+    return None, None, None, None
+
+
+def _get_cycle_documents(role, owner, course):
+    """[{print_format, label}] downloadable for one completed cycle."""
+    if role == "Distributor":
+        return [{"print_format": "Distributor Completion Certificate", "label": "Distributor Completion Certificate"}]
+
+    course_title = frappe.db.get_value("LMS Course", course, "title")
+    certificate_format, _reason = _resolve_employee_certificate_format(owner, course, course_title)
+    declaration = get_employee_declaration_template(owner, course, course_title, persist=False)
+    return [
+        {"print_format": certificate_format, "label": certificate_format},
+        {"print_format": declaration["print_format"], "label": declaration["display_name"]},
+    ]
+
+
+def get_member_course_cycles(user, course):
+    """Every enrollment cycle of `user` in `course`, oldest first, with its financial year.
+
+    Each cycle is paired with its own course-documents record (by enrollment_reference,
+    then enrollment_version). Cycles created by a Portal Reset share a single record, so
+    they fall back to the member's latest record and are rendered with their own date.
+
+    The certificate date of a cycle is the first of: the record's submission_datetime,
+    the enrollment's completed_on, the enrollment's creation - ignoring any value on or
+    after the next cycle's start, because downloads used to overwrite submission_datetime
+    with "now" and re-admission fills an empty completed_on with the re-admission time.
+    """
+    from lms.lms.user import get_financial_year
+
+    role, doctype, owner_field, owner = _get_member_course_context(user)
+    if not owner:
+        return []
+
+    enrollments = frappe.get_all(
+        "LMS Enrollment",
+        filters={"member": user, "course": course},
+        fields=["name", "enrollment_version", "progress", "is_certified", "completed_on", "creation"],
+        order_by="enrollment_version asc, creation asc",
+    )
+    records = frappe.get_all(
+        doctype,
+        filters={owner_field: owner.name, "course": course},
+        fields=["name", "enrollment_reference", "enrollment_version", "is_current_enrollment",
+                "is_certified", "submission_datetime", "creation"],
+        order_by="creation desc",
+    )
+    latest_record = get_current_course_documents(doctype, owner_field, owner.name, course)
+
+    cycles = []
+    for i, enrollment in enumerate(enrollments):
+        version = enrollment.enrollment_version or 1
+        record = next((r for r in records if r.enrollment_reference == enrollment.name), None) or next(
+            (r for r in records if (r.enrollment_version or 1) == version), None
+        )
+        next_start = enrollments[i + 1].creation if i + 1 < len(enrollments) else None
+
+        candidates = [record and record.submission_datetime, enrollment.completed_on, enrollment.creation]
+        cycle_date = next(
+            (get_datetime(c) for c in candidates if c and (not next_start or get_datetime(c) < next_start)),
+            enrollment.creation,
+        )
+
+        is_completed = flt(enrollment.progress) >= 100 and bool(
+            enrollment.is_certified or (record and record.is_certified)
+        )
+        cycles.append(frappe._dict({
+            "enrollment": enrollment.name,
+            "enrollment_version": version,
+            "is_current": i == len(enrollments) - 1,
+            "is_completed": is_completed,
+            "completion_date": cycle_date,
+            "financial_year": get_financial_year(cycle_date),
+            "record": (record and record.name) or latest_record,
+            "doctype": doctype,
+            "role": role,
+            "documents": _get_cycle_documents(role, owner, course) if is_completed else [],
+        }))
+    return cycles
+
+
+@frappe.whitelist(allow_guest=False)
+def get_course_certificate_cycles(course):
+    """Enrollment cycles of the session user for `course`, newest first, for the financial
+    year picker in the documents wizard. `documents` is filled only for completed cycles.
+    Read only."""
+    cycles = get_member_course_cycles(frappe.session.user, course)
+    return [
+        {
+            "enrollment": c.enrollment,
+            "enrollment_version": c.enrollment_version,
+            "financial_year": c.financial_year,
+            "completion_date": c.completion_date,
+            "is_current": c.is_current,
+            "is_completed": c.is_completed,
+            "documents": c.documents,
+        }
+        for c in reversed(cycles)
+        if c.record
+    ]
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def download_cycle_document(course, enrollment, print_format):
+    """Download a document of one completed enrollment cycle (any financial year) as PDF.
+
+    Renders the cycle's course-documents record in memory with the cycle's own
+    completion date, so the certificate shows that cycle's financial year. Nothing is saved.
+    """
+    cycle = next(
+        (c for c in get_member_course_cycles(frappe.session.user, course) if c.enrollment == enrollment),
+        None,
+    )
+    if not cycle or not cycle.record:
+        frappe.throw(_("No course documents found for this enrollment."), frappe.PermissionError)
+    if not cycle.is_completed:
+        frappe.throw(_("Complete the course for FY {0} to download its documents.").format(cycle.financial_year))
+
+    document = next((d for d in cycle.documents if d["print_format"] == print_format), None)
+    if not document:
+        frappe.throw(_("Document {0} is not available for this enrollment.").format(print_format))
+
+    doc = frappe.get_doc(cycle.doctype, cycle.record)
+    doc.submission_datetime = cycle.completion_date
+
+    # The cycle was resolved from the session user's own enrollments above, so it is safe to
+    # skip the DocType print permission (employees have no role permission on their records).
+    frappe.flags.ignore_print_permissions = True
+    try:
+        pdf = frappe.get_print(cycle.doctype, doc.name, print_format, doc=doc, as_pdf=True, no_letterhead=1)
+    finally:
+        frappe.flags.ignore_print_permissions = False
+
+    frappe.local.response.filename = f"{document['label']} FY {cycle.financial_year}.pdf"
+    frappe.local.response.filecontent = pdf
+    frappe.local.response.type = "download"
+
+
 @frappe.whitelist(allow_guest=False)
 def has_user_submited_document(course=None):
     user = frappe.session.user
@@ -578,23 +739,14 @@ def has_user_submited_document(course=None):
 
             # Check if a document record exists for this distributor and course
             # First check for submitted documents
-            submitted_exists = frappe.db.exists(
-                "Distributor Course Documents",
-                {
-                    "distributor": distributor_id,
-                    "course": course,
-                    "has_submitted_documents": 1
-                }
+            # Only the current cycle's record counts - an earlier cycle's submission
+            # must not mark a re-admitted distributor as already submitted.
+            any_exists = get_current_course_documents(
+                "Distributor Course Documents", "distributor", distributor_id, course
             )
-
-            # Also check for any document record (even partial uploads)
-            any_exists = frappe.db.exists(
-                "Distributor Course Documents",
-                {
-                    "distributor": distributor_id,
-                    "course": course
-                }
-            )
+            submitted_exists = any_exists if any_exists and frappe.db.get_value(
+                "Distributor Course Documents", any_exists, "has_submitted_documents"
+            ) else None
 
             # Get uploaded documents and certification status
             uploaded_documents = []
@@ -669,9 +821,8 @@ def has_user_submited_document(course=None):
             course_title = frappe.db.get_value("LMS Course", course, "title") if course else ""
             declaration_template = get_employee_declaration_template(employee_doc, course, course_title)
             # Check if a submitted document exists for this employee and course
-            exists = frappe.db.exists(
-                "Employee Course Documents",
-                {"employee": employee_doc.name, "course": course}
+            exists = get_current_course_documents(
+                "Employee Course Documents", "employee", employee_doc.name, course
             )
             # If 'Employee Course Documents' does not exist, create it.
 
@@ -794,9 +945,8 @@ def check_needs_forced_certification(course=None):
 
         # Check Employee Course Documents for certification status
         employee_doc = frappe.get_doc("Employee", {"user_id": user})
-        exists = frappe.db.exists(
-            "Employee Course Documents",
-            {"employee": employee_doc.name, "course": course}
+        exists = get_current_course_documents(
+            "Employee Course Documents", "employee", employee_doc.name, course
         )
 
         if not exists:
@@ -940,16 +1090,21 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
                         frappe.log_error(f"Error generating completion certificate for existing distributor doc: {str(e)}")
 
             else:
-                # Create new Distributor Course Documents
+                # Create new Distributor Course Documents for this cycle; earlier cycles stop being current
+                frappe.db.set_value(
+                    "Distributor Course Documents",
+                    {"distributor": distributor_doc.name, "course": course},
+                    "is_current_enrollment", 0, update_modified=False,
+                )
                 doc = frappe.get_doc({
                     "doctype": "Distributor Course Documents",
                     "distributor": distributor_doc.name,
                     "course": course,
-                    "enrollment": enrollment.name if enrollment else None,
+                    "enrollment_reference": enrollment.name if enrollment else None,
                     "enrollment_version": enrollment.enrollment_version if enrollment else 1,
                     "is_current_enrollment": 1,
                     "has_submitted_documents": 0,
-                    "submission_date": frappe.utils.now_datetime(),
+                    "submission_datetime": (enrollment.completed_on if enrollment else None) or frappe.utils.now_datetime(),
                     "entered_name": distributor_doc.attendee_name or user_doc.full_name or ""
                 })
                 doc.insert(ignore_permissions=True)
@@ -1031,12 +1186,17 @@ def create_course_documents_on_completion(user=None, course=None, enrollment_nam
             completed_at = (enrollment.completed_on if enrollment else None) or frappe.utils.now_datetime()
 
             if not existing:
-                # Create new Employee Course Documents
+                # Create new Employee Course Documents for this cycle; earlier cycles stop being current
+                frappe.db.set_value(
+                    "Employee Course Documents",
+                    {"employee": employee_doc.name, "course": course},
+                    "is_current_enrollment", 0, update_modified=False,
+                )
                 doc = frappe.get_doc({
                     "doctype": "Employee Course Documents",
                     "employee": employee_doc.name,
                     "course": course,
-                    "enrollment": enrollment.name if enrollment else None,
+                    "enrollment_reference": enrollment.name if enrollment else None,
                     "enrollment_version": enrollment.enrollment_version if enrollment else 1,
                     "is_current_enrollment": 1,
                     "submission_datetime": completed_at
@@ -1176,9 +1336,8 @@ def upload_distributor_document_with_datetime(
 
         # Parent Distributor Course Documents – reuse if exists for this course, else create
         distributor_doc = frappe.get_doc("Distributor", {"user_id": user})
-        existing_name = frappe.db.exists(
-            "Distributor Course Documents",
-            {"distributor": distributor_doc.name, "course": course}
+        existing_name = get_current_course_documents(
+            "Distributor Course Documents", "distributor", distributor_doc.name, course
         )
         if existing_name:
             doc = frappe.get_doc("Distributor Course Documents", existing_name)
@@ -1418,21 +1577,13 @@ def save_user_course_document_with_file(
         # Handle both Employee and Distributor document creation
         if employee:
             # For employees, create/update Employee Course Documents
-            existing_doc_name = frappe.db.exists(
-                "Employee Course Documents",
-                {
-                    "employee": employee,
-                    "course": course,
-                }
+            existing_doc_name = get_current_course_documents(
+                "Employee Course Documents", "employee", employee, course
             )
         elif distributor:
             # For distributors, create/update Distributor Course Documents
-            existing_doc_name = frappe.db.exists(
-                "Distributor Course Documents",
-                {
-                    "distributor": distributor,
-                    "course": course,
-                }
+            existing_doc_name = get_current_course_documents(
+                "Distributor Course Documents", "distributor", distributor, course
             )
         else:
             return {"success": False, "message": "Unable to determine user type for document creation"}
@@ -2045,10 +2196,7 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
 
             if course:
                 print(f"Looking for existing document: {doctype} with {user_field}: {user_doc_record.name}, course: {course}")
-                doc_name = frappe.db.exists(
-                    doctype,
-                    {user_field: user_doc_record.name, "course": course}
-                )
+                doc_name = get_current_course_documents(doctype, user_field, user_doc_record.name, course)
                 print(f"Existing document found: {doc_name}")
 
             if doc_name:
@@ -2102,7 +2250,10 @@ def generate_dynamic_docx(name=None, font_path=None, course=None, use_print_form
                     }
                 if effective_name:
                     doc.entered_name = effective_name
-            doc.submission_datetime = now_datetime()
+            # Keep the first date of this cycle: the printed financial year is derived from it,
+            # so re-downloading later (e.g. in the next financial year) must not move it.
+            if not doc.submission_datetime:
+                doc.submission_datetime = now_datetime()
             if course:  # Only save if course is provided
                 doc.save(ignore_permissions=True)
 
@@ -2301,7 +2452,9 @@ def get_distributor_print_format_info(course):
     try:
         if "Distributor" in roles:
             distributor_name = frappe.get_value("Distributor", {"user_id": user}, "name")
-            document_id = frappe.get_doc("Distributor Course Documents", {"distributor": distributor_name, "course": course})
+            document_id = frappe.get_doc("Distributor Course Documents", get_current_course_documents(
+                "Distributor Course Documents", "distributor", distributor_name, course
+            ))
             return {
                 "success": True,
                "document_id" : document_id ,
@@ -2309,7 +2462,9 @@ def get_distributor_print_format_info(course):
             }
         elif "Employee" in roles:
             employee_name = frappe.get_value("Employee", {"user_id": user}, "name")
-            document_id = frappe.get_doc("Employee Course Documents", {"employee": employee_name, "course": course})
+            document_id = frappe.get_doc("Employee Course Documents", get_current_course_documents(
+                "Employee Course Documents", "employee", employee_name, course
+            ))
             return {
                 "success": True,
                 "document_id" : document_id,
@@ -2522,9 +2677,8 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
             # Get or create Distributor Course Documents record
             doc = None
             if course:
-                doc_name = frappe.db.exists(
-                    "Distributor Course Documents",
-                    {"distributor": distributor_doc.name, "course": course}
+                doc_name = get_current_course_documents(
+                    "Distributor Course Documents", "distributor", distributor_doc.name, course
                 )
                 if doc_name:
                     doc = frappe.get_doc("Distributor Course Documents", doc_name)
@@ -2609,9 +2763,8 @@ def get_document_preview_html(course=None, document_type=None, compliance_office
             # Get or create Employee Course Documents record
             doc = None
             if course:
-                doc_name = frappe.db.exists(
-                    "Employee Course Documents",
-                    {"employee": employee_doc.name, "course": course}
+                doc_name = get_current_course_documents(
+                    "Employee Course Documents", "employee", employee_doc.name, course
                 )
                 if doc_name:
                     doc = frappe.get_doc("Employee Course Documents", doc_name)

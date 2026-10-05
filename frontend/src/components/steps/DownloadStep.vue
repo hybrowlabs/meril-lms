@@ -10,6 +10,58 @@
       </p>
     </div>
 
+    <!-- Financial Year picker: only for re-admitted members with an earlier completed year -->
+    <div v-if="pickerCycles.length > 1" class="bg-white border border-gray-200 rounded-lg p-4">
+      <h4 class="text-sm font-medium text-gray-900">Financial Year</h4>
+      <p class="text-sm text-gray-500 mt-1">Choose the year whose documents you want to download.</p>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button
+          v-for="cycle in pickerCycles"
+          :key="cycle.enrollment"
+          type="button"
+          @click="selectedEnrollment = cycle.enrollment"
+          class="px-4 py-2 rounded-lg border text-sm font-medium transition-colors"
+          :class="cycle.enrollment === selectedEnrollment
+            ? 'bg-gray-900 border-gray-900 text-white'
+            : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'"
+        >
+          FY {{ cycle.financial_year }}
+          <span class="ml-1 text-xs opacity-75">{{ cycle.is_current ? '(Current)' : '(Previous)' }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Documents of an earlier financial year -->
+    <div v-if="!viewingCurrent" class="space-y-4">
+      <div
+        v-for="document in selectedCycle.documents"
+        :key="document.print_format"
+        class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <h4 class="text-sm font-medium text-gray-900 break-words">{{ document.label }}</h4>
+            <p class="text-sm text-gray-500 mt-1 break-words">
+              FY {{ selectedCycle.financial_year }} · {{ getDocumentDescription(document.label) }}
+            </p>
+          </div>
+          <div class="flex-shrink-0">
+            <Button
+              theme="gray"
+              variant="outline"
+              size="md"
+              icon="download"
+              @click="downloadCycleDocument(document)"
+              :disabled="downloadingDocuments.has(cycleDocumentKey(document))"
+              class="flex items-center justify-center min-w-[140px] px-6 py-3 h-12 bg-white border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 transition-all duration-200 text-sm"
+            >
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template v-if="viewingCurrent">
     <!-- Certification Required Notice -->
     <div v-if="!isCertified" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
       <div class="flex">
@@ -134,6 +186,7 @@
         </div>
       </div>
     </div>
+    </template>
 
     <!-- Error Display -->
     <div v-if="downloadError" class="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -241,6 +294,66 @@ const getDocumentDescription = (documentName) => {
 }
 
 const getDocumentLabel = (document) => document?.label || document?.name
+
+// Enrollment cycles (one per financial year), newest first. A re-admitted member can
+// pick an earlier completed year; the current year keeps the regular download flow.
+const cycles = ref([])
+const selectedEnrollment = ref(null)
+
+const pickerCycles = computed(() => cycles.value.filter(cycle => cycle.is_current || cycle.is_completed))
+const selectedCycle = computed(() => cycles.value.find(cycle => cycle.enrollment === selectedEnrollment.value))
+const viewingCurrent = computed(() => !selectedCycle.value || selectedCycle.value.is_current)
+
+const loadCycles = async () => {
+  if (!props.courseName) return
+  try {
+    cycles.value = await call('lms.overrides.documents.get_course_certificate_cycles', {
+      course: props.courseName
+    }) || []
+    selectedEnrollment.value = cycles.value.find(cycle => cycle.is_current)?.enrollment || null
+  } catch (error) {
+    console.error('Error loading financial years:', error)
+    cycles.value = []
+  }
+}
+
+watch(() => props.courseName, loadCycles, { immediate: true })
+
+const cycleDocumentKey = (document) => `${selectedEnrollment.value}:${document.print_format}`
+
+// Download a document of an earlier financial year (rendered with that year's date, read only)
+const downloadCycleDocument = async (document) => {
+  const cycle = selectedCycle.value
+  const key = cycleDocumentKey(document)
+  if (!cycle || downloadingDocuments.value.has(key)) return
+
+  downloadingDocuments.value.add(key)
+  downloadError.value = ''
+  try {
+    const params = new URLSearchParams({
+      course: props.courseName,
+      enrollment: cycle.enrollment,
+      print_format: document.print_format
+    })
+    const response = await fetch(`/api/method/lms.overrides.documents.download_cycle_document?${params}`, {
+      credentials: 'include'
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      const message = JSON.parse(error._server_messages || '[]')[0]
+      throw new Error(message ? JSON.parse(message).message : `Failed to download ${document.label}`)
+    }
+    const base64 = await blobToBase64(await response.blob())
+    await directDownload(base64, `${document.label} FY ${cycle.financial_year}.pdf`)
+    toast.success(`${document.label} (FY ${cycle.financial_year}) downloaded successfully`)
+  } catch (error) {
+    console.error('Download error:', error)
+    downloadError.value = `Failed to download ${document.label}: ${error.message}`
+    toast.error(error.message)
+  } finally {
+    downloadingDocuments.value.delete(key)
+  }
+}
 
 const downloadDocument = async (docItem) => {
   if (downloadingDocuments.value.has(docItem.name)) return

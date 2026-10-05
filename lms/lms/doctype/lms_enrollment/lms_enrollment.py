@@ -260,11 +260,11 @@ class LMSEnrollment(Document):
 				new_doc.update({
 					"distributor": distributor,
 					"course": self.course,
-					"enrollment": self.name,
+					"enrollment_reference": self.name,
 					"enrollment_version": self.enrollment_version,
 					"is_current_enrollment": 1,
 					"has_submitted_documents": 0,
-					"submission_date": None,
+					"submission_datetime": None,
 					"is_certified": 0
 				})
 				new_doc.insert(ignore_permissions=True)
@@ -284,10 +284,10 @@ class LMSEnrollment(Document):
 				new_doc.update({
 					"employee": employee,
 					"course": self.course,
-					"enrollment": self.name,
+					"enrollment_reference": self.name,
 					"enrollment_version": self.enrollment_version,
 					"is_current_enrollment": 1,
-					"submission_date": None
+					"submission_datetime": None
 				})
 				new_doc.insert(ignore_permissions=True)
 

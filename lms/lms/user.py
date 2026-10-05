@@ -12,11 +12,16 @@ from frappe.utils.password import update_password
 import json
 import os
 
+def get_financial_year(date=None):
+	"""Return the Indian financial year (April-March) of `date` (default today) as 'YYYY-YYYY'"""
+	date = frappe.utils.getdate(date)
+	start_year = date.year if date.month >= 4 else date.year - 1
+	return f"{start_year}-{start_year + 1}"
+
+
 def get_current_financial_year():
 	"""Return the current Indian financial year (April-March) as 'YYYY-YYYY'"""
-	today = frappe.utils.getdate()
-	start_year = today.year if today.month >= 4 else today.year - 1
-	return f"{start_year}-{start_year + 1}"
+	return get_financial_year()
 
 
 def get_default_sender():

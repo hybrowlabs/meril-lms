@@ -279,12 +279,10 @@ def save_user_template_selection(user_type, user_id, course, template_id, option
             frappe.throw(_("Invalid options format"))
 
     if user_type == 'employee':
+        from lms.overrides.documents import get_current_course_documents
+
         # Update Employee Course Documents
-        doc_name = frappe.db.get_value(
-            "Employee Course Documents",
-            {"employee": user_id, "course": course},
-            "name"
-        )
+        doc_name = get_current_course_documents("Employee Course Documents", "employee", user_id, course)
 
         if doc_name:
             doc = frappe.get_doc("Employee Course Documents", doc_name)
@@ -306,12 +304,10 @@ def save_user_template_selection(user_type, user_id, course, template_id, option
         return {"success": True, "document": doc.name}
 
     else:
+        from lms.overrides.documents import get_current_course_documents
+
         # Similar logic for Distributor Course Documents
-        doc_name = frappe.db.get_value(
-            "Distributor Course Documents",
-            {"distributor": user_id, "course": course},
-            "name"
-        )
+        doc_name = get_current_course_documents("Distributor Course Documents", "distributor", user_id, course)
 
         if doc_name:
             doc = frappe.get_doc("Distributor Course Documents", doc_name)
