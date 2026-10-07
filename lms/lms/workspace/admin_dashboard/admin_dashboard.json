@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"2gWoSDKnny\",\"type\":\"chart\",\"data\":{\"chart_name\":\"documents submissions\",\"col\":6}},{\"id\":\"sVuVW3TSc5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Distributor Table</b></span>\",\"col\":12}},{\"id\":\"KNm2koww0q\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Distributor Report\",\"col\":12}},{\"id\":\"5cDdkVvluz\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Employee Table</b></span>\",\"col\":12}},{\"id\":\"X41xyoC9VE\",\"type\":\"custom_block\",\"data\":{\"custom_block_name\":\"Employee Report\",\"col\":12}}]",
+ "content": "[{\"id\": \"2gWoSDKnny\", \"type\": \"chart\", \"data\": {\"chart_name\": \"documents submissions\", \"col\": 6}}, {\"id\": \"sVuVW3TSc5\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Distributor Table</b></span>\", \"col\": 12}}, {\"id\": \"KNm2koww0q\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Distributor Report\", \"col\": 12}}, {\"id\": \"5cDdkVvluz\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Employee Table</b></span>\", \"col\": 12}}, {\"id\": \"X41xyoC9VE\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Employee Report\", \"col\": 12}}, {\"id\": \"ced0Header1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Course Enrollment Dashboard (Fiscal Year)</b></span>\", \"col\": 12}}, {\"id\": \"ced0Block01\", \"type\": \"custom_block\", \"data\": {\"custom_block_name\": \"Course Enrollment Dashboard\", \"col\": 12}}]",
  "creation": "2025-08-07 11:20:25.991780",
  "custom_blocks": [
   {
@@ -10,6 +10,10 @@
   {
    "custom_block_name": "Distributor Report",
    "label": "Distributor Report"
+  },
+  {
+   "custom_block_name": "Course Enrollment Dashboard",
+   "label": "Course Enrollment Dashboard"
   }
  ],
  "docstatus": 0,
@@ -22,7 +26,7 @@
  "is_hidden": 0,
  "label": "Admin Dashboard",
  "links": [],
- "modified": "2025-09-12 12:32:41.969058",
+ "modified": "2026-10-07 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Admin Dashboard",

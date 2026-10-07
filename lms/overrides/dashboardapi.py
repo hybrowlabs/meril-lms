@@ -301,3 +301,115 @@ def get_employee_dashboard_info():
         r["enrollment_history"] = history_by_member.get(r.get("employee_user_id"), [])
 
     return data
+
+
+@frappe.whitelist(allow_guest=False, methods=["GET"])
+def get_course_enrollment_cycles():
+    """
+    One row per LMS Enrollment cycle (every enrollment_version) of every Employee and
+    Distributor, tagged with the financial year it was enrolled in and completed in, so a
+    member who took a course in 2025-2026 and again in 2026-2027 shows up as two cycles.
+    Read only.
+    """
+    from frappe.utils import flt, get_datetime
+    from lms.lms.user import get_financial_year
+
+    frappe.only_for("Supervisor")
+
+    rows = frappe.db.sql(
+        """
+        SELECT
+            le.name                               AS `enrollment`,
+            le.member                             AS `member`,
+            le.course                             AS `course`,
+            c.title                               AS `course_title`,
+            COALESCE(le.enrollment_version, 1)    AS `enrollment_version`,
+            le.creation                           AS `enrolled_on`,
+            IFNULL(le.progress, 0)                AS `progress`,
+            IFNULL(le.completion_status, 'Pending') AS `completion_status`,
+            le.completed_on                       AS `completed_on`,
+            d.name                                AS `distributor_docid`,
+            d.attendee_name                       AS `distributor_name`,
+            d.account__distributor_code           AS `distributor_code`,
+            d.distributor_company_name            AS `distributor_company`,
+            d.country                             AS `distributor_country`,
+            e.name                                AS `employee_docid`,
+            e.employee_name                       AS `employee_name`,
+            e.custom_employee_id                  AS `employee_code`,
+            e.company                             AS `employee_company`,
+            e.department                          AS `employee_department`,
+            e.country                             AS `employee_country`
+        FROM `tabLMS Enrollment` AS le
+        LEFT JOIN `tabLMS Course` AS c
+            ON c.name = le.course
+        LEFT JOIN `tabDistributor` AS d
+            ON d.user_id = le.member
+        LEFT JOIN `tabEmployee` AS e
+            ON e.user_id = le.member
+        WHERE d.name IS NOT NULL OR e.name IS NOT NULL
+        ORDER BY le.member, le.course, COALESCE(le.enrollment_version, 1), le.creation
+        """,
+        as_dict=True,
+    )
+
+    # Group the cycles of each member/course so every cycle knows its attempt number,
+    # the next cycle's start and the full list of financial years.
+    cycles_by_key = {}
+    for r in rows:
+        cycles_by_key.setdefault((r.member, r.course), []).append(r)
+
+    data = []
+    for cycles in cycles_by_key.values():
+        for i, r in enumerate(cycles):
+            next_start = cycles[i + 1].enrolled_on if i + 1 < len(cycles) else None
+            completed_on = r.completed_on
+            # Re-admission fills an empty completed_on with the re-admission time; a date
+            # on or after the next cycle's start is not this cycle's completion.
+            if completed_on and next_start and get_datetime(completed_on) >= get_datetime(next_start):
+                completed_on = None
+
+            progress = flt(r.progress)
+            status = "Completed" if progress >= 100 else r.completion_status
+            r.enrolled_fy = get_financial_year(r.enrolled_on)
+            r.completed_fy = get_financial_year(completed_on) if completed_on else None
+            r.completed_on = completed_on
+            r.completion_status = status
+            r.progress = round(progress, 2)
+            r.attempt = i + 1
+            r.total_attempts = len(cycles)
+            r.is_current = i == len(cycles) - 1
+
+        fy_path = []
+        for r in cycles:
+            if r.enrolled_fy not in fy_path:
+                fy_path.append(r.enrolled_fy)
+
+        for r in cycles:
+            is_distributor = bool(r.distributor_docid)
+            data.append({
+                "enrollment": r.enrollment,
+                "member": r.member,
+                "member_type": "Distributor" if is_distributor else "Employee",
+                "docid": r.distributor_docid if is_distributor else r.employee_docid,
+                "member_name": (r.distributor_name if is_distributor else r.employee_name) or r.member,
+                "member_code": r.distributor_code if is_distributor else r.employee_code,
+                "company": r.distributor_company if is_distributor else r.employee_company,
+                "department": None if is_distributor else r.employee_department,
+                "country": r.distributor_country if is_distributor else r.employee_country,
+                "course": r.course,
+                "course_title": r.course_title or r.course,
+                "enrollment_version": r.enrollment_version,
+                "attempt": r.attempt,
+                "total_attempts": r.total_attempts,
+                "is_current": r.is_current,
+                "enrolled_on": r.enrolled_on,
+                "enrolled_fy": r.enrolled_fy,
+                "first_enrolled_fy": fy_path[0],
+                "fy_path": fy_path,
+                "progress": r.progress,
+                "completion_status": r.completion_status,
+                "completed_on": r.completed_on,
+                "completed_fy": r.completed_fy,
+            })
+
+    return data
