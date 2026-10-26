@@ -2,6 +2,26 @@ import frappe
 import json
 from frappe import _
 
+
+def display_completion(status, progress, is_certified, completed_on=None):
+    """(status, completed_on) shown on the dashboards.
+
+    A course counts as Completed only once the learner has certified; until then a
+    learner who finished the lessons (or whose stored status says Completed) shows as
+    Pending with no completion date. Re-enrolled and Active (progress below 100) pass
+    through unchanged, also without a date.
+    """
+    status = status or "Pending"
+    if status != "Re-enrolled":
+        try:
+            finished = float(progress or 0) >= 100.0
+        except (TypeError, ValueError):
+            finished = False
+        if status == "Completed" or finished:
+            status = "Completed" if is_certified else "Pending"
+    return status, (completed_on if status == "Completed" else None)
+
+
 @frappe.whitelist(allow_guest=False)
 def get_distributor_dashboard_info():
     """
@@ -39,6 +59,7 @@ def get_distributor_dashboard_info():
             le.progress                           AS `progress`,
             le.completed_on                       AS `completed_on`,
             IFNULL(le.completion_status, 'Pending') AS `completion_status`,
+            IFNULL(le.is_certified, 0)            AS `is_certified`,
             IFNULL(CAST(le.re_enrollment_count AS CHAR), '0') AS `re_enrollment_count`,
             dcd.has_submitted_documents           AS `submitted_documents`,
             dcd.submission_datetime               AS `submission_datetime`,
@@ -82,6 +103,7 @@ def get_distributor_dashboard_info():
                 le.progress                         AS progress,
                 le.completed_on                     AS completed_on,
                 IFNULL(le.completion_status, 'Pending') AS completion_status,
+                IFNULL(le.is_certified, 0)          AS is_certified,
                 dcd.name                            AS docid,
                 dcd.has_submitted_documents         AS submitted,
                 dcd.submission_datetime             AS submission_datetime
@@ -97,16 +119,15 @@ def get_distributor_dashboard_info():
         """
         hist_rows = frappe.db.sql(history_sql, {"members": tuple(set(members))}, as_dict=True)
         for hr in hist_rows:
-            # Derive completed status if progress is 100
             progress_val = float(hr.get("progress") or 0)
-            status = hr.get("completion_status") or "Pending"
-            if progress_val >= 100.0 and status != "Completed":
-                status = "Completed"
+            status, completed_on = display_completion(
+                hr.get("completion_status"), progress_val, hr.get("is_certified"), hr.get("completed_on")
+            )
             entry = {
                 "course": hr.get("course"),
                 "enrollment_version": hr.get("enrollment_version"),
                 "progress": hr.get("progress"),
-                "completed_on": hr.get("completed_on"),
+                "completed_on": completed_on,
                 "completion_status": status,
                 "documents": []
             }
@@ -121,13 +142,13 @@ def get_distributor_dashboard_info():
 
     # Final post-processing
     for r in rows:
-        # Normalize completion from progress
         try:
             prog = float(r.get("progress") or 0)
         except Exception:
             prog = 0.0
-        if prog >= 100.0 and r.get("completion_status") != "Completed":
-            r["completion_status"] = "Completed"
+        r["completion_status"], r["completed_on"] = display_completion(
+            r.get("completion_status"), prog, r.get("is_certified"), r.get("completed_on")
+        )
         # Attach history
         r["enrollment_history"] = history_by_member.get(r.get("distributor_user_id"), [])
         # Ensure booleans/datetimes are present
@@ -206,6 +227,7 @@ def get_employee_dashboard_info():
             IFNULL(le.progress, 0)             AS `progress`,
             le.completed_on                    AS `completed_on`,
             IFNULL(le.completion_status, 'Pending') AS `completion_status`,
+            IFNULL(le.is_certified, 0)            AS `is_certified`,
             COALESCE(le.enrollment_version, 1) AS `enrollment_version`,
             (
                 SELECT ed_inner.name
@@ -251,6 +273,7 @@ def get_employee_dashboard_info():
                 le.progress                         AS progress,
                 le.completed_on                     AS completed_on,
                 IFNULL(le.completion_status, 'Pending') AS completion_status,
+                IFNULL(le.is_certified, 0)          AS is_certified,
                 ecd.name                            AS docid,
                 ecd.has_submitted_documents         AS submitted,
                 ecd.submission_datetime             AS submission_datetime
@@ -266,16 +289,15 @@ def get_employee_dashboard_info():
         """
         hist_rows = frappe.db.sql(history_sql, {"members": tuple(set(members))}, as_dict=True)
         for hr in hist_rows:
-            # Derive completed status if progress is 100
             progress_val = float(hr.get("progress") or 0)
-            status = hr.get("completion_status") or "Pending"
-            if progress_val >= 100.0 and status != "Completed":
-                status = "Completed"
+            status, completed_on = display_completion(
+                hr.get("completion_status"), progress_val, hr.get("is_certified"), hr.get("completed_on")
+            )
             entry = {
                 "course": hr.get("course"),
                 "enrollment_version": hr.get("enrollment_version"),
                 "progress": hr.get("progress"),
-                "completed_on": hr.get("completed_on"),
+                "completed_on": completed_on,
                 "completion_status": status,
                 "documents": []
             }
@@ -290,13 +312,13 @@ def get_employee_dashboard_info():
 
     # Final post-processing
     for r in data:
-        # Normalize completion from progress
         try:
             prog = float(r.get("progress") or 0)
         except Exception:
             prog = 0.0
-        if prog >= 100.0 and r.get("completion_status") != "Completed":
-            r["completion_status"] = "Completed"
+        r["completion_status"], r["completed_on"] = display_completion(
+            r.get("completion_status"), prog, r.get("is_certified"), r.get("completed_on")
+        )
         # Attach history
         r["enrollment_history"] = history_by_member.get(r.get("employee_user_id"), [])
 
@@ -327,6 +349,7 @@ def get_course_enrollment_cycles():
             le.creation                           AS `enrolled_on`,
             IFNULL(le.progress, 0)                AS `progress`,
             IFNULL(le.completion_status, 'Pending') AS `completion_status`,
+            IFNULL(le.is_certified, 0)            AS `is_certified`,
             le.completed_on                       AS `completed_on`,
             d.name                                AS `distributor_docid`,
             d.attendee_name                       AS `distributor_name`,
@@ -369,7 +392,9 @@ def get_course_enrollment_cycles():
                 completed_on = None
 
             progress = flt(r.progress)
-            status = "Completed" if progress >= 100 else r.completion_status
+            status, completed_on = display_completion(
+                r.completion_status, progress, r.is_certified, completed_on
+            )
             r.enrolled_fy = get_financial_year(r.enrolled_on)
             r.completed_fy = get_financial_year(completed_on) if completed_on else None
             r.completed_on = completed_on

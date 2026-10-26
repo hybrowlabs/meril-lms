@@ -179,7 +179,9 @@
   {
    "fieldname": "distributor_name",
    "fieldtype": "Data",
-   "label": "Distributor Name"
+   "label": "Distributor Name",
+   "reqd": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "attendee_name",
@@ -195,7 +197,7 @@
    "link_fieldname": "distributor"
   }
  ],
- "modified": "2025-10-01 08:13:30.209541",
+ "modified": "2026-10-26 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "LMS",
  "name": "Distributor",
@@ -217,5 +219,9 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "autoname": "format:{distributor_name}({distributor_email_address})",
+ "naming_rule": "Expression",
+ "title_field": "distributor_name",
+ "search_fields": "attendee_name,distributor_contact_number,city"
 }
