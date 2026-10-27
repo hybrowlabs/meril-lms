@@ -94,7 +94,7 @@ function open_bulk_user_creation_dialog(listview) {
 				options: 'Designation'
 			},
 			{
-				fieldname: 'custom_country',
+				fieldname: 'country',
 				fieldtype: 'Link',
 				label: __('Country'),
 				options: 'Country'
@@ -185,7 +185,7 @@ function setup_dialog_field_dependencies(dialog) {
 	};
 
 	// Other field changes
-	['department', 'designation', 'custom_country', 'first_name', 'last_name', 'only_without_users'].forEach(function(field) {
+	['department', 'designation', 'country', 'first_name', 'last_name', 'only_without_users'].forEach(function(field) {
 		dialog.fields_dict[field].df.onchange = function() {
 			load_employees_in_dialog(dialog);
 		};
@@ -196,7 +196,7 @@ function get_dialog_filters(dialog) {
 	let filters = {};
 
 	// Link fields use exact match
-	['company', 'department', 'designation', 'custom_country'].forEach(function(field) {
+	['company', 'department', 'designation', 'country'].forEach(function(field) {
 		let value = dialog.get_value(field);
 		if (value) {
 			filters[field] = value;
@@ -231,7 +231,7 @@ function load_employees_in_dialog(dialog) {
 		args: {
 			doctype: 'Employee',
 			filters: filters,
-			fields: ['name', 'first_name', 'last_name', 'company_email', 'company', 'department', 'designation', 'custom_country', 'user_id'],
+			fields: ['name', 'first_name', 'last_name', 'company_email', 'company', 'department', 'designation', 'country', 'user_id'],
 			limit_page_length: 0,
 			order_by: 'creation desc'
 		},
@@ -279,7 +279,7 @@ function display_employees_in_dialog(dialog, employees) {
 				<td>${frappe.utils.escape_html(employee.company_email || 'N/A')}</td>
 				<td>${frappe.utils.escape_html(employee.company || 'N/A')}</td>
 				<td>${frappe.utils.escape_html(employee.department || 'N/A')}</td>
-				<td>${frappe.utils.escape_html(employee.custom_country || 'N/A')}</td>
+				<td>${frappe.utils.escape_html(employee.country || 'N/A')}</td>
 				<td>${status}</td>
 			</tr>
 		`;
@@ -334,7 +334,7 @@ function get_selected_employees_from_dialog(dialog) {
 }
 
 function set_user_country(employee) {
-	if (!employee || !employee.company_email || !employee.custom_country) {
+	if (!employee || !employee.company_email || !employee.country) {
 		return;
 	}
 
@@ -344,7 +344,7 @@ function set_user_country(employee) {
 			doctype: 'User',
 			name: employee.company_email,
 			fieldname: 'country',
-			value: employee.custom_country
+			value: employee.country
 		}
 	});
 }
@@ -385,7 +385,7 @@ function process_bulk_employee_user_creation(employee_ids, filters) {
 					args: {
 						doctype: 'Employee',
 						name: employee_id,
-						fields: ['first_name', 'last_name', 'company_email', 'custom_country']
+						fields: ['first_name', 'last_name', 'company_email', 'country']
 					},
 					callback: function(emp_r) {
 						let employee = emp_r.message;
@@ -414,7 +414,7 @@ function process_bulk_employee_user_creation(employee_ids, filters) {
 					args: {
 						doctype: 'Employee',
 						name: employee_id,
-						fields: ['first_name', 'last_name', 'company_email', 'custom_country']
+						fields: ['first_name', 'last_name', 'company_email', 'country']
 					},
 					callback: function(emp_r) {
 						let employee = emp_r.message || {};
@@ -517,7 +517,7 @@ function open_bulk_resend_email_dialog(listview) {
 				options: 'Designation'
 			},
 			{
-				fieldname: 'custom_country',
+				fieldname: 'country',
 				fieldtype: 'Link',
 				label: __('Country'),
 				options: 'Country'
@@ -608,7 +608,7 @@ function setup_resend_dialog_field_dependencies_employee(dialog) {
 	};
 
 	// Other field changes
-	['department', 'designation', 'custom_country', 'first_name', 'last_name', 'only_with_users'].forEach(function(field) {
+	['department', 'designation', 'country', 'first_name', 'last_name', 'only_with_users'].forEach(function(field) {
 		dialog.fields_dict[field].df.onchange = function() {
 			load_employees_in_resend_dialog(dialog);
 		};
@@ -619,7 +619,7 @@ function get_resend_dialog_filters_employee(dialog) {
 	let filters = {};
 
 	// Link fields use exact match
-	['company', 'department', 'designation', 'custom_country'].forEach(function(field) {
+	['company', 'department', 'designation', 'country'].forEach(function(field) {
 		let value = dialog.get_value(field);
 		if (value) {
 			filters[field] = value;
@@ -654,7 +654,7 @@ function load_employees_in_resend_dialog(dialog) {
 		args: {
 			doctype: 'Employee',
 			filters: filters,
-			fields: ['name', 'first_name', 'last_name', 'company_email', 'company', 'department', 'designation', 'custom_country', 'user_id'],
+			fields: ['name', 'first_name', 'last_name', 'company_email', 'company', 'department', 'designation', 'country', 'user_id'],
 			limit_page_length: 0,
 			order_by: 'creation desc'
 		},
@@ -702,7 +702,7 @@ function display_employees_in_resend_dialog(dialog, employees) {
 				<td>${frappe.utils.escape_html(employee.company_email || 'N/A')}</td>
 				<td>${frappe.utils.escape_html(employee.company || 'N/A')}</td>
 				<td>${frappe.utils.escape_html(employee.department || 'N/A')}</td>
-				<td>${frappe.utils.escape_html(employee.custom_country || 'N/A')}</td>
+				<td>${frappe.utils.escape_html(employee.country || 'N/A')}</td>
 				<td>${status}</td>
 			</tr>
 		`;

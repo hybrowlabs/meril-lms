@@ -110,7 +110,10 @@ doc_events = {
 		"validate": "lms.lms.user.validate_username_duplicates",
 		"after_insert": "lms.lms.user.after_insert",
 	},
-    "Employee": {"after_insert": "lms.lms.user.create_user_from_employee"},
+	"Employee": {
+		"validate": "lms.lms.user.sync_employee_country",
+		"after_insert": "lms.lms.user.create_user_from_employee",
+	},
 	"Distributor": {"after_insert": "lms.lms.user.create_user_from_distributor_hook"},
 	"LMS Course": {"on_update": "lms.lms.api.auto_enroll_on_course_publish"},
 }

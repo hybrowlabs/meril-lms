@@ -87,6 +87,18 @@ def generate_and_save_otp():
 	otp = "123456"
 	return otp
 
+def sync_employee_country(doc, method=None):
+	# custom_country is hidden but can still arrive through imports or the API;
+	# copy it into the standard country field, which is the one the app reads.
+	# Otherwise mirror country back so the hidden value never goes stale.
+	if not doc.meta.has_field("custom_country"):
+		return
+	if doc.custom_country and doc.has_value_changed("custom_country"):
+		doc.country = doc.custom_country
+	else:
+		doc.custom_country = doc.country
+
+
 @frappe.whitelist()
 def create_user_from_employee(employee_id, _method):
 	# Check if automatic user creation is enabled when called as hook
@@ -102,18 +114,8 @@ def create_user_from_employee(employee_id, _method):
 	full_name = employee_doc.first_name + " " + employee_doc.last_name if employee_doc.last_name else employee_doc.first_name
 	email = employee_doc.company_email 
 	
-	# Check both country and custom_country fields
-	# If either is not India (or not set), use that value
-	country = None
-	if hasattr(employee_doc, 'custom_country') and employee_doc.custom_country:
-		if employee_doc.custom_country.lower() != 'india':
-			country = employee_doc.custom_country
-	if not country and hasattr(employee_doc, 'country') and employee_doc.country:
-		if employee_doc.country.lower() != 'india':
-			country = employee_doc.country
-	# If both are India or not set, default to India
-	if not country:
-		country = 'India'
+	# Default to India when the employee has no country set
+	country = employee_doc.country or 'India'
 
 	print( "email", email, "country", country)
 	# Check if user already exists

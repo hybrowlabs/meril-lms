@@ -76,9 +76,7 @@ def get_user_country_for_otp():
         if "Distributor" in roles:
             country = frappe.get_value("Distributor", {"user_id": user}, "country")
         elif "Employee" in roles:
-            employee = frappe.get_value("Employee", {"user_id": user}, ["country", "custom_country"], as_dict=True)
-            if employee:
-                country = employee.get("custom_country") or employee.get("country")
+            country = frappe.get_value("Employee", {"user_id": user}, "country")
     
     return country
 

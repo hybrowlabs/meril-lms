@@ -31,7 +31,7 @@ def get_applicable_templates(user_type, user_id, course, country=None):
     if not country:
         if user_type == 'employee':
             employee = frappe.get_doc("Employee", user_id)
-            country = getattr(employee, "custom_country", None) or getattr(employee, "country", None)
+            country = getattr(employee, "country", None)
         else:
             distributor = frappe.get_doc("Distributor", user_id)
             country = distributor.country
@@ -204,7 +204,7 @@ def get_template_preview(template_id, user_type=None, user_id=None):
             employee = frappe.get_doc("Employee", user_id)
             preview["user_context"] = {
                 "name": employee.employee_name,
-                "country": getattr(employee, "custom_country", None) or getattr(employee, "country", None)
+                "country": getattr(employee, "country", None)
             }
         elif user_type == 'distributor':
             distributor = frappe.get_doc("Distributor", user_id)

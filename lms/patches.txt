@@ -112,3 +112,4 @@ lms.patches.v2_0.move_batch_instructors_to_evaluators
 lms.patches.v2_0.clamp_enrollment_progress
 lms.patches.v2_0.repair_re_enrollment_progress
 lms.patches.v2_0.backfill_document_submission_datetime #05-09-2026
+lms.patches.v2_0.sync_employee_custom_country_to_country

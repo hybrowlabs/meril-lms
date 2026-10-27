@@ -199,7 +199,7 @@ class ReEnrollmentTestSuite:
                 "last_name": emp_config["name"].split()[-1] if len(emp_config["name"].split()) > 1 else "",
                 "employee_name": emp_config["name"],
                 "company_email": emp_config["email"],
-                "custom_country": emp_config["country"],
+                "country": emp_config["country"],
                 "user_id": emp_config["email"]
             })
             employee.insert(ignore_permissions=True)

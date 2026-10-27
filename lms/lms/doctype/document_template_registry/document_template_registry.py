@@ -129,8 +129,7 @@ class DocumentTemplateRegistry(Document):
         # Get user country if not provided
         if not country:
             if user_type == 'employee':
-                country = frappe.db.get_value("Employee", user_id, "custom_country") or \
-                         frappe.db.get_value("Employee", user_id, "country")
+                country = frappe.db.get_value("Employee", user_id, "country")
             else:
                 country = frappe.db.get_value("Distributor", user_id, "country")
 

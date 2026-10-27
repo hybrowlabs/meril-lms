@@ -94,7 +94,7 @@ def _resolve_employee_certificate_format(employee_doc, course_name=None, course_
     if _is_row_course(course_name) or _is_row_course(course_title):
         return "International Completion Certificate", "ROW1/ROW2 course detected - international format"
 
-    country = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip().lower()
+    country = (getattr(employee_doc, "country", None) or "").strip().lower()
     if country == "india":
         return "Employee Completion Certificate", "India country detected"
     return "International Completion Certificate", f"International country detected: {country or 'Unknown'}"
@@ -111,7 +111,7 @@ def get_employee_completion_certificate_name(employee_doc, course_name: str | No
         certificate_info = {
             "certificate_format": certificate_format,
             "reason": reason,
-            "country": getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None),
+            "country": getattr(employee_doc, "country", None),
             "course": course_name,
             "auto_selected": True,
             "timestamp": frappe.utils.now()
@@ -165,7 +165,7 @@ def get_employee_declaration_template(employee_doc, course_name: str | None = No
     """
 
     # Get employee country information
-    country_raw = (getattr(employee_doc, "custom_country", None) or getattr(employee_doc, "country", None) or "").strip()
+    country_raw = (getattr(employee_doc, "country", None) or "").strip()
     country_key = _normalize_text(country_raw).replace(" ", "")
 
     # Get course information

@@ -32,8 +32,7 @@ def get_employee_declaration_template_dynamic(employee_doc, course_name=None, co
         Dictionary with template information
     """
     # Get employee country
-    country_raw = (getattr(employee_doc, "custom_country", None) or
-                  getattr(employee_doc, "country", None) or "").strip()
+    country_raw = (getattr(employee_doc, "country", None) or "").strip()
 
     # Get course identifier
     course = course_title or course_name or ""
@@ -110,8 +109,7 @@ def get_employee_completion_certificate_name_dynamic(employee_doc, course_name=N
         String: Name of the print format to use
     """
     # Get employee country
-    country = (getattr(employee_doc, "custom_country", None) or
-              getattr(employee_doc, "country", None) or "").strip()
+    country = (getattr(employee_doc, "country", None) or "").strip()
 
     # Get course identifier
     course = course_title or course_name or ""
