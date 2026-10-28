@@ -3,7 +3,6 @@ import string
 import frappe
 import hashlib
 import json
-import razorpay
 import requests
 from frappe import _
 from frappe.desk.doctype.dashboard_chart.dashboard_chart import get_result
