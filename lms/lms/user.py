@@ -1449,19 +1449,7 @@ def update_distributor_profile(data):
             if key in filter_data:
                 filtered_data[key] = value
         distributor.update(filtered_data)
-        
-        # Handle child table data if provided
-        if "meril_company_table" in data and data["meril_company_table"]:
-            # Clear existing child table entries
-            distributor.meril_company_table = []
-            
-            # Add new child table entries
-            for item in data["meril_company_table"]:
-                distributor.append("meril_company_table", {
-                    "division": item.get("division"),
-                    "meril_company_name": item.get("meril_company_name")
-                })
-        
+        # meril_company_table is read-only on the profile page; leave the stored rows untouched
         distributor.save(ignore_permissions=True)
         user_doc.roles = [role for role in user_doc.roles if role.role != "Can Edit Own Profile"]
         user_doc.save(ignore_permissions=True)
