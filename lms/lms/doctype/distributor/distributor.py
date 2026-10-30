@@ -19,8 +19,11 @@ class Distributor(Document):
 	def validate(self):
 		self.normalise_identity()
 		self.validate_unique_email()
-		self.validate_company_rows()
-		self.sync_account_code()
+		# set by the distributor self-service profile save, which never touches the
+		# company rows; legacy rows may be incomplete and only an admin can fix them
+		if not self.flags.skip_company_row_validation:
+			self.validate_company_rows()
+			self.sync_account_code()
 
 	def normalise_identity(self):
 		self.distributor_name = (self.distributor_name or "").strip()

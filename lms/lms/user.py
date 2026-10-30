@@ -1450,6 +1450,7 @@ def update_distributor_profile(data):
                 filtered_data[key] = value
         distributor.update(filtered_data)
         # meril_company_table is read-only on the profile page; leave the stored rows untouched
+        distributor.flags.skip_company_row_validation = True
         distributor.save(ignore_permissions=True)
         user_doc.roles = [role for role in user_doc.roles if role.role != "Can Edit Own Profile"]
         user_doc.save(ignore_permissions=True)
